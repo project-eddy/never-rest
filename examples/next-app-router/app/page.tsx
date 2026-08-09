@@ -3,8 +3,9 @@ export default function HomePage() {
     <main style={{ fontFamily: "system-ui", padding: 24, maxWidth: 640 }}>
       <h1>never-rest · Next App Router</h1>
       <p>
-        API is mounted at <code>/api/*</code> via a catch-all route that calls{" "}
-        <code>serve()</code> with the shared users contract.
+        API is mounted at <code>/api/*</code> via a catch-all route that imports
+        the shared users contract, runs local handlers through{" "}
+        <code>serve()</code>, and strips the <code>/api</code> prefix.
       </p>
       <ul>
         <li>

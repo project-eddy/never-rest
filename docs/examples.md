@@ -5,7 +5,11 @@ description: Mini projects — shared contract across Express, Next, SvelteKit, 
 
 # Examples
 
-Runnable mini projects live under [`examples/`](../examples/). They share [`@never-rest-examples/shared-contract`](../examples/packages/shared-contract) so the import story matches ts-rest: one contract, many consumers.
+Runnable mini projects live under [`examples/`](../examples/). Read them as three lessons:
+
+1. **Shared contract** — [`packages/shared-contract`](../examples/packages/shared-contract): `usersContract` + `statuses` only
+2. **One framework mount** — each stack imports that contract, writes handlers, calls `serve`, then mounts
+3. **Gateway** — [`gateway`](../examples/gateway): `chain` + graded disclosure
 
 | Example | What it shows |
 | --- | --- |
@@ -18,12 +22,36 @@ Runnable mini projects live under [`examples/`](../examples/). They share [`@nev
 
 See [examples/README.md](../examples/README.md) for ports and commands.
 
-```ts
-import { createUsersServer } from '@never-rest-examples/shared-contract';
-import { toNodeHandler } from '@eddy-works/never-rest/node';
+Express mount (same idea in every stack — contract in, handlers + `serve` local):
 
-const handler = createUsersServer({ origin: 'express-demo' });
-app.use(toNodeHandler((request) => handler(request, undefined)));
+```ts
+import { err, ok } from 'neverthrow';
+import { railError } from '@eddy-works/never-rest';
+import { toNodeHandler } from '@eddy-works/never-rest/node';
+import { serve, type Handlers } from '@eddy-works/never-rest/server';
+import {
+  statuses,
+  usersContract,
+} from '@never-rest-examples/shared-contract';
+
+const usersHandlers: Handlers<typeof usersContract, undefined> = {
+  getUser: ({ input }) => ok({ id: input.id, name: 'Ada' }),
+  // …
+};
+
+const usersApi = serve(usersContract, usersHandlers, {
+  statuses,
+  origin: 'express-demo',
+});
+
+const nodeHandler = toNodeHandler((request) => {
+  const context = undefined;
+  return usersApi(request, context);
+});
+
+app.use(nodeHandler);
 ```
 
-`toNodeHandler` is a thin `IncomingMessage`/`ServerResponse` bridge — not Express middleware or an auth framework. Fetch-native runtimes call `serve()` (or `createUsersServer()`) directly.
+`toNodeHandler` is a thin `IncomingMessage`/`ServerResponse` bridge — not
+Express middleware or an auth framework. Fetch-native runtimes call
+`serve()` directly with a Web `Request`.

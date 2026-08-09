@@ -5,9 +5,9 @@
 <main style="font-family: system-ui; padding: 24px; max-width: 640px">
   <h1>never-rest · SvelteKit</h1>
   <p>
-    <code>hooks.server.ts</code> forwards <code>/users*</code> to
-    <code>serve()</code> with the shared users contract (paths match the contract
-    exactly).
+    <code>hooks.server.ts</code> imports the shared users contract, runs local
+    handlers through <code>serve()</code>, and forwards <code>/users*</code>
+    (paths match the contract exactly).
   </p>
   <ul>
     <li><code>GET /users</code></li>
