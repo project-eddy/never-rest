@@ -1,0 +1,12 @@
+{
+  "pages": [
+    "index",
+    "concepts",
+    "api",
+    "examples",
+    "errors-as-intelligence",
+    "comparison",
+    "migrating",
+    "performance"
+  ]
+}

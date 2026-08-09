@@ -12,6 +12,7 @@ HTTP contracts where handlers return `Result` instead of throwing. Errors carry 
 | `@eddy-works/never-rest/contract` | `RouteDef`, `ContractDef`, `InputOf`, `OutputOf`, `ErrorOf`, `parseInput`, `compilePath`, `matchPath` |
 | `@eddy-works/never-rest/server` | `serve`, `Handler`, `Handlers`, `compileRoutes`, `matchRoute` |
 | `@eddy-works/never-rest/client` | `createClient`, `Client`, `ClientOptions` |
+| `@eddy-works/never-rest/node` | `toNodeHandler`, `FetchHandler`, `NodeHttpHandler` |
 
 ## The problem
 
@@ -33,6 +34,7 @@ const contract = {
   getUser: {
     method: 'GET',
     path: '/users/:id',
+    input: z.object({ id: z.string() }),
     output: userSchema,
     errors: ['not_found'],
   },
@@ -53,7 +55,7 @@ const statuses = {
 } as const;
 
 const handlers: Handlers<typeof contract, undefined> = {
-  getUser: ({ params }) => ok({ id: params.id, name: 'Ada' }),
+  getUser: ({ input }) => ok({ id: input.id, name: 'Ada' }),
   createUser: ({ input }) => ok({ id: 'new', name: input.name }),
 };
 
@@ -67,21 +69,29 @@ export default serve(contract, handlers, {
 // Client — composes with neverthrow
 const client = createClient(contract, { baseUrl: 'https://api.example.com' });
 
+await client.getUser({ id: 'u1' });
 await client.createUser({ name: 'Grace' });
-
-// Routes with :params need matching keys in input (see src/client/create.test.ts)
 ```
 
-Bring any Standard Schema validator (Zod 4, Valibot, ArkType). `serve` returns `(request, context) => Promise<Response>` on Workers, Deno, Bun, Node 18+, SvelteKit, Next.
+Bring any Standard Schema validator (Zod 4, Valibot, ArkType). `serve` returns `(request, context) => Promise<Response>` on Workers, Deno, Bun, Node 18+, SvelteKit, Next. For classic Node/`http` or Express, use [`toNodeHandler`](docs/api.md#tonodehandler) from `@eddy-works/never-rest/node`.
 
-## Example
+## Examples
 
-[examples/gateway/](examples/gateway/) — downstream inventory failure chained through an orders gateway, same error at `full`, `internal`, and `public` disclosure:
+Mini projects share one contract and mount it on different runtimes — see [examples/README.md](examples/README.md):
+
+| Example | Runtime |
+| --- | --- |
+| [express](examples/express) | Express via `./node` |
+| [hono](examples/hono) | Hono |
+| [next-app-router](examples/next-app-router) | Next.js App Router |
+| [sveltekit](examples/sveltekit) | SvelteKit |
+| [cloudflare-workers](examples/cloudflare-workers) | Cloudflare Workers |
+| [gateway](examples/gateway) | Cause chains + disclosure |
 
 ```bash
-pnpm build && node --experimental-strip-types examples/gateway/run.ts
+pnpm build
+pnpm --filter @never-rest-examples/express start
 ```
-
 ## Type budget
 
 never-rest optimises for **measured TypeScript instantiations per route**, enforced in CI via `@ark/attest`. On synthetic 1–40 route fixtures against real `src` types (TypeScript 5.9.3), combined contract + client marginal slope is **~584 instantiations per route**. Published budget: **1,800 per route**. Research anchor for `@ts-rest/core`'s `c.router()` DSL: ~5,984 per route — roughly **10×** never-rest.
@@ -98,10 +108,13 @@ Methodology, reproduction, and slope breakdown: [docs/performance.md](docs/perfo
 
 ## Documentation
 
+Browsable site: [project-eddy.github.io/never-rest](https://project-eddy.github.io/never-rest/) (GitHub Pages).
+
 | Doc | Topic |
 | --- | --- |
 | [docs/concepts.md](docs/concepts.md) | Railway at the boundary, errors as data, trust circles |
 | [docs/api.md](docs/api.md) | Every public export, signature, example |
+| [docs/examples.md](docs/examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway |
 | [docs/errors-as-intelligence.md](docs/errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |
 | [docs/comparison.md](docs/comparison.md) | vs ts-rest and oRPC (versions, trade-offs) |
 | [docs/migrating.md](docs/migrating.md) | From ts-rest, oRPC, throwing handlers |

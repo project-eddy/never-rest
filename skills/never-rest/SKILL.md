@@ -31,6 +31,8 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | What path patterns are supported? | [api.md — compilePath](docs/api.md#compilepath) (exact segments, single `:param`) |
 | How do I implement a handler? | [api.md — Handler](docs/api.md#handler) · [api.md — Handlers](docs/api.md#handlers) |
 | How do I expose the server on fetch? | [api.md — serve](docs/api.md#serve) |
+| How do I mount on Node http / Express? | [api.md — toNodeHandler](docs/api.md#tonodehandler) · [examples/express](examples/express) |
+| Where are runnable framework examples? | [examples/README.md](examples/README.md) · [docs/examples.md](docs/examples.md) |
 | How do I create a typed client? | [api.md — createClient](docs/api.md#createclient) |
 | How do I chain client calls with neverthrow? | [api.md — Client](docs/api.md#client) · [specs/client-results.md](specs/client-results.md) → `src/client/create.test.ts` |
 | What does the client do on network failure? | [api.md — createClient](docs/api.md#createclient) · [specs/client-results.md](specs/client-results.md) |
@@ -80,6 +82,9 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | `ClientOptions` | `./client` | [api.md#clientoptions](docs/api.md#clientoptions) |
 | `Client` | `./client` | [api.md#client](docs/api.md#client) |
 | `createClient` | `./client` | [api.md#createclient](docs/api.md#createclient) |
+| `toNodeHandler` | `./node` | [api.md#tonodehandler](docs/api.md#tonodehandler) |
+| `FetchHandler` | `./node` | [api.md#fetchhandler](docs/api.md#fetchhandler) |
+| `NodeHttpHandler` | `./node` | [api.md#nodehttphandler](docs/api.md#nodehttphandler) |
 
 ## Spec → topic → tests
 
