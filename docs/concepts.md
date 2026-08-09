@@ -1,3 +1,8 @@
+---
+title: Concepts
+description: Railway at the HTTP boundary, errors as data, and graded disclosure.
+---
+
 # Concepts
 
 ## Railway at the boundary

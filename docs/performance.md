@@ -1,3 +1,8 @@
+---
+title: Type performance budget
+description: Published per-route TypeScript instantiation budget and how CI enforces it.
+---
+
 # Type performance budget
 
 never-rest publishes a **per-route TypeScript instantiation budget** and enforces it in CI. The goal is to keep contract-first ergonomics without the DSL tax of builder chains like `@ts-rest/core`'s `c.router()`.

@@ -3,5 +3,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     passWithNoTests: true,
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.test-d.ts'],
+      reporter: ['text', 'text-summary', 'html'],
+    },
   },
 });

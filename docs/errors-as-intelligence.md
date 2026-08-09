@@ -1,3 +1,8 @@
+---
+title: Errors as intelligence
+description: RailError fields for agents and gateways — nextStep, origin, retryable, cause chains.
+---
+
 # Errors as intelligence
 
 `RailError` is designed for machines and humans who need to **act** on failure — especially agents calling internal APIs through a gateway.
