@@ -20,16 +20,20 @@ Most REST libraries assume handlers throw. Middleware intercepts exceptions, typ
 
 ## Quickstart
 
+Handlers return a neverthrow `Result` — never throw. Compose with `map` / `andThen` on the server; the client is the same `ResultAsync` shape.
+
 ```ts
-import { ok, err } from 'neverthrow';
+import { ok, err, type Result } from 'neverthrow';
 import { z } from 'zod';
-import { railError } from '@eddy-works/never-rest';
+import { railError, type RailError } from '@eddy-works/never-rest';
 import type { ContractDef } from '@eddy-works/never-rest/contract';
 import { serve, type Handlers } from '@eddy-works/never-rest/server';
 import { createClient } from '@eddy-works/never-rest/client';
 
 const userSchema = z.object({ id: z.string(), name: z.string() });
+type User = z.infer<typeof userSchema>;
 
+// Plumbing — declare routes, schemas, and status map.
 const contract = {
   getUser: {
     method: 'GET',
@@ -54,11 +58,37 @@ const statuses = {
   internal: 500,
 } as const;
 
+// Business logic — compose with `map` / `andThen` the same way as the client.
+const users = new Map<string, User>([['ada', { id: 'ada', name: 'Ada' }]]);
+
+function findUser(id: string): Result<User, RailError<'not_found'>> {
+  const user = users.get(id);
+  if (user === undefined) {
+    return err(railError('not_found', `User ${id} not found`));
+  }
+  return ok(user);
+}
+
+function reserveId(name: string): Result<string, RailError<'conflict'>> {
+  const id = name.toLowerCase();
+  if (users.has(id)) {
+    return err(railError('conflict', `User ${id} already exists`));
+  }
+  return ok(id);
+}
+
 const handlers: Handlers<typeof contract, undefined> = {
-  getUser: ({ input }) => ok({ id: input.id, name: 'Ada' }),
-  createUser: ({ input }) => ok({ id: 'new', name: input.name }),
+  getUser: ({ input }): Result<User, RailError<'not_found'>> =>
+    findUser(input.id).map((user) => ({ ...user, name: user.name.trim() })),
+  createUser: ({ input }): Result<User, RailError<'conflict'>> =>
+    reserveId(input.name).map((id) => {
+      const user = { id, name: input.name };
+      users.set(id, user);
+      return user;
+    }),
 };
 
+// Plumbing — mount the contract; disclosure grades what callers see.
 export default serve(contract, handlers, {
   statuses,
   origin: 'users-api',
@@ -66,11 +96,15 @@ export default serve(contract, handlers, {
     req.headers.get('x-internal') === '1' ? 'full' : 'public',
 });
 
-// Client — composes with neverthrow
 const client = createClient(contract, { baseUrl: 'https://api.example.com' });
 
-await client.getUser({ id: 'u1' });
-await client.createUser({ name: 'Grace' });
+await client
+  .getUser({ id: 'ada' })
+  .andThen((user) => client.createUser({ name: `${user.name} Jr` }))
+  .match(
+    (user) => console.log(user.id),
+    (error) => console.error(error.code), // not_found | conflict | …
+  );
 ```
 
 Bring any Standard Schema validator (Zod 4, Valibot, ArkType). `serve` returns `(request, context) => Promise<Response>` on Workers, Deno, Bun, Node 18+, SvelteKit, Next. For classic Node/`http` or Express, use [`toNodeHandler`](docs/api.md#tonodehandler) from `@eddy-works/never-rest/node`.
