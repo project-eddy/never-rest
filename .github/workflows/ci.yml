@@ -39,6 +39,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Examples typecheck
+        run: pnpm examples:typecheck
+
       - name: Publint
         run: pnpm exec publint
 

@@ -3,3 +3,11 @@ dist/
 coverage/
 *.tsbuildinfo
 .DS_Store
+website/.next/
+website/out/
+website/.source/
+website/next-env.d.ts
+examples/**/.next/
+examples/**/.svelte-kit/
+examples/**/.wrangler/
+examples/**/.vercel/

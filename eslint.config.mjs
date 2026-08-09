@@ -7,6 +7,11 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/dist/**",
       "**/.tmp/**",
+      "website/**",
+      "coverage/**",
+      "examples/**/.next/**",
+      "examples/**/.svelte-kit/**",
+      "examples/**/.wrangler/**",
       // @ark/attest benches use `undefined as undefined` and type-only bindings by design
       "perf/benches/**",
     ],
