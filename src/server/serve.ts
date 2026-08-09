@@ -16,6 +16,7 @@ export type Handler<TRoute extends RouteDef, TContext> = (
     context: TContext;
   },
 ) =>
+  | Result<OutputOf<TRoute>, RailError<TRoute['errors'][number]>>
   | ResultAsync<OutputOf<TRoute>, RailError<TRoute['errors'][number]>>
   | Promise<Result<OutputOf<TRoute>, RailError<TRoute['errors'][number]>>>;
 
@@ -66,6 +67,29 @@ function searchParamsToObject(url: URL): Record<string, string> {
     values[key] = value;
   });
   return values;
+}
+
+/** Merge URL path params into body/query input so `:id` keys validate like the client sends. */
+function mergePathParamsIntoInput(
+  rawInput: unknown,
+  params: Record<string, string>,
+): unknown {
+  const keys = Object.keys(params);
+  if (keys.length === 0) {
+    return rawInput;
+  }
+
+  const base: Record<string, unknown> =
+    typeof rawInput === 'object' &&
+    rawInput !== null &&
+    !Array.isArray(rawInput)
+      ? { ...(rawInput as Record<string, unknown>) }
+      : {};
+
+  for (const key of keys) {
+    base[key] = params[key];
+  }
+  return base;
 }
 
 async function readRequestInput(
@@ -181,7 +205,11 @@ export function serve<TContract extends ContractDef, TContext>(
       return respondWithError(rawInputResult.error, options, declared, disclosure);
     }
 
-    const inputResult = await parseInput(route, rawInputResult.value);
+    const mergedInput = mergePathParamsIntoInput(
+      rawInputResult.value,
+      match.params,
+    );
+    const inputResult = await parseInput(route, mergedInput);
     if (inputResult.isErr()) {
       return respondWithError(inputResult.error, options, declared, disclosure);
     }

@@ -302,4 +302,31 @@ describe('serve', () => {
       },
     });
   });
+
+  it('merges path params into input before validation', async () => {
+    const withPathInput = {
+      getUser: {
+        method: 'GET' as const,
+        path: '/users/:id',
+        input: z.object({ id: z.string() }),
+        output: userSchema,
+        errors: ['not_found'],
+      },
+    } satisfies ContractDef;
+
+    const handler = serve(
+      withPathInput,
+      {
+        getUser: ({ input }) => ok({ id: input.id, name: 'Ada' }),
+      },
+      { statuses, origin: 'users-api' },
+    );
+
+    const response = await handler(
+      new Request('http://localhost/users/u1'),
+      undefined,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ id: 'u1', name: 'Ada' });
+  });
 });
