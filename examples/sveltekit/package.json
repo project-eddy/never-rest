@@ -1,0 +1,24 @@
+{
+  "name": "@never-rest-examples/sveltekit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3004",
+    "start": "vite dev --port 3004",
+    "build": "vite build",
+    "typecheck": "svelte-kit sync && tsc --noEmit"
+  },
+  "dependencies": {
+    "@eddy-works/never-rest": "workspace:*",
+    "@never-rest-examples/shared-contract": "workspace:*"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^6.0.1",
+    "@sveltejs/kit": "^2.22.2",
+    "@sveltejs/vite-plugin-svelte": "^5.1.0",
+    "svelte": "^5.34.8",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}

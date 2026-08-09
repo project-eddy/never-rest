@@ -1,0 +1,20 @@
+{
+  "name": "@never-rest-examples/cloudflare-workers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "wrangler dev --port 3005",
+    "dev": "wrangler dev --port 3005",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@eddy-works/never-rest": "workspace:*",
+    "@never-rest-examples/shared-contract": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260809.1",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.24.0"
+  }
+}
