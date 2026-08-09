@@ -1,15 +1,16 @@
 ---
 title: Examples
-description: Mini projects — shared contract across Express, Next, SvelteKit, Hono, and Cloudflare Workers.
+description: Mini projects — shared contract across Express, Next, SvelteKit, Hono, Workers, plus Zod/Valibot/ArkType.
 ---
 
 # Examples
 
-Runnable mini projects live under [`examples/`](../examples/). Read them as three lessons:
+Runnable mini projects live under [`examples/`](../examples/). Read them as four lessons:
 
 1. **Shared contract** — [`packages/shared-contract`](../examples/packages/shared-contract): `usersContract` + `statuses` only
 2. **One framework mount** — each stack imports that contract, writes handlers, calls `serve`, then mounts
 3. **Gateway** — [`gateway`](../examples/gateway): `chain` + graded disclosure
+4. **Validators** — [`validators`](../examples/validators): same contract in Zod, Valibot, and ArkType
 
 | Example | What it shows |
 | --- | --- |
@@ -19,6 +20,9 @@ Runnable mini projects live under [`examples/`](../examples/). Read them as thre
 | [SvelteKit](../examples/sveltekit) | `hooks.server.ts` |
 | [Cloudflare Workers](../examples/cloudflare-workers) | Worker `fetch` handler |
 | [Gateway](../examples/gateway) | `chain` + graded disclosure |
+| [Validators](../examples/validators) | Zod / Valibot / ArkType (Standard Schema) |
+
+Yup is not supported: never-rest requires [Standard Schema](https://standardschema.dev/), which Yup does not implement.
 
 See [examples/README.md](../examples/README.md) for ports and commands.
 

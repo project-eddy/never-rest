@@ -87,6 +87,7 @@ Mini projects share one contract and mount it on different runtimes — see [exa
 | [sveltekit](examples/sveltekit) | SvelteKit |
 | [cloudflare-workers](examples/cloudflare-workers) | Cloudflare Workers |
 | [gateway](examples/gateway) | Cause chains + disclosure |
+| [validators](examples/validators) | Zod / Valibot / ArkType |
 
 ```bash
 pnpm build

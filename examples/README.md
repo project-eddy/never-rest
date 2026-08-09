@@ -1,6 +1,6 @@
 # Examples
 
-Runnable mini projects that teach never-rest in three lessons.
+Runnable mini projects that teach never-rest in four lessons.
 
 ## Learning path
 
@@ -19,8 +19,10 @@ Runnable mini projects that teach never-rest in three lessons.
    Two in-process services, `chain`, and graded disclosure (`full` /
    `internal` / `public`).
 
-Validators other than Zod (Valibot, ArkType, …) work the same via Standard
-Schema. These demos use Zod so the examples stay short.
+4. **Lesson 4 — Validators**  
+   [`validators`](validators)  
+   Same users contract in Zod, Valibot, and ArkType. Framework mounts stay
+   on Zod; this package is the Standard Schema swap demo.
 
 One contract, many consumers: every framework example imports
 `usersContract` from `@never-rest-examples/shared-contract` so you can
@@ -36,6 +38,7 @@ compare mounts without rewriting the route table.
 | [`sveltekit`](sveltekit) | SvelteKit | 3004 | `hooks.server.ts` for `/users*` |
 | [`cloudflare-workers`](cloudflare-workers) | Cloudflare Workers | 3005 | Worker `fetch` calls `serve()` |
 | [`gateway`](gateway) | In-process | — | Cause chains + graded disclosure |
+| [`validators`](validators) | In-process | — | Zod / Valibot / ArkType via Standard Schema |
 
 ## Run
 
