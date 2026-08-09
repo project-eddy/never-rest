@@ -5,8 +5,8 @@ error with `chain`, and the same handler response is rendered at `full`, `intern
 and `public` disclosure.
 
 ```bash
-pnpm build
-node --experimental-strip-types examples/gateway/run.ts
+pnpm --filter @eddy-works/never-rest build
+pnpm --filter @never-rest-examples/gateway start
 ```
 
 Expect a two-deep cause chain at `full`, cause dropped at `internal`/`public`, and

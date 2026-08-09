@@ -1,6 +1,5 @@
 /**
- * Example gateway: inventory fails → orders wraps with chain → three disclosure levels.
- * Run: pnpm exec tsx examples/gateway/run.ts  (or node --experimental-strip-types)
+ * Gateway demo: inventory fails → orders wraps with chain → three disclosure levels.
  */
 import { err, ok } from 'neverthrow';
 import { z } from 'zod';
@@ -10,10 +9,10 @@ import {
   disclose,
   formatChain,
   railError,
-} from '../../dist/index.js';
-import type { ContractDef } from '../../dist/contract/index.js';
-import { createClient } from '../../dist/client/index.js';
-import { serve, type Handlers } from '../../dist/server/index.js';
+} from '@eddy-works/never-rest';
+import type { ContractDef } from '@eddy-works/never-rest/contract';
+import { createClient } from '@eddy-works/never-rest/client';
+import { serve, type Handlers } from '@eddy-works/never-rest/server';
 
 const statuses = {
   validation_error: 400,
@@ -114,7 +113,10 @@ async function renderAt(
   console.log(JSON.stringify(body, null, 2));
   if (disclosure === 'full' && body && typeof body === 'object' && 'code' in body) {
     console.log('\nformatChain:\n' + formatChain(body as never));
-    console.log('\ndisclose(public):', JSON.stringify(disclose(body as never, 'public')));
+    console.log(
+      '\ndisclose(public):',
+      JSON.stringify(disclose(body as never, 'public')),
+    );
   }
 }
 
