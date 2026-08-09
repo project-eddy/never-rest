@@ -230,6 +230,34 @@ importers:
         specifier: ^6.3.5
         version: 6.4.3(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.11)(yaml@2.9.0)
 
+  examples/validators:
+    dependencies:
+      '@eddy-works/never-rest':
+        specifier: workspace:*
+        version: link:../..
+      arktype:
+        specifier: ^2.2.3
+        version: 2.2.3
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
+      valibot:
+        specifier: ^1.4.2
+        version: 1.4.2(typescript@5.9.3)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.3.0
+        version: 24.13.3
+      tsx:
+        specifier: ^4.20.3
+        version: 4.23.11
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+
   website:
     dependencies:
       cnfast:

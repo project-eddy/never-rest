@@ -1,0 +1,22 @@
+{
+  "name": "@never-rest-examples/validators",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@eddy-works/never-rest": "workspace:*",
+    "arktype": "^2.2.3",
+    "neverthrow": "^8.2.0",
+    "valibot": "^1.4.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}
