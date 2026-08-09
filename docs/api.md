@@ -1,6 +1,11 @@
+---
+title: API reference
+description: Public exports for never-rest — errors, contract, server, and client.
+---
+
 # API reference
 
-Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `./client`.
+Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `./client`, `./node`.
 
 | Module | Status |
 | --- | --- |
@@ -8,6 +13,7 @@ Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `.
 | `./contract` | **Shipped** |
 | `./server` | **Shipped** |
 | `./client` | **Shipped** |
+| `./node` | **Shipped** |
 
 Types import `Result` / `ResultAsync` from `neverthrow`.
 
@@ -374,10 +380,12 @@ type Handler<TRoute extends RouteDef, TContext> = (
     request: Request;
     context: TContext;
   },
-) => ResultAsync<OutputOf<TRoute>, RailError<TRoute['errors'][number]>>
+) => Result<OutputOf<TRoute>, RailError<TRoute['errors'][number]>>
+  | ResultAsync<OutputOf<TRoute>, RailError<TRoute['errors'][number]>>
   | Promise<Result<OutputOf<TRoute>, RailError<TRoute['errors'][number]>>>;
 ```
 
+Sync `ok` / `err`, `ResultAsync`, or `Promise<Result>` are all accepted.
 ### `Handlers`
 
 ```ts
@@ -429,7 +437,7 @@ await handler(new Request('http://localhost/users/u1'), { requestId: 'r1' });
 
 **Routing:** exact paths and single `:param` segments, declaration order. Unmatched requests → `not_found` at `statuses.not_found`.
 
-**Input:** `GET` / `DELETE` read query params; `POST` / `PUT` / `PATCH` read JSON body (invalid JSON → `validation_error`).
+**Input:** `GET` / `DELETE` read query params; `POST` / `PUT` / `PATCH` read JSON body (invalid JSON → `validation_error`). Path `:param` values are merged into that input before `parseInput`, so a client-shaped `input: z.object({ id: z.string() })` validates against `/users/:id`.
 
 **Declared statuses** per route: `200`, each route error code, `validation_error` when the route has `input`, and `internal`. Undeclared mapped statuses degrade to `500`.
 
@@ -489,3 +497,46 @@ await client
 **Behaviour:** validates input via `parseInput`; path `:param` keys are taken from input, remainder sent as JSON body (`POST`/`PUT`/`PATCH`) or query string (`GET`/`DELETE`). 2xx → `Ok` (output schema); JSON `RailError` with a declared code → `Err`; undeclared error code → `Err(internal)`; non-JSON body → `Err(internal)`; network failure → `Err(unavailable, { retryable: true })`. Never throws.
 
 **Tests:** `src/client/create.test.ts` — scenarios from [specs/client-results.md](../specs/client-results.md).
+
+---
+
+## `@eddy-works/never-rest/node`
+
+Thin Node `http` / Express bridge. Not middleware, auth, or a framework adapter suite — only `Request`/`Response` ↔ `IncomingMessage`/`ServerResponse`.
+
+### `FetchHandler`
+
+```ts
+type FetchHandler = (request: Request) => Response | Promise<Response>;
+```
+
+### `NodeHttpHandler`
+
+```ts
+type NodeHttpHandler = (
+  req: IncomingMessage,
+  res: ServerResponse,
+) => Promise<void>;
+```
+
+### `toNodeHandler`
+
+```ts
+function toNodeHandler(handler: FetchHandler): NodeHttpHandler;
+```
+
+```ts
+import { createServer } from 'node:http';
+import { serve } from '@eddy-works/never-rest/server';
+import { toNodeHandler } from '@eddy-works/never-rest/node';
+
+const handler = serve(contract, handlers, { statuses, origin: 'users-api' });
+createServer(toNodeHandler((request) => handler(request, undefined))).listen(3000);
+
+// Express
+app.use(toNodeHandler((request) => handler(request, undefined)));
+```
+
+Close over `serve` context when needed: `toNodeHandler((req) => handler(req, ctx))`.
+
+**Tests:** `src/node/to-node-handler.test.ts`.

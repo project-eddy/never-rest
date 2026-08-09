@@ -1,3 +1,8 @@
+---
+title: Comparison
+description: never-rest versus ts-rest and oRPC — versions, trade-offs, and when to prefer each.
+---
+
 # Comparison
 
 Checkable anchors as of project research (August 2026). Re-verify versions before citing externally.
@@ -11,6 +16,7 @@ Checkable anchors as of project research (August 2026). Re-verify versions befor
 | Client model | `ResultAsync`, composable | Varies by adapter | `safe()` tuple; no `andThen` chain |
 | Validation | Standard Schema (bring your validator) | Zod-first; Zod 4 gaps in shipped types | Standard Schema |
 | Middleware | None — use `andThen` | Built-in interceptors | Built-in |
+| Node bridge | `./node` `toNodeHandler` | Adapters (Express, …) | Adapters / plugins |
 | Type cost (20-route fixture, per route) | Spike ~1,346; budget 1,800 | ~5,984 (`c.router()`) | Not published by oRPC |
 | Plain object control | ~1,193 per route (no library) | — | — |
 
@@ -68,4 +74,4 @@ oRPC's own docs warn repeatedly not to put sensitive data in `ORPCError.data`; n
 
 **Not in v0.1**
 
-OpenAPI codegen, middleware, framework adapters, TanStack Query integrations, streaming, multipart, CLI/codegen, wildcards/nested routers. See the plan's exclusion table.
+OpenAPI codegen, middleware, TanStack Query integrations, streaming, multipart, CLI/codegen, wildcards/nested routers. A thin Node bridge (`./node` → `toNodeHandler`) ships for Express/`http`; full framework adapter suites are out of scope. See the plan's exclusion table.

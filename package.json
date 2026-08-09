@@ -25,15 +25,23 @@
     "./client": {
       "types": "./dist/client/index.d.ts",
       "import": "./dist/client/index.js"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "import": "./dist/node/index.js"
     }
   },
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "build": "tsc -p tsconfig.build.json",
     "perf:check": "node scripts/typeperf.mjs",
-    "specs:extract": "node scripts/extract-gherkin.mjs specs/"
+    "specs:extract": "node scripts/extract-gherkin.mjs specs/",
+    "docs:dev": "pnpm --filter website dev",
+    "docs:build": "pnpm --filter website build",
+    "examples:typecheck": "pnpm -r --filter \"./examples/**\" typecheck"
   },
   "repository": {
     "type": "git",
@@ -46,6 +54,11 @@
   "peerDependencies": {
     "neverthrow": "^8.0.0"
   },
+  "peerDependenciesMeta": {
+    "@types/node": {
+      "optional": true
+    }
+  },
   "dependencies": {
     "@standard-schema/spec": "^1.0.0"
   },
@@ -53,15 +66,17 @@
     "@arethetypeswrong/cli": "^0.18.1",
     "@ark/attest": "^0.56.3",
     "@eslint/js": "^9.28.0",
+    "@types/node": "^24.3.0",
+    "@vitest/coverage-v8": "^3.2.7",
+    "arktype": "^2.2.3",
     "eslint": "^9.28.0",
     "neverthrow": "^8.2.0",
     "publint": "^0.3.12",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.33.1",
-    "vitest": "^3.2.4",
-    "zod": "^4.4.3",
     "valibot": "^1.4.2",
-    "arktype": "^2.2.3"
+    "vitest": "^3.2.4",
+    "zod": "^4.4.3"
   },
   "packageManager": "pnpm@10.33.3",
   "engines": {
@@ -77,6 +92,9 @@
       ],
       "client": [
         "./dist/client/index.d.ts"
+      ],
+      "node": [
+        "./dist/node/index.d.ts"
       ]
     }
   }
