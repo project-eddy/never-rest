@@ -7,8 +7,9 @@ const config = {
   output: "export",
   trailingSlash: true,
   images: { unoptimized: true },
-  basePath: "/never-rest",
-  assetPrefix: "/never-rest",
+  // Private GitHub Pages serves at the unique pages.github.io root (not /never-rest).
+  // Re-add basePath/assetPrefix '/never-rest' if the repo becomes public
+  // (project-eddy.github.io/never-rest).
   reactStrictMode: true,
 };
 

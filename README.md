@@ -108,7 +108,7 @@ Methodology, reproduction, and slope breakdown: [docs/performance.md](docs/perfo
 
 ## Documentation
 
-Browsable site: [project-eddy.github.io/never-rest](https://project-eddy.github.io/never-rest/) (GitHub Pages).
+Browsable site: [congenial-adventure-r229nj4.pages.github.io](https://congenial-adventure-r229nj4.pages.github.io/) (private GitHub Pages — sign in to GitHub to view).
 
 | Doc | Topic |
 | --- | --- |
