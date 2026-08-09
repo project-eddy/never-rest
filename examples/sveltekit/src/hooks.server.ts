@@ -1,16 +1,53 @@
 import type { Handle } from '@sveltejs/kit';
+import { err, ok } from 'neverthrow';
 
-import { createUsersServer } from '@never-rest-examples/shared-contract';
+import { railError } from '@eddy-works/never-rest';
+import { serve, type Handlers } from '@eddy-works/never-rest/server';
+import {
+  statuses,
+  usersContract,
+} from '@never-rest-examples/shared-contract';
 
-const api = createUsersServer({ origin: 'sveltekit-demo' });
+const users = new Map<string, { id: string; name: string }>([
+  ['ada', { id: 'ada', name: 'Ada Lovelace' }],
+]);
+
+const usersHandlers: Handlers<typeof usersContract, undefined> = {
+  getUser: ({ input }) => {
+    const user = users.get(input.id);
+    if (user === undefined) {
+      return err(railError('not_found', `User ${input.id} not found`));
+    }
+    return ok(user);
+  },
+
+  createUser: ({ input }) => {
+    const lowerName = input.name.toLowerCase();
+    const id = lowerName.replace(/\s+/g, '-');
+    if (users.has(id)) {
+      return err(railError('conflict', `User ${id} already exists`));
+    }
+    const user = { id, name: input.name };
+    users.set(id, user);
+    return ok(user);
+  },
+
+  listUsers: () => ok([...users.values()]),
+};
+
+const usersApi = serve(usersContract, usersHandlers, {
+  statuses,
+  origin: 'sveltekit-demo',
+});
 
 function isApiPath(pathname: string): boolean {
   return pathname === '/users' || pathname.startsWith('/users/');
 }
 
+// Intercept /users* here (instead of +server.ts) so one place covers every verb/path.
 export const handle: Handle = async ({ event, resolve }) => {
   if (isApiPath(event.url.pathname)) {
-    return api(event.request, undefined);
+    return usersApi(event.request, undefined);
   }
   return resolve(event);
 };

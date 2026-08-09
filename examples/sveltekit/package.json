@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@eddy-works/never-rest": "workspace:*",
-    "@never-rest-examples/shared-contract": "workspace:*"
+    "@never-rest-examples/shared-contract": "workspace:*",
+    "neverthrow": "^8.2.0"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^6.0.1",

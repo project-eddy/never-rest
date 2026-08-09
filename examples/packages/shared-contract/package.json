@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@eddy-works/never-rest": "workspace:*",
-    "neverthrow": "^8.2.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

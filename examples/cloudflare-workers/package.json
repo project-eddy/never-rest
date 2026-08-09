@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@eddy-works/never-rest": "workspace:*",
-    "@never-rest-examples/shared-contract": "workspace:*"
+    "@never-rest-examples/shared-contract": "workspace:*",
+    "neverthrow": "^8.2.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260809.1",

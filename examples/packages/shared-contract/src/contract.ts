@@ -7,10 +7,7 @@ export const userSchema = z.object({
   name: z.string(),
 });
 
-/**
- * Shared demo contract — imported by every framework example.
- * Path `:param` keys belong in `input` so the typed client can build URLs.
- */
+// Every `:param` in path must also appear in `input` (needed for the typed client).
 export const usersContract = {
   getUser: {
     method: 'GET',
@@ -34,6 +31,7 @@ export const usersContract = {
   },
 } satisfies ContractDef;
 
+// never-rest does not guess statuses — undeclared codes become 500.
 export const statuses = {
   validation_error: 400,
   not_found: 404,

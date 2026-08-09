@@ -63,6 +63,9 @@ importers:
       '@never-rest-examples/shared-contract':
         specifier: workspace:*
         version: link:../packages/shared-contract
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^5.20260809.1
@@ -85,6 +88,9 @@ importers:
       express:
         specifier: ^5.1.0
         version: 5.2.1
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
     devDependencies:
       '@types/express':
         specifier: ^5.0.3
@@ -132,6 +138,9 @@ importers:
       hono:
         specifier: ^4.8.3
         version: 4.13.1
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
     devDependencies:
       '@types/node':
         specifier: ^24.3.0
@@ -151,6 +160,9 @@ importers:
       '@never-rest-examples/shared-contract':
         specifier: workspace:*
         version: link:../packages/shared-contract
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
       next:
         specifier: ^15.4.1
         version: 15.5.23(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -179,9 +191,6 @@ importers:
       '@eddy-works/never-rest':
         specifier: workspace:*
         version: link:../../..
-      neverthrow:
-        specifier: ^8.2.0
-        version: 8.2.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -198,6 +207,9 @@ importers:
       '@never-rest-examples/shared-contract':
         specifier: workspace:*
         version: link:../packages/shared-contract
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
     devDependencies:
       '@sveltejs/adapter-auto':
         specifier: ^6.0.1
