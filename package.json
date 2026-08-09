@@ -1,0 +1,83 @@
+{
+  "name": "@eddy-works/never-rest",
+  "version": "0.1.0",
+  "description": "HTTP contract library where handlers return Result instead of throwing",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./contract": {
+      "types": "./dist/contract/index.d.ts",
+      "import": "./dist/contract/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "perf:check": "node scripts/typeperf.mjs",
+    "specs:extract": "node scripts/extract-gherkin.mjs specs/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/project-eddy/never-rest"
+  },
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "neverthrow": "^8.0.0"
+  },
+  "dependencies": {
+    "@standard-schema/spec": "^1.0.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.1",
+    "@ark/attest": "^0.56.3",
+    "@eslint/js": "^9.28.0",
+    "eslint": "^9.28.0",
+    "neverthrow": "^8.2.0",
+    "publint": "^0.3.12",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.33.1",
+    "vitest": "^3.2.4",
+    "zod": "^4.4.3",
+    "valibot": "^1.4.2",
+    "arktype": "^2.2.3"
+  },
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "typesVersions": {
+    "*": {
+      "contract": [
+        "./dist/contract/index.d.ts"
+      ],
+      "server": [
+        "./dist/server/index.d.ts"
+      ],
+      "client": [
+        "./dist/client/index.d.ts"
+      ]
+    }
+  }
+}
