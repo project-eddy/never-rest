@@ -1,0 +1,45 @@
+{
+  "typescript": "5.9.3",
+  "budgetPerRoute": 1800,
+  "routeCounts": [1, 5, 20, 40],
+  "method": "Isolated per-file bench(...).types(); routes defined inside the bench arrow; @ark/attest linear-regression slope on route counts.",
+  "series": {
+    "contract": {
+      "counts": { "1": 75499, "5": 77835, "20": 86595, "40": 98275 },
+      "intercept": 74915,
+      "slopePerRoute": 584
+    },
+    "client": {
+      "counts": { "1": 75505, "5": 77841, "20": 86601, "40": 98281 },
+      "intercept": 74921,
+      "slopePerRoute": 584
+    },
+    "combined": {
+      "counts": { "1": 75505, "5": 77841, "20": 86601, "40": 98281 },
+      "intercept": 74921,
+      "slopePerRoute": 584
+    },
+    "handlers": {
+      "counts": { "1": 75509, "5": 77845, "20": 86605, "40": 98285 },
+      "intercept": 74925,
+      "slopePerRoute": 584
+    },
+    "plain": {
+      "counts": { "1": 75178, "5": 76410, "20": 81030, "40": 87190 },
+      "intercept": 74870,
+      "slopePerRoute": 308
+    }
+  },
+  "marginalAt40Routes": {
+    "clientVsContract": 6,
+    "handlersVsContract": 10
+  },
+  "gate": {
+    "series": "combined",
+    "maxSlopePerRoute": 1800
+  },
+  "anchors": {
+    "plainLiteralsPerRoute": 1193,
+    "tsRestPerRoute": 5984
+  }
+}
