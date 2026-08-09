@@ -1,0 +1,39 @@
+# Concepts
+
+## Railway at the boundary
+
+A **railway** is a success/failure track: operations stay on `Ok` until something fails, then the chain moves to `Err` and stays there. never-rest puts the railway at the HTTP boundary.
+
+Handlers return `Result` or `ResultAsync` — never throw for expected failures (`not_found`, `validation_error`, domain codes). `createClient` returns `ResultAsync` for every operation; network failures, parse failures, and declared error responses become `Err(RailError)` so callers use `map`, `mapErr`, `andThen`, and `match` without `try/catch` at each hop.
+
+`parseInput` follows this rule: validation failures are `Err(validation_error)`, never throws. Thrown validators are caught and mapped to `Err`.
+
+`serve` catches thrown exceptions inside a handler and converts them to a 500 `RailError` (original message under `cause` for internal disclosure). Public disclosure does not leak a stack trace.
+
+There is no middleware system. Auth, rate limiting, and logging are ordinary functions in the chain — `andThen` before or after the handler — because nothing needs to intercept a throw.
+
+## Errors as data
+
+`RailError` is plain serialisable data: `code`, `message`, optional `issues`, optional `cause`, optional `origin`, `retryable`, and `nextStep`. It survives `JSON.parse(JSON.stringify(error))`, which is what makes cross-service bubbling work.
+
+Validation issues from any Standard Schema validator map onto `RailIssue` (`path`, `message`). The library does not own error codes for validators — it owns `RailError` above them.
+
+HTTP status is not embedded in the error. Consumers supply a `StatusMap` and `statusFor` / `toDeclaredResponse` / `respond` map codes to declared statuses. An error whose code is missing from the map, or whose mapped status is not declared on the route, degrades to **500** rather than leaking an undeclared response shape.
+
+## Trust circles and graded disclosure
+
+**Transparency by default inside the trust circle.** Agents and internal services need causal chains, field paths, and actionable hints to recover without guessing. Blanket obfuscation — hiding everything behind a generic message — forces callers to open tickets, replay traffic, or hallucinate fixes.
+
+**Graded disclosure** applies at the edge: the same handler result can be rendered at `full`, `internal`, or `public` depending on who is calling.
+
+| Level | Intended caller | What stays | What drops |
+| --- | --- | --- | --- |
+| `full` | Same trust circle (gateway ↔ service, internal agent) | Everything including `cause` chain and `nextStep` | — |
+| `internal` | Staff tools, support consoles | `code`, `message`, `issues`, `nextStep` | `cause` chain |
+| `public` | Internet clients, untrusted agents | Safe `code` and message; advisory `nextStep` only | `cause`, `origin`, diagnostic `issues` paths |
+
+`disclose(error, level)` is the mechanism, used by `respond` and `serve`. oRPC documents the same problem as repeated DANGER callouts about sensitive data in error payloads; never-rest encodes the policy in one function. `serve` resolves `disclosure` per incoming `Request` when a function is supplied in `ServeOptions`.
+
+Route matching uses `compileRoutes` / `matchRoute` (via `./server`), built on `compilePath` / `matchPath`: exact segments and single `:param` placeholders, declaration order.
+
+`origin` stamps which service produced each hop so a gateway can show a chain without guessing order. See [errors-as-intelligence.md](errors-as-intelligence.md) and [api.md — disclose](api.md#disclose).
