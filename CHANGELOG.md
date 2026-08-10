@@ -11,6 +11,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Bump `@sveltejs/adapter-auto` from 6 to 7 in the SvelteKit example ([#11](https://github.com/project-eddy/never-rest/pull/11)).
 - Bump `next` from 15 to 16 in the Next App Router example ([#10](https://github.com/project-eddy/never-rest/pull/10)).
+- Bump SvelteKit example tooling to `vite` 8 and `@sveltejs/vite-plugin-svelte` 7 together ([#12](https://github.com/project-eddy/never-rest/pull/12), [#14](https://github.com/project-eddy/never-rest/pull/14)).
 
 ## [0.2.0] - 2026-08-10
 
