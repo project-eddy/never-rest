@@ -52,6 +52,7 @@ function callRoute<TRoute extends RouteDef>(
         options.baseUrl,
         validated,
         headers,
+        options.credentials,
       );
       return ResultAsync.fromPromise(
         invokeFetch(fetchFn, url, init),
