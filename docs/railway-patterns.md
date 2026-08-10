@@ -9,7 +9,7 @@ Most HTTP libraries teach you middleware, try/catch, and status codes. never-res
 
 never-rest’s bet is blunt: put that railway at the HTTP boundary — handlers and clients both return `Result` / `ResultAsync` — and the usual middleware stack becomes ordinary TypeScript. This page names the patterns, shows them in neverthrow, and points at primary docs so you can learn the craft, not only the package.
 
-Thesis and the short auth example: [concepts.md — No middleware](concepts.md#no-middleware--the-chain-is-the-middleware). Graded disclosure and cause chains: [errors-as-intelligence.md](errors-as-intelligence.md).
+Thesis and the short auth example: [concepts.md — No middleware](./concepts.md#no-middleware--the-chain-is-the-middleware). Graded disclosure and cause chains: [errors-as-intelligence.md](./errors-as-intelligence.md).
 
 ## Pattern catalogue
 
@@ -270,7 +270,7 @@ if (downstream.isErr()) {
 }
 ```
 
-See [errors-as-intelligence.md — Gateway composition](errors-as-intelligence.md#gateway-composition) and [specs/cause-chaining.md](../specs/cause-chaining.md).
+See [errors-as-intelligence.md — Gateway composition](./errors-as-intelligence.md#gateway-composition) and [specs/cause-chaining.md](https://github.com/project-eddy/never-rest/blob/main/specs/cause-chaining.md).
 
 ## Disclose
 
@@ -280,7 +280,7 @@ The same `RailError` can be rendered at `full`, `internal`, or `public` dependin
 disclose(error, 'public') // drops cause, origin, diagnostic issue paths
 ```
 
-[disclose](./api#disclose) · [concepts.md — Trust circles](concepts.md#trust-circles-and-graded-disclosure).
+[disclose](./api.md#disclose) · [concepts.md — Trust circles](./concepts.md#trust-circles-and-graded-disclosure).
 
 ## Retry branch
 
@@ -298,7 +298,7 @@ await result.match(
 )
 ```
 
-[errors-as-intelligence.md — Retryable](errors-as-intelligence.md#retryable).
+[errors-as-intelligence.md — Retryable](./errors-as-intelligence.md#retryable).
 
 ---
 
@@ -707,6 +707,6 @@ Compensation (tear down a half-built cell after `migration_failed`) is real dist
 | [Combining Results](https://supermacro-neverthrow-22.mintlify.app/guides/combining-results) | Fan-out vs andThen |
 | [Error Recovery](https://supermacro-neverthrow-22.mintlify.app/guides/error-recovery) | orElse, match, unwrapOr |
 | [neverthrow tutorial](https://dj-nuo.com/blog/2025/10/08/neverthrow-tutorial/) | Practical map / andThen / andTee walkthrough |
-| [concepts.md](concepts.md) | Railway at the HTTP boundary; no middleware |
-| [errors-as-intelligence.md](errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |
-| [comparison.md](comparison.md) | Why never-rest chooses `Result` over throw-based servers |
+| [concepts.md](./concepts.md) | Railway at the HTTP boundary; no middleware |
+| [errors-as-intelligence.md](./errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |
+| [comparison.md](./comparison.md) | Why never-rest chooses `Result` over throw-based servers |

@@ -13,6 +13,7 @@ and type tests (slice 06).
 | [graded-disclosure.md](./graded-disclosure.md) | `disclose` — full / internal / public redaction rules |
 | [cause-chaining.md](./cause-chaining.md) | `chain`, `flatten`, `formatChain`, origin stamping, JSON round-trip |
 | [client-results.md](./client-results.md) | `createClient` — `Ok` / `Err` mapping, short-circuit chains |
+| [server-output-validation.md](./server-output-validation.md) | `serve` — opt-in `validateOutput` gate on successful handler values |
 
 Each file follows the [utility-belt Gherkin convention](https://github.com/project-eddy/utility-belt/blob/main/mixins/gherkin/SKILL.md): YAML frontmatter, a job-story callout, overview prose, and one fenced `gherkin` block per scenario with **exactly one `When`**.
 
@@ -75,7 +76,7 @@ Suggested test file mapping (slice 02–05 implementers):
 | `src/disclose.test.ts` | `graded-disclosure.md` |
 | `src/error.test.ts` | `cause-chaining.md` (chain, flatten, format, round-trip) |
 | `src/respond.test.ts` | `status-mapping.md`, `graded-disclosure.md` (respond paths) |
-| `src/server/serve.test.ts` | `cause-chaining.md` (origin), `graded-disclosure.md` (per-request disclosure) |
+| `src/server/serve.test.ts` | `cause-chaining.md` (origin), `graded-disclosure.md` (per-request disclosure), `server-output-validation.md` |
 | `src/client/create.test.ts` | `client-results.md` |
 
 ### Agent workflow

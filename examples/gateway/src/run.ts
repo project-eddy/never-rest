@@ -54,6 +54,7 @@ const inventoryFetch = serve(inventoryContract, inventoryHandlers, {
 // Fake network: createClient calls this fetch, which hits inventoryFetch in-process.
 const inventoryClient = createClient(inventoryContract, {
   baseUrl: 'http://inventory.local',
+  credentials: 'include',
   fetch: (input, init) =>
     inventoryFetch(new Request(input, init), undefined),
 });

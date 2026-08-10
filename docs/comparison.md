@@ -20,7 +20,7 @@ Checkable anchors as of project research (August 2026). Re-verify versions befor
 | Type cost (20-route fixture, per route) | Spike ~1,346; budget 1,800 | ~5,984 (`c.router()`) | Not published by oRPC |
 | Plain object control | ~1,193 per route (no library) | — | — |
 
-Instantiation numbers for never-rest and ts-rest are **provisional** until [performance.md](performance.md) publishes the full `@ark/attest` gate (slice 06).
+Instantiation numbers for never-rest and ts-rest are **provisional** until [performance.md](./performance.md) publishes the full `@ark/attest` gate (slice 06).
 
 ## ts-rest
 
@@ -36,7 +36,7 @@ Instantiation numbers for never-rest and ts-rest are **provisional** until [perf
 
 - **Type budget:** measured cost sits in the DSL, not helpers — `c.router()` ~5,984 instantiations/route vs plain literals ~1,193 on the same 20-route fixture. never-rest is intentionally the plain-literal shape with typed client/server.
 - **No throw path** for declared errors — no middleware to recover typed failures. Auth and
-  permission gates are `andThen` in the handler ([concepts.md](concepts.md#no-middleware--the-chain-is-the-middleware)).
+  permission gates are `andThen` in the handler ([concepts.md](./concepts.md#no-middleware--the-chain-is-the-middleware)).
 - **Graded disclosure** as a function, not documentation warnings alone.
 - **Cause chains** across services as serialisable data.
 

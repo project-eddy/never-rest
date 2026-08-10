@@ -1,9 +1,10 @@
-import { err, ok, type Result, ResultAsync } from 'neverthrow';
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import { err, errAsync, ok, okAsync, type Result, ResultAsync } from 'neverthrow';
 
 import { parseInput } from '../contract/parse.js';
 import type { ContractDef, InputOf, OutputOf, RouteDef } from '../contract/types.js';
 import type { Disclosure } from '../disclose.js';
-import { railError, type RailError } from '../error.js';
+import { railError, type RailError, type RailIssue } from '../error.js';
 import { respond } from '../respond.js';
 import type { StatusMap } from '../status.js';
 import { compileRoutes, matchRoute } from './router.js';
@@ -28,6 +29,7 @@ export interface ServeOptions<TCode extends string> {
   readonly statuses: StatusMap<TCode>;
   readonly disclosure?: Disclosure | ((request: Request) => Disclosure);
   readonly origin?: string;
+  readonly validateOutput?: boolean;
 }
 
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
@@ -119,6 +121,70 @@ function internalFromThrown(thrown: unknown): RailError<'internal'> {
   return railError('internal', 'An unexpected error occurred', {
     cause: railError('internal', message),
   });
+}
+
+function toPathSegment(
+  segment: PropertyKey | StandardSchemaV1.PathSegment,
+): string | number {
+  if (typeof segment === 'object' && segment !== null && 'key' in segment) {
+    const key = segment.key;
+    if (typeof key === 'string' || typeof key === 'number') {
+      return key;
+    }
+    return String(key);
+  }
+  if (typeof segment === 'string' || typeof segment === 'number') {
+    return segment;
+  }
+  return String(segment);
+}
+
+function mapIssue(issue: StandardSchemaV1.Issue): RailIssue {
+  const path = issue.path?.map(toPathSegment) ?? [];
+  return { path, message: issue.message };
+}
+
+function internalFromOutputValidation(
+  detail: string,
+  issues?: readonly RailIssue[],
+): RailError<'internal'> {
+  return railError('internal', 'An unexpected error occurred', {
+    cause: railError('internal', detail, issues !== undefined ? { issues } : undefined),
+  });
+}
+
+function toOutputValidationResult<Output>(
+  result: StandardSchemaV1.Result<Output>,
+): ResultAsync<void, RailError<'internal'>> {
+  if (result.issues !== undefined && result.issues.length > 0) {
+    return errAsync(
+      internalFromOutputValidation(
+        'Output validation failed',
+        result.issues.map(mapIssue),
+      ),
+    );
+  }
+  if ('value' in result) {
+    return okAsync(undefined);
+  }
+  return errAsync(internalFromOutputValidation('Output validation failed'));
+}
+
+function validateOutput<Output>(
+  schema: StandardSchemaV1<unknown, Output>,
+  value: unknown,
+): ResultAsync<void, RailError<'internal'>> {
+  try {
+    const outcome = schema['~standard'].validate(value);
+    if (outcome instanceof Promise) {
+      return ResultAsync.fromPromise(outcome, () =>
+        internalFromOutputValidation('Validation rejected'),
+      ).andThen(toOutputValidationResult);
+    }
+    return toOutputValidationResult(outcome);
+  } catch {
+    return errAsync(internalFromOutputValidation('Validation threw unexpectedly'));
+  }
 }
 
 function resolveDisclosure(
@@ -224,6 +290,18 @@ export function serve<TContract extends ContractDef, TContext>(
       request,
       context,
     });
+
+    if (handlerResult.isOk() && options.validateOutput === true) {
+      const outputValidation = await validateOutput(route.output, handlerResult.value);
+      if (outputValidation.isErr()) {
+        return respondWithError(
+          outputValidation.error,
+          options,
+          declared,
+          disclosure,
+        );
+      }
+    }
 
     const stampedResult = handlerResult.mapErr((error) =>
       stampOrigin(error, options.origin),
