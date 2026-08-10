@@ -11,7 +11,7 @@ Definition of done:
 
 Validation: `pnpm exec vitest run src/client/create.test.ts && pnpm typecheck && pnpm lint && pnpm build`
 
-Size budget: 5 existing files, roughly 15–30 added lines and no new files; exceeding this triggers re-scoping. One implementation slice is sufficient; an 8-agent team would be oversized.
+Size budget: 6 library/docs files plus the gateway example (`examples/gateway/src/run.ts`, `examples/gateway/README.md`), roughly 15–35 added lines and no new files; exceeding this triggers re-scoping. One implementation slice is sufficient; an 8-agent team would be oversized.
 
 ## Changes from proposal
 
@@ -37,7 +37,7 @@ Size budget: 5 existing files, roughly 15–30 added lines and no new files; exc
 - `fetch` selection, header resolution, input validation, URL construction, request bodies, and response mapping.
 - Existing wrapped or custom `fetch` functions keep working; this option is an alternative, not a replacement.
 - No credential mode is inferred or forced.
-- No dependencies, exports, generated `dist` files, examples, or performance fixtures change.
+- No dependencies, exports, generated `dist` files, or performance fixtures change. The gateway example is updated only to demonstrate `credentials: 'include'` on `createClient`.
 
 ## Decisions
 
@@ -50,7 +50,7 @@ Both resolved; none left open.
 
 | Slice | Objective | Owns (exclusive) | Must not touch | Interfaces exposed | Interfaces consumed | After |
 | --- | --- | --- | --- | --- | --- | --- |
-| 01 | Add and verify credentials pass-through | `src/client/types.ts`, `src/client/request.ts`, `src/client/create.ts`, `src/client/create.test.ts`, `docs/api.md`, `CHANGELOG.md` | Server and contract modules; `package.json`; lock files | `ClientOptions.credentials?: RequestCredentials`; internal `buildRequest(route, baseUrl, input, headers, credentials?)` | Existing `ClientOptions`, `RequestInit`, `callRoute` flow | - |
+| 01 | Add and verify credentials pass-through | `src/client/types.ts`, `src/client/request.ts`, `src/client/create.ts`, `src/client/create.test.ts`, `docs/api.md`, `CHANGELOG.md`, `examples/gateway/src/run.ts`, `examples/gateway/README.md` | Server and contract modules; `package.json`; lock files | `ClientOptions.credentials?: RequestCredentials`; internal `buildRequest(route, baseUrl, input, headers, credentials?)` | Existing `ClientOptions`, `RequestInit`, `callRoute` flow | - |
 
 Contested files:
 
@@ -61,7 +61,7 @@ Contested files:
 
 Objective: Carry an optional web-standard credential mode from client construction into every generated fetch request.
 
-Owned paths: `src/client/types.ts`, `src/client/request.ts`, `src/client/create.ts`, `src/client/create.test.ts`, `docs/api.md`, `CHANGELOG.md`
+Owned paths: `src/client/types.ts`, `src/client/request.ts`, `src/client/create.ts`, `src/client/create.test.ts`, `docs/api.md`, `CHANGELOG.md`, `examples/gateway/src/run.ts`, `examples/gateway/README.md`
 
 Steps:
 
@@ -74,6 +74,7 @@ Steps:
 7. For the omission case, assert against the stub's actual call argument rather than `expect.objectContaining`, which cannot distinguish an absent key from `credentials: undefined`. If that distinction is not worth asserting, state so and skip it instead of writing a check that always passes.
 8. Update the `ClientOptions` block in `docs/api.md` and note that omitting the option leaves the underlying fetch implementation's default in force.
 9. Add an `Added` entry under `## [Unreleased]` in `CHANGELOG.md`, written for a cookie-authenticated consumer deciding whether to upgrade, referencing issue #17.
+10. Show `credentials: 'include'` on the in-process gateway `createClient` and note it in `examples/gateway/README.md`.
 
 Acceptance checks:
 

@@ -11,11 +11,14 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `CHANGELOG.md` ships in the published npm package, following Keep a Changelog with Semantic Versioning.
 - Pull requests must update `CHANGELOG.md`; CI fails when the file is untouched. Use consumer-facing categories (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`) for package changes, and `### Internal` for chore, CI, dependency, and refactor work that is dropped at release time.
+- Opt-in `ServeOptions.validateOutput` validates successful handler values against each route's output schema before serialising ([#18](https://github.com/project-eddy/never-rest/issues/18)). Validation is a gate only — passing responses are never rewritten to match the schema's coerced value. Failures map to `internal` with detail nested under `cause`.
+- `ClientOptions.credentials` forwards a web-standard credential mode (`omit`, `same-origin`, or `include`) on every generated client request ([#17](https://github.com/project-eddy/never-rest/issues/17)).
 
 ### Internal
 
 - PR template checklist and `AGENTS.md` changelog / release guidance.
 - Tracked `plans/` directory (previously gitignored) and plan naming convention in `AGENTS.md`.
+- Bump `@types/node` from 24 to 26 across the package and examples ([#15](https://github.com/project-eddy/never-rest/pull/15)).
 
 ## [0.1.0] - 2026-08-10
 
