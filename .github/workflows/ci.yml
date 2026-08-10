@@ -39,6 +39,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Docs build
+        run: pnpm docs:build
+
+      - name: Examples smoke
+        run: pnpm examples:smoke
+
       - name: Examples typecheck
         run: pnpm examples:typecheck
 
