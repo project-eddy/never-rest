@@ -1,8 +1,26 @@
 # never-rest
 
+[![npm version](https://img.shields.io/npm/v/@eddy-works/never-rest.svg?color=cb3837&label=npm)](https://www.npmjs.com/package/@eddy-works/never-rest)
+[![CI](https://github.com/project-eddy/never-rest/actions/workflows/ci.yml/badge.svg)](https://github.com/project-eddy/never-rest/actions/workflows/ci.yml)
+[![types included](https://img.shields.io/badge/types-included-3178c6.svg?logo=typescript&logoColor=white)](https://www.npmjs.com/package/@eddy-works/never-rest)
+[![license](https://img.shields.io/npm/l/@eddy-works/never-rest.svg?color=blue)](LICENSE)
+[![node](https://img.shields.io/node/v/@eddy-works/never-rest.svg)](package.json)
+
 HTTP contracts where handlers return `Result` instead of throwing. Errors carry their cause chain across service boundaries. Disclosure is graded by caller trust — not blanket obfuscation.
 
 **Package:** `@eddy-works/never-rest` · **Licence:** Apache-2.0 · **Peer:** `neverthrow` · **Runtime deps:** none (validation via Standard Schema)
+
+## Install
+
+```bash
+npm i @eddy-works/never-rest neverthrow
+```
+
+```bash
+pnpm add @eddy-works/never-rest neverthrow
+```
+
+`neverthrow` is a peer dependency — it's the `Result` / `ResultAsync` implementation never-rest builds on.
 
 ## Exports
 
