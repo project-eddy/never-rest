@@ -8,7 +8,7 @@ import {
 import { notFound } from "next/navigation";
 import { getMDXComponents } from "@/components/mdx";
 import type { Metadata } from "next";
-import { createRelativeLink } from "fumadocs-ui/mdx";
+import { createDocLink } from "@/lib/doc-link";
 import { gitConfig } from "@/lib/shared";
 
 export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
@@ -31,8 +31,7 @@ export default async function Page(props: PageProps<"/docs/[[...slug]]">) {
       <DocsBody>
         <MDX
           components={getMDXComponents({
-            // this allows you to link to other pages with relative file paths
-            a: createRelativeLink(source, page),
+            a: createDocLink(page),
           })}
         />
       </DocsBody>
