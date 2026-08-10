@@ -15,7 +15,7 @@
     "neverthrow": "^8.2.0"
   },
   "devDependencies": {
-    "@sveltejs/adapter-auto": "^6.0.1",
+    "@sveltejs/adapter-auto": "^7.0.1",
     "@sveltejs/kit": "^2.22.2",
     "@sveltejs/vite-plugin-svelte": "^5.1.0",
     "svelte": "^5.34.8",
