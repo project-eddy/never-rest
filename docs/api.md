@@ -461,8 +461,11 @@ interface ClientOptions {
   readonly baseUrl: string;
   readonly fetch?: typeof fetch;
   readonly headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
+  readonly credentials?: RequestCredentials;
 }
 ```
+
+When `credentials` is omitted, the underlying `fetch` implementation's default applies (typically `same-origin` in browsers).
 
 ### `Client`
 

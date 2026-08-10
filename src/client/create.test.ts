@@ -176,6 +176,54 @@ describe('createClient', () => {
     );
   });
 
+  it('forwards credentials on GET requests', async () => {
+    const fetchStub = vi.fn().mockResolvedValue(
+      jsonResponse(200, { id: 'u_1', name: 'Ada' }),
+    );
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+      credentials: 'include',
+    });
+
+    await client.getUser({ id: 'u_1' });
+
+    const [, init] = fetchStub.mock.calls[0] as [string, RequestInit];
+    expect(init.credentials).toBe('include');
+  });
+
+  it('forwards credentials on POST requests after body branch', async () => {
+    const fetchStub = vi.fn().mockResolvedValue(
+      jsonResponse(201, { id: 'u_new' }),
+    );
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+      credentials: 'include',
+    });
+
+    await client.createUser({ email: 'ada@example.com' });
+
+    const [, init] = fetchStub.mock.calls[0] as [string, RequestInit];
+    expect(init.credentials).toBe('include');
+    expect(init.body).toBe(JSON.stringify({ email: 'ada@example.com' }));
+  });
+
+  it('omits credentials when ClientOptions.credentials is unset', async () => {
+    const fetchStub = vi.fn().mockResolvedValue(
+      jsonResponse(200, { id: 'u_1', name: 'Ada' }),
+    );
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    await client.getUser({ id: 'u_1' });
+
+    const [, init] = fetchStub.mock.calls[0] as [string, RequestInit];
+    expect('credentials' in init).toBe(false);
+  });
+
   it('sends GET remainder as query string', async () => {
     const fetchStub = vi.fn().mockResolvedValue(
       jsonResponse(200, { users: [] }),
