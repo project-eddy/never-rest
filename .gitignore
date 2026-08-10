@@ -13,3 +13,5 @@ examples/**/.next/
 examples/**/.svelte-kit/
 examples/**/.wrangler/
 examples/**/.vercel/
+examples/**/node_modules/
+perf/.attest/
