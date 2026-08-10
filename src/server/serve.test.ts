@@ -348,25 +348,35 @@ describe('server output validation', () => {
   });
 
   it('Returning the handler value when output validation passes', async () => {
-    const handler = createHandler(
-      {
-        getUser: () =>
-          ok({
-            id: 'u1',
-            name: 'Ada',
-            extraField: 'preserved',
-          }),
-      },
-      { statuses, origin: 'users-api', validateOutput: true },
-    );
+    const overrides = {
+      getUser: () =>
+        ok({
+          id: 'u1',
+          name: 'Ada',
+          extraField: 'preserved',
+        }),
+    };
+    const context = { requestId: 'req-1' };
+    const request = () => new Request('http://localhost/users/u1');
 
-    const { response, body } = await call(
-      handler,
-      new Request('http://localhost/users/u1'),
-    );
+    const validatedHandler = createHandler(overrides, {
+      statuses,
+      origin: 'users-api',
+      validateOutput: true,
+    });
+    const baselineHandler = createHandler(overrides, {
+      statuses,
+      origin: 'users-api',
+    });
 
-    expect(response.status).toBe(200);
-    expect(body).toEqual({
+    const validatedResponse = await validatedHandler(request(), context);
+    const baselineResponse = await baselineHandler(request(), context);
+
+    expect(validatedResponse.status).toBe(200);
+    const validatedText = await validatedResponse.text();
+    const baselineText = await baselineResponse.text();
+    expect(validatedText).toBe(baselineText);
+    expect(JSON.parse(validatedText)).toEqual({
       id: 'u1',
       name: 'Ada',
       extraField: 'preserved',
@@ -393,12 +403,10 @@ describe('server output validation', () => {
     expect(body.cause).toMatchObject({
       code: 'internal',
       message: 'Output validation failed',
-    });
-    expect(body.cause.issues).toEqual(
-      expect.arrayContaining([
+      issues: expect.arrayContaining([
         expect.objectContaining({ path: ['name'] }),
       ]),
-    );
+    });
     expect(body.issues).toBeUndefined();
   });
 

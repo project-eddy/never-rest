@@ -39,8 +39,10 @@ Scenario: Returning the handler value when output validation passes
   Given a route with an output schema and validateOutput true
   And a handler that returns a value conforming to the output schema
   When the route is invoked successfully
+  And the same handler is invoked with validateOutput disabled
   Then the response status is 200
   And the response body equals the handler return value exactly
+  And the raw response body text is byte-identical to the validation-disabled response
 ```
 
 ## Enabled and non-conforming returns declared internal 500
