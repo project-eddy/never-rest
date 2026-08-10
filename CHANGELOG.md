@@ -7,6 +7,14 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Internal
+
+- Bump `@sveltejs/adapter-auto` from 6 to 7 in the SvelteKit example ([#11](https://github.com/project-eddy/never-rest/pull/11)).
+- Bump `next` from 15 to 16 in the Next App Router example ([#10](https://github.com/project-eddy/never-rest/pull/10)).
+- Bump SvelteKit example tooling to `vite` 8 and `@sveltejs/vite-plugin-svelte` 7 together ([#12](https://github.com/project-eddy/never-rest/pull/12), [#14](https://github.com/project-eddy/never-rest/pull/14)).
+
+## [0.2.0] - 2026-08-10
+
 ### Added
 
 - Advanced usage guide for enterprise policy without middleware — capability types, composer wrappers, host wraps, and agents as amplifiers ([docs/advanced-usage.md](docs/advanced-usage.md)).
@@ -14,12 +22,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Pull requests must update `CHANGELOG.md`; CI fails when the file is untouched. Use consumer-facing categories (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`) for package changes, and `### Internal` for chore, CI, dependency, and refactor work that is dropped at release time.
 - Opt-in `ServeOptions.validateOutput` validates successful handler values against each route's output schema before serialising ([#18](https://github.com/project-eddy/never-rest/issues/18)). Validation is a gate only — passing responses are never rewritten to match the schema's coerced value. Failures map to `internal` with detail nested under `cause`.
 - `ClientOptions.credentials` forwards a web-standard credential mode (`omit`, `same-origin`, or `include`) on every generated client request ([#17](https://github.com/project-eddy/never-rest/issues/17)).
-
-### Internal
-
-- PR template checklist and `AGENTS.md` changelog / release guidance.
-- Tracked `plans/` directory (previously gitignored) and plan naming convention in `AGENTS.md`.
-- Bump `@types/node` from 24 to 26 across the package and examples ([#15](https://github.com/project-eddy/never-rest/pull/15)).
 
 ## [0.1.0] - 2026-08-10
 
@@ -34,5 +36,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `@eddy-works/never-rest/node`: `toNodeHandler` for Node's `http` interface.
 - A published type-instantiation budget of 1,800 per route, enforced in CI with `@ark/attest`.
 
-[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.2.0
 [0.1.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.1.0
