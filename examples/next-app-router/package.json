@@ -13,7 +13,7 @@
     "@eddy-works/never-rest": "workspace:*",
     "@never-rest-examples/shared-contract": "workspace:*",
     "neverthrow": "^8.2.0",
-    "next": "^15.4.1",
+    "next": "^16.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
