@@ -2,6 +2,7 @@
   "pages": [
     "index",
     "concepts",
+    "railway-patterns",
     "api",
     "examples",
     "errors-as-intelligence",

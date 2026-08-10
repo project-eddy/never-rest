@@ -1,6 +1,6 @@
 ---
 title: Concepts
-description: Railway at the HTTP boundary, errors as data, and graded disclosure.
+description: Railway at the HTTP boundary, no middleware via andThen, errors as data, and graded disclosure.
 ---
 
 # Concepts
@@ -15,7 +15,48 @@ Handlers return `Result` or `ResultAsync` — never throw for expected failures 
 
 `serve` catches thrown exceptions inside a handler and converts them to a 500 `RailError` (original message under `cause` for internal disclosure). Public disclosure does not leak a stack trace.
 
-There is no middleware system. Auth, rate limiting, and logging are ordinary functions in the chain — `andThen` before or after the handler — because nothing needs to intercept a throw.
+## No middleware — the chain is the middleware
+
+Middleware exists in ts-rest, oRPC, and tRPC because handlers throw and something has to intercept. When handlers return `Result`, that job disappears. Auth, permission checks, rate limiting, and logging are ordinary functions on the railway — `andThen` before or after the domain work. The library carries no interceptor API because the language already has one.
+
+What used to be a separate middleware stack becomes a short pipeline you can read top to bottom. An auth check runs *before* the request is processed the same way a promise chain runs its first link first — except failure is typed data, not a thrown exception recovered somewhere else:
+
+```ts
+import { errAsync, okAsync, type ResultAsync } from 'neverthrow';
+import { railError, type RailError } from '@eddy-works/never-rest';
+
+type Session = { userId: string; roles: readonly string[] };
+
+function requireAuth(request: Request): ResultAsync<Session, RailError<'unauthorized'>> {
+  const header = request.headers.get('authorization');
+  if (header === null) {
+    return errAsync(railError('unauthorized', 'Missing credentials'));
+  }
+  return loadSession(header); // ResultAsync<Session, RailError<'unauthorized'>>
+}
+
+function requireRole(
+  session: Session,
+  role: string,
+): ResultAsync<Session, RailError<'forbidden'>> {
+  if (!session.roles.includes(role)) {
+    return errAsync(railError('forbidden', `Requires role ${role}`));
+  }
+  return okAsync(session);
+}
+
+// Handler body — contextual gates, then the work. No middleware registry.
+getInvoice: ({ input, request }) =>
+  requireAuth(request)
+    .andThen((session) => requireRole(session, 'billing'))
+    .andThen((session) => loadInvoiceFor(session.userId, input.id)),
+```
+
+If `requireAuth` fails, `requireRole` and `loadInvoiceFor` never run. The `Err` travels the same path a successful value would have — out through `respond` / `serve` — with the declared code (`unauthorized`, `forbidden`) mapped by your `StatusMap`. That is the whole trick: contextual permission work is just programming on the railway, not a framework feature you bolt on around throws.
+
+It feels like flow-based composition — steps named, ordered, and short-circuiting — without leaving ordinary TypeScript functions. Same pattern on the client: `client.getUser(id).andThen(loadOrders).map(toSummary)`.
+
+Gates are only one slot. The full pattern catalogue — router, tee, through, recover, fan-out, accumulate, lift, terminate, bubble, disclose, retry, and a white-label tenant provisioning kitchen sink — lives in [railway-patterns.md](railway-patterns.md), with links to neverthrow and Scott Wlaschin’s ROP.
 
 ## Errors as data
 

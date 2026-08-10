@@ -62,7 +62,18 @@ function getUser({ params }) {
 
 ### Middleware
 
-Replace interceptors with `andThen` in the handler or a wrapper function that returns `ResultAsync`.
+Drop the interceptor stack. Auth, side effects, and after-effects become ordinary composition inside the handler:
+
+```ts
+getInvoice: ({ input, request }) =>
+  requireAuth(request)
+    .andThen((session) => requireRole(session, 'billing'))
+    .andTee((session) => metrics.increment('invoice.auth_ok'))
+    .andThen((session) => loadInvoiceFor(session.userId, input.id))
+    .andTee((invoice) => audit.read('invoice', invoice.id)),
+```
+
+See [concepts.md — No middleware](concepts.md#no-middleware--the-chain-is-the-middleware) and the full catalogue in [railway-patterns.md](railway-patterns.md).
 
 ### Client
 
@@ -121,7 +132,7 @@ Move sensitive error fields out of ad-hoc `data` bags; use `cause` for downstrea
 
 ### Step 1 — classify failures
 
-List every `throw` in handlers. Each becomes a declared error code or `validation_error` / `internal`.
+List every `throw` in handlers. Each becomes a declared error code or `validation_error` / `internal`. Middleware that only existed to catch those throws becomes `andThen` gates in the handler — see [concepts.md — No middleware](concepts.md#no-middleware--the-chain-is-the-middleware).
 
 ### Step 2 — centralise status mapping
 

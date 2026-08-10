@@ -9,7 +9,8 @@ HTTP contracts where handlers return `Result` instead of throwing. Errors carry 
 
 | Doc | Topic |
 | --- | --- |
-| [Concepts](concepts.md) | Railway at the boundary, errors as data, trust circles |
+| [Concepts](concepts.md) | Railway at the boundary, no middleware, errors as data, trust circles |
+| [Railway patterns](railway-patterns.md) | Full railway/neverthrow pattern catalogue + white-label tenant kitchen sink |
 | [API reference](api.md) | Every public export, signature, example |
 | [Examples](examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway |
 | [Errors as intelligence](errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |

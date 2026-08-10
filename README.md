@@ -18,6 +18,21 @@ HTTP contracts where handlers return `Result` instead of throwing. Errors carry 
 
 Most REST libraries assume handlers throw. Middleware intercepts exceptions, typed errors get lost at the boundary, and clients branch on tuples or catch blocks instead of composing with `andThen`. Contract DSLs (`initContract()`, chained builders) inflate TypeScript instantiation cost — `@ts-rest/core` measures ~5,984 instantiations per route on a 20-route fixture. oRPC types errors on the wire but its server model is throw-based; its non-throwing `safe()` client does not compose with `map` / `andThen` / `match`. never-rest is contract-first with plain object literals, `Result`/`ResultAsync` end to end, and a published per-route type budget enforced in CI.
 
+## No middleware
+
+When handlers return `Result`, auth, side effects, and after-effects are just functions in the chain — not a separate interceptor stack:
+
+```ts
+getInvoice: ({ input, request }) =>
+  requireAuth(request) // gate
+    .andThen((session) => requireRole(session, 'billing'))
+    .andTee((session) => metrics.increment('invoice.auth_ok')) // side effect
+    .andThen((session) => loadInvoiceFor(session.userId, input.id))
+    .andTee((invoice) => audit.read('invoice', invoice.id)), // after-effect (best-effort)
+```
+
+If auth fails, the domain call never runs. Tee effects observe without inventing new failure modes; use `andThen` when a follow-up must succeed. Full catalogue (router, recover, fan-out, lift, …) with neverthrow and ROP links: [docs/railway-patterns.md](docs/railway-patterns.md). Thesis: [docs/concepts.md — No middleware](docs/concepts.md#no-middleware--the-chain-is-the-middleware).
+
 ## Quickstart
 
 Handlers return a neverthrow `Result` — never throw. Compose with `map` / `andThen` on the server; the client is the same `ResultAsync` shape.
@@ -147,7 +162,8 @@ Browsable site: [project-eddy.github.io/never-rest](https://project-eddy.github.
 
 | Doc | Topic |
 | --- | --- |
-| [docs/concepts.md](docs/concepts.md) | Railway at the boundary, errors as data, trust circles |
+| [docs/concepts.md](docs/concepts.md) | Railway at the boundary, no middleware, errors as data, trust circles |
+| [docs/railway-patterns.md](docs/railway-patterns.md) | Full railway/neverthrow pattern catalogue + white-label tenant kitchen sink |
 | [docs/api.md](docs/api.md) | Every public export, signature, example |
 | [docs/examples.md](docs/examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway |
 | [docs/errors-as-intelligence.md](docs/errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |

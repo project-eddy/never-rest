@@ -12,6 +12,10 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | Question | Where |
 | --- | --- |
 | Why Result at the HTTP boundary instead of throws? | [concepts.md — Railway at the boundary](docs/concepts.md#railway-at-the-boundary) |
+| Where did middleware go — how do I do auth / permissions? | [concepts.md — No middleware](docs/concepts.md#no-middleware--the-chain-is-the-middleware) · [migrating.md — Middleware](docs/migrating.md#middleware) |
+| Gates, side effects, after-effects, provisioning chains? | [railway-patterns.md](docs/railway-patterns.md) |
+| Router, recover, fan-out, lift, terminate, ROP links? | [railway-patterns.md](docs/railway-patterns.md) · [neverthrow](https://www.npmjs.com/package/neverthrow) · [Wlaschin ROP](https://fsharpforfunandprofit.com/rop/) |
+| White-label tenant provisioning kitchen sink? | [railway-patterns.md — Kitchen sink](docs/railway-patterns.md#kitchen-sink--white-label-enterprise-tenant-provisioning) |
 | What is `RailError` and what fields does it carry? | [api.md — RailError (interface)](docs/api.md#railerror-interface) |
 | How do I construct an error? | [api.md — railError (function)](docs/api.md#railerror-function) |
 | How do I wrap a downstream error? | [api.md — chain](docs/api.md#chain) · [errors-as-intelligence.md — Gateway composition](docs/errors-as-intelligence.md#gateway-composition) |
