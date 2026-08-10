@@ -1,5 +1,5 @@
 import { err, ok } from 'neverthrow';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import { chain, railError } from '../error.js';
@@ -328,5 +328,102 @@ describe('serve', () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: 'u1', name: 'Ada' });
+  });
+});
+
+describe('server output validation', () => {
+  it('Skipping output schema work when validation is off', async () => {
+    const validateSpy = vi.spyOn(userSchema['~standard'], 'validate');
+    const handler = createHandler();
+
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ id: 'u1', name: 'Ada' });
+    expect(validateSpy).not.toHaveBeenCalled();
+    validateSpy.mockRestore();
+  });
+
+  it('Returning the handler value when output validation passes', async () => {
+    const handler = createHandler(
+      {
+        getUser: () =>
+          ok({
+            id: 'u1',
+            name: 'Ada',
+            extraField: 'preserved',
+          }),
+      },
+      { statuses, origin: 'users-api', validateOutput: true },
+    );
+
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      id: 'u1',
+      name: 'Ada',
+      extraField: 'preserved',
+    });
+  });
+
+  it('Mapping output validation failure to internal', async () => {
+    const handler = createHandler(
+      {
+        getUser: () => ok({ id: 'u1', name: 42 } as never),
+      },
+      { statuses, origin: 'users-api', validateOutput: true },
+    );
+
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+
+    expect(response.status).toBe(500);
+    expect(body.code).toBe('internal');
+    expect(body.message).toBe('An unexpected error occurred');
+    expect(body.origin).toBe('users-api');
+    expect(body.cause).toMatchObject({
+      code: 'internal',
+      message: 'Output validation failed',
+    });
+    expect(body.cause.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: ['name'] }),
+      ]),
+    );
+    expect(body.issues).toBeUndefined();
+  });
+
+  it('Redacting output validation detail at public disclosure', async () => {
+    const handler = createHandler(
+      {
+        getUser: () => ok({ id: 123, name: 'Ada' } as never),
+      },
+      {
+        statuses,
+        origin: 'users-api',
+        validateOutput: true,
+        disclosure: 'public',
+      },
+    );
+
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+
+    expect(response.status).toBe(500);
+    expect(body.code).toBe('internal');
+    expect(body.cause).toBeUndefined();
+    expect(body.issues).toBeUndefined();
+    expect(JSON.stringify(body)).not.toMatch(/"id"/);
   });
 });

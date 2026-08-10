@@ -15,6 +15,10 @@ Hono's Web `Request` straight into never-rest.
 Hono is Fetch-native. `c.req.raw` is already a Web `Request`, so there is no
 `toNodeHandler` step.
 
+`serve` is called with `validateOutput: true` so handler return values are
+checked against each route's output schema before serialisation. Passing
+responses are returned unchanged; mismatches become `internal` errors.
+
 ## Run
 
 ```bash
