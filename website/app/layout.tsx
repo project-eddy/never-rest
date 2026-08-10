@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://congenial-adventure-r229nj4.pages.github.io"),
+  metadataBase: new URL("https://project-eddy.github.io/never-rest"),
   title: {
     default: "never-rest",
     template: "%s | never-rest",
