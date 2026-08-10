@@ -41,7 +41,8 @@
     "specs:extract": "node scripts/extract-gherkin.mjs specs/",
     "docs:dev": "pnpm --filter website dev",
     "docs:build": "pnpm --filter website build",
-    "examples:typecheck": "pnpm -r --filter \"./examples/**\" typecheck"
+    "examples:typecheck": "pnpm -r --filter \"./examples/**\" typecheck",
+    "examples:smoke": "vitest run --config examples/smoke/vitest.config.ts"
   },
   "repository": {
     "type": "git",

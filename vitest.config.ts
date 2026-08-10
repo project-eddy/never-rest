@@ -3,6 +3,13 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     passWithNoTests: true,
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/examples/**',
+      '**/.tmp/**',
+      '**/website/**',
+    ],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
