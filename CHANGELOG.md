@@ -7,6 +7,10 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Internal
+
+- Bump `@sveltejs/adapter-auto` from 6 to 7 in the SvelteKit example ([#11](https://github.com/project-eddy/never-rest/pull/11)).
+
 ## [0.2.0] - 2026-08-10
 
 ### Added
