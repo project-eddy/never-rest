@@ -1,8 +1,26 @@
 # never-rest
 
+[![npm version](https://img.shields.io/npm/v/@eddy-works/never-rest.svg?color=cb3837&label=npm)](https://www.npmjs.com/package/@eddy-works/never-rest)
+[![CI](https://github.com/project-eddy/never-rest/actions/workflows/ci.yml/badge.svg)](https://github.com/project-eddy/never-rest/actions/workflows/ci.yml)
+[![types included](https://img.shields.io/badge/types-included-3178c6.svg?logo=typescript&logoColor=white)](https://www.npmjs.com/package/@eddy-works/never-rest)
+[![license](https://img.shields.io/npm/l/@eddy-works/never-rest.svg?color=blue)](LICENSE)
+[![node](https://img.shields.io/node/v/@eddy-works/never-rest.svg)](package.json)
+
 HTTP contracts where handlers return `Result` instead of throwing. Errors carry their cause chain across service boundaries. Disclosure is graded by caller trust — not blanket obfuscation.
 
 **Package:** `@eddy-works/never-rest` · **Licence:** Apache-2.0 · **Peer:** `neverthrow` · **Runtime deps:** none (validation via Standard Schema)
+
+## Install
+
+```bash
+npm i @eddy-works/never-rest neverthrow
+```
+
+```bash
+pnpm add @eddy-works/never-rest neverthrow
+```
+
+`neverthrow` is a peer dependency — it's the `Result` / `ResultAsync` implementation never-rest builds on.
 
 ## Exports
 
@@ -164,6 +182,7 @@ Browsable site: [project-eddy.github.io/never-rest](https://project-eddy.github.
 | --- | --- |
 | [docs/concepts.md](docs/concepts.md) | Railway at the boundary, no middleware, errors as data, trust circles |
 | [docs/railway-patterns.md](docs/railway-patterns.md) | Full railway/neverthrow pattern catalogue + white-label tenant kitchen sink |
+| [docs/advanced-usage.md](docs/advanced-usage.md) | Policy without middleware — capabilities, composers, host wraps, agents |
 | [docs/api.md](docs/api.md) | Every public export, signature, example |
 | [docs/examples.md](docs/examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway |
 | [docs/errors-as-intelligence.md](docs/errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |

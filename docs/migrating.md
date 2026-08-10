@@ -73,7 +73,7 @@ getInvoice: ({ input, request }) =>
     .andTee((invoice) => audit.read('invoice', invoice.id)),
 ```
 
-See [concepts.md — No middleware](concepts.md#no-middleware--the-chain-is-the-middleware) and the full catalogue in [railway-patterns.md](railway-patterns.md).
+See [concepts.md — No middleware](./concepts.md#no-middleware--the-chain-is-the-middleware) and the full catalogue in [railway-patterns.md](./railway-patterns.md). For capability types and `withAuth` composers that make auth non-omittable at registration, see [advanced-usage.md](./advanced-usage.md).
 
 ### Client
 
@@ -132,7 +132,7 @@ Move sensitive error fields out of ad-hoc `data` bags; use `cause` for downstrea
 
 ### Step 1 — classify failures
 
-List every `throw` in handlers. Each becomes a declared error code or `validation_error` / `internal`. Middleware that only existed to catch those throws becomes `andThen` gates in the handler — see [concepts.md — No middleware](concepts.md#no-middleware--the-chain-is-the-middleware).
+List every `throw` in handlers. Each becomes a declared error code or `validation_error` / `internal`. Middleware that only existed to catch those throws becomes `andThen` gates in the handler — see [concepts.md — No middleware](./concepts.md#no-middleware--the-chain-is-the-middleware).
 
 ### Step 2 — centralise status mapping
 
@@ -170,4 +170,4 @@ Ensure the client also never throws — network and parse failures are `Err`, no
 
 When calling another never-rest service from a handler, parse the JSON error body and `chain` it into your domain error before returning `err(...)`. Stamp `origin` on each service's `serve` options.
 
-See [errors-as-intelligence.md](errors-as-intelligence.md) and `specs/cause-chaining.md`.
+See [errors-as-intelligence.md](./errors-as-intelligence.md) and `specs/cause-chaining.md`.

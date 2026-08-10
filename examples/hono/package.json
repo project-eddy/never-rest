@@ -9,13 +9,13 @@
   },
   "dependencies": {
     "@eddy-works/never-rest": "workspace:*",
-    "@hono/node-server": "^1.14.4",
+    "@hono/node-server": "^2.1.0",
     "@never-rest-examples/shared-contract": "workspace:*",
     "hono": "^4.8.3",
     "neverthrow": "^8.2.0"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
+    "@types/node": "^26.1.2",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
   }

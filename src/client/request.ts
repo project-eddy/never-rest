@@ -90,6 +90,7 @@ export function buildRequest(
   baseUrl: string,
   input: unknown,
   headers: HeadersInit | undefined,
+  credentials?: RequestCredentials,
 ): BuiltRequest {
   const compiled = compilePath(route.path);
   const { pathParams, remainder } = splitInput(compiled.paramNames, input);
@@ -103,6 +104,9 @@ export function buildRequest(
   const url = `${base}${pathname}${query}`;
 
   const init: RequestInit = { method: route.method, headers };
+  if (credentials !== undefined) {
+    init.credentials = credentials;
+  }
 
   if (!methodUsesQuery && remainder !== undefined) {
     const mergedHeaders = new Headers(headers);

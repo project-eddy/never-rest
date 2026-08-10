@@ -16,9 +16,10 @@ JSON to the terminal.
 ## What this example shows
 
 1. **Inventory** always returns `not_found`.
-2. **Orders** calls inventory through `createClient`, then on failure uses
-   `chain(...)` so the inventory error becomes the `cause` of
-   `fulfilment_failed`.
+2. **Orders** calls inventory through `createClient` (with `credentials:
+   'include'` to show the option, even though this in-process demo does not
+   rely on browser cookies), then on failure uses `chain(...)` so the inventory
+   error becomes the `cause` of `fulfilment_failed`.
 3. The same orders handler is served three times:
 
 | Disclosure | Trust level | What you should see |

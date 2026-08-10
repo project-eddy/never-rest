@@ -401,6 +401,7 @@ interface ServeOptions<TCode extends string> {
   readonly statuses: StatusMap<TCode>;
   readonly disclosure?: Disclosure | ((request: Request) => Disclosure);
   readonly origin?: string;
+  readonly validateOutput?: boolean;
 }
 ```
 
@@ -445,7 +446,9 @@ await handler(new Request('http://localhost/users/u1'), { requestId: 'r1' });
 
 **Throws:** handler exceptions become `internal` 500 with the message under `cause` — never an unhandled rejection.
 
-**Tests:** `src/server/serve.test.ts` — scenarios from [specs/cause-chaining.md](../specs/cause-chaining.md) and [specs/graded-disclosure.md](../specs/graded-disclosure.md).
+**Output validation:** `validateOutput` defaults off. When `true`, successful handler values are validated against `route.output` before serialisation; handler `Err` results are not validated. Validation is a gate only — the handler's return value is serialised on success, not the schema's coerced or stripped value. Failures become `internal` with a generic top-level message and diagnostic detail (including issue paths) under `cause`, so `public` disclosure can redact field names.
+
+**Tests:** `src/server/serve.test.ts` — scenarios from [specs/cause-chaining.md](https://github.com/project-eddy/never-rest/blob/main/specs/cause-chaining.md), [specs/graded-disclosure.md](https://github.com/project-eddy/never-rest/blob/main/specs/graded-disclosure.md), and [specs/server-output-validation.md](https://github.com/project-eddy/never-rest/blob/main/specs/server-output-validation.md).
 
 ---
 
@@ -458,8 +461,11 @@ interface ClientOptions {
   readonly baseUrl: string;
   readonly fetch?: typeof fetch;
   readonly headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
+  readonly credentials?: RequestCredentials;
 }
 ```
+
+When `credentials` is omitted, the underlying `fetch` implementation's default applies (typically `same-origin` in browsers).
 
 ### `Client`
 
@@ -496,7 +502,7 @@ await client
 
 **Behaviour:** validates input via `parseInput`; path `:param` keys are taken from input, remainder sent as JSON body (`POST`/`PUT`/`PATCH`) or query string (`GET`/`DELETE`). 2xx → `Ok` (output schema); JSON `RailError` with a declared code → `Err`; undeclared error code → `Err(internal)`; non-JSON body → `Err(internal)`; network failure → `Err(unavailable, { retryable: true })`. Never throws.
 
-**Tests:** `src/client/create.test.ts` — scenarios from [specs/client-results.md](../specs/client-results.md).
+**Tests:** `src/client/create.test.ts` — scenarios from [specs/client-results.md](https://github.com/project-eddy/never-rest/blob/main/specs/client-results.md).
 
 ---
 

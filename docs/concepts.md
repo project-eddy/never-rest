@@ -56,7 +56,9 @@ If `requireAuth` fails, `requireRole` and `loadInvoiceFor` never run. The `Err` 
 
 It feels like flow-based composition — steps named, ordered, and short-circuiting — without leaving ordinary TypeScript functions. Same pattern on the client: `client.getUser(id).andThen(loadOrders).map(toSummary)`.
 
-Gates are only one slot. The full pattern catalogue — router, tee, through, recover, fan-out, accumulate, lift, terminate, bubble, disclose, retry, and a white-label tenant provisioning kitchen sink — lives in [railway-patterns.md](railway-patterns.md), with links to neverthrow and Scott Wlaschin’s ROP.
+Gates are only one slot. The full pattern catalogue — router, tee, through, recover, fan-out, accumulate, lift, terminate, bubble, disclose, retry, and a white-label tenant provisioning kitchen sink — lives in [railway-patterns.md](./railway-patterns.md), with links to neverthrow and Scott Wlaschin’s ROP.
+
+For enterprise policy that must be non-omittable — capability types, `withAuth` composers, public escape hatches, host wraps, and agents as amplifiers — see [advanced-usage.md](./advanced-usage.md).
 
 ## Errors as data
 
@@ -82,4 +84,4 @@ HTTP status is not embedded in the error. Consumers supply a `StatusMap` and `st
 
 Route matching uses `compileRoutes` / `matchRoute` (via `./server`), built on `compilePath` / `matchPath`: exact segments and single `:param` placeholders, declaration order.
 
-`origin` stamps which service produced each hop so a gateway can show a chain without guessing order. See [errors-as-intelligence.md](errors-as-intelligence.md) and [api.md — disclose](api.md#disclose).
+`origin` stamps which service produced each hop so a gateway can show a chain without guessing order. See [errors-as-intelligence.md](./errors-as-intelligence.md) and [api.md — disclose](./api.md#disclose).

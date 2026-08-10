@@ -24,7 +24,7 @@ Runnable mini projects live under [`examples/`](../examples/). Read them as four
 
 Yup is not supported: never-rest requires [Standard Schema](https://standardschema.dev/), which Yup does not implement.
 
-See [examples/README.md](../examples/README.md) for ports and commands.
+See [examples/README.md](https://github.com/project-eddy/never-rest/blob/main/examples/README.md) for ports and commands.
 
 Express mount (same idea in every stack — contract in, handlers + `serve` local):
 
