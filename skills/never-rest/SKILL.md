@@ -13,6 +13,10 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | --- | --- |
 | Why Result at the HTTP boundary instead of throws? | [concepts.md — Railway at the boundary](docs/concepts.md#railway-at-the-boundary) |
 | Where did middleware go — how do I do auth / permissions? | [concepts.md — No middleware](docs/concepts.md#no-middleware--the-chain-is-the-middleware) · [migrating.md — Middleware](docs/migrating.md#middleware) |
+| How do I make auth / tenancy non-omittable without middleware? | [advanced-usage.md](docs/advanced-usage.md) |
+| Capability types / `Session` required by domain? | [advanced-usage.md — Capability types](docs/advanced-usage.md#capability-types) |
+| `withAuth` / `withRole` / `publicHandler` composers? | [advanced-usage.md — Composer wrappers](docs/advanced-usage.md#composer-wrappers) |
+| Host wrap vs gateway vs handler railway? | [advanced-usage.md — What stays outside the railway](docs/advanced-usage.md#what-stays-outside-the-railway) |
 | Gates, side effects, after-effects, provisioning chains? | [railway-patterns.md](docs/railway-patterns.md) |
 | Router, recover, fan-out, lift, terminate, ROP links? | [railway-patterns.md](docs/railway-patterns.md) · [neverthrow](https://www.npmjs.com/package/neverthrow) · [Wlaschin ROP](https://fsharpforfunandprofit.com/rop/) |
 | White-label tenant provisioning kitchen sink? | [railway-patterns.md — Kitchen sink](docs/railway-patterns.md#kitchen-sink--white-label-enterprise-tenant-provisioning) |
