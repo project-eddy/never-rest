@@ -182,6 +182,7 @@ Browsable site: [project-eddy.github.io/never-rest](https://project-eddy.github.
 | --- | --- |
 | [docs/concepts.md](docs/concepts.md) | Railway at the boundary, no middleware, errors as data, trust circles |
 | [docs/railway-patterns.md](docs/railway-patterns.md) | Full railway/neverthrow pattern catalogue + white-label tenant kitchen sink |
+| [docs/advanced-usage.md](docs/advanced-usage.md) | Policy without middleware — capabilities, composers, host wraps, agents |
 | [docs/api.md](docs/api.md) | Every public export, signature, example |
 | [docs/examples.md](docs/examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway |
 | [docs/errors-as-intelligence.md](docs/errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |

@@ -9,6 +9,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Advanced usage guide for enterprise policy without middleware — capability types, composer wrappers, host wraps, and agents as amplifiers ([docs/advanced-usage.md](docs/advanced-usage.md)).
 - `CHANGELOG.md` ships in the published npm package, following Keep a Changelog with Semantic Versioning.
 - Pull requests must update `CHANGELOG.md`; CI fails when the file is untouched. Use consumer-facing categories (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`) for package changes, and `### Internal` for chore, CI, dependency, and refactor work that is dropped at release time.
 - Opt-in `ServeOptions.validateOutput` validates successful handler values against each route's output schema before serialising ([#18](https://github.com/project-eddy/never-rest/issues/18)). Validation is a gate only — passing responses are never rewritten to match the schema's coerced value. Failures map to `internal` with detail nested under `cause`.

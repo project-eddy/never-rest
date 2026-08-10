@@ -318,6 +318,8 @@ getInvoice: ({ input, request }) =>
 
 Read it top to bottom. That is the interceptor model.
 
+Making that policy mandatory across routes — capability types, registration composers, and when host/gateway wraps still belong outside the railway — is covered in [advanced-usage.md](./advanced-usage.md).
+
 ---
 
 ## Kitchen sink — white-label enterprise tenant provisioning

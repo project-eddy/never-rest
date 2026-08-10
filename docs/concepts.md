@@ -58,6 +58,8 @@ It feels like flow-based composition — steps named, ordered, and short-circuit
 
 Gates are only one slot. The full pattern catalogue — router, tee, through, recover, fan-out, accumulate, lift, terminate, bubble, disclose, retry, and a white-label tenant provisioning kitchen sink — lives in [railway-patterns.md](./railway-patterns.md), with links to neverthrow and Scott Wlaschin’s ROP.
 
+For enterprise policy that must be non-omittable — capability types, `withAuth` composers, public escape hatches, host wraps, and agents as amplifiers — see [advanced-usage.md](./advanced-usage.md).
+
 ## Errors as data
 
 `RailError` is plain serialisable data: `code`, `message`, optional `issues`, optional `cause`, optional `origin`, `retryable`, and `nextStep`. It survives `JSON.parse(JSON.stringify(error))`, which is what makes cross-service bubbling work.

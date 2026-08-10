@@ -73,7 +73,7 @@ getInvoice: ({ input, request }) =>
     .andTee((invoice) => audit.read('invoice', invoice.id)),
 ```
 
-See [concepts.md — No middleware](./concepts.md#no-middleware--the-chain-is-the-middleware) and the full catalogue in [railway-patterns.md](./railway-patterns.md).
+See [concepts.md — No middleware](./concepts.md#no-middleware--the-chain-is-the-middleware) and the full catalogue in [railway-patterns.md](./railway-patterns.md). For capability types and `withAuth` composers that make auth non-omittable at registration, see [advanced-usage.md](./advanced-usage.md).
 
 ### Client
 
