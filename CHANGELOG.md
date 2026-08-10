@@ -20,6 +20,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - PR template checklist and `AGENTS.md` changelog / release guidance.
 - Tracked `plans/` directory (previously gitignored) and plan naming convention in `AGENTS.md`.
 - Bump `@types/node` from 24 to 26 across the package and examples ([#15](https://github.com/project-eddy/never-rest/pull/15)).
+- Bump `@hono/node-server` from 1 to 2 in the Hono example ([#13](https://github.com/project-eddy/never-rest/pull/13)).
 
 ## [0.1.0] - 2026-08-10
 
