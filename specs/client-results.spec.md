@@ -14,11 +14,11 @@ status: draft
 parse failures, and error responses all become `Err(RailError)`; successful
 2xx bodies parse into `Ok`. Declared domain codes, `validation_error`, and
 `internal` pass through when the wire envelope is well-formed. An error whose
-code is not declared on the route becomes `Err` with code `internal` and the
-remote error nested as `cause`. Malformed envelopes or cause chains deeper than
-16 hops become `internal` with message "Unexpected error response". Composed
-calls short-circuit: when the first call returns `Err`, the second is never
-invoked.
+code is not declared on the route becomes `Err` with code `internal`, message
+"Unexpected error response", and the remote error nested as `cause`. Malformed
+envelopes or cause chains deeper than 16 hops become `internal` with message
+"Unexpected error response". Composed calls short-circuit: when the first call
+returns `Err`, the second is never invoked.
 
 ## Success becomes Ok
 
@@ -68,6 +68,7 @@ Scenario: Mapping an undeclared error code to internal Err with remote cause
   When the client operation is called
   Then the result is Err
   And the error has code "internal"
+  And the error message is "Unexpected error response"
   And the error cause has code "database_corrupt"
 ```
 
@@ -154,4 +155,16 @@ Scenario: Returning Err instead of throwing on fetch failure
   When the client operation is called
   Then the promise resolves without throwing
   And the result is Err
+```
+
+## Sync-throwing headers callback becomes internal Err
+
+```gherkin
+Scenario: Returning internal Err when a headers callback throws synchronously
+  Given a contract route
+  And client options whose headers callback throws synchronously
+  When the client operation is called
+  Then the result is Err
+  And the error has code "internal"
+  And fetch was not called
 ```

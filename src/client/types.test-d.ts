@@ -1,7 +1,7 @@
 import type { ResultAsync } from 'neverthrow';
 import { z } from 'zod';
 
-import type { ClientErrorOf, ContractDef } from '../contract/types.js';
+import type { ClientInputOf, ClientErrorOf, ContractDef } from '../contract/types.js';
 import type { RailError } from '../error.js';
 import { createClient } from './create.js';
 
@@ -65,4 +65,23 @@ type _UnavailableInClient = Expect<
 
 type _UndeclaredCodeNotAssignable = ExpectNot<
   RailError<'database_corrupt'> extends GetUserClientError ? true : false
+>;
+
+const _transformContract = {
+  getLimit: {
+    method: 'GET',
+    path: '/limits/:id',
+    input: z.object({ id: z.string(), limit: z.string().transform(Number) }),
+    output: z.object({ value: z.number() }),
+    errors: [] as const,
+  },
+} satisfies ContractDef;
+
+type _ClientInputAcceptsInferInput = Expect<
+  ClientInputOf<(typeof _transformContract)['getLimit']> extends {
+    id: string;
+    limit: string;
+  }
+    ? true
+    : false
 >;

@@ -174,7 +174,9 @@ function mapProtocolError<TRoute extends RouteDef>(
     return error as ClientErrorOf<TRoute>;
   }
 
-  return railError('internal', error.message, { cause: error }) as ClientErrorOf<TRoute>;
+  return railError('internal', 'Unexpected error response', {
+    cause: error,
+  }) as ClientErrorOf<TRoute>;
 }
 
 /** Map an HTTP response to Ok output or Err RailError. */

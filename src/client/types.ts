@@ -2,8 +2,8 @@ import type { ResultAsync } from 'neverthrow';
 
 import type {
   ClientErrorOf,
+  ClientInputOf,
   ContractDef,
-  InputOf,
   OutputOf,
 } from '../contract/types.js';
 
@@ -20,6 +20,6 @@ export interface ClientOptions {
  */
 export type Client<TContract extends ContractDef> = {
   readonly [K in keyof TContract]: (
-    input: InputOf<TContract[K]>,
+    input: ClientInputOf<TContract[K]>,
   ) => ResultAsync<OutputOf<TContract[K]>, ClientErrorOf<TContract[K]>>;
 };

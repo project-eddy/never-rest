@@ -1,11 +1,12 @@
-import { ResultAsync } from 'neverthrow';
+import { errAsync, ResultAsync } from 'neverthrow';
 
 import { compileContract } from '../contract/compile.js';
 import { parseInput } from '../contract/parse.js';
+import type { CompiledPath } from '../contract/path.js';
 import type {
   ClientErrorOf,
+  ClientInputOf,
   ContractDef,
-  InputOf,
   OutputOf,
   RouteDef,
 } from '../contract/types.js';
@@ -18,16 +19,33 @@ function unavailableError() {
   return railError('unavailable', 'Network request failed', { retryable: true });
 }
 
+function internalError(message: string) {
+  return railError('internal', message);
+}
+
 function resolveHeaders(
   headers: ClientOptions['headers'],
-): Promise<HeadersInit | undefined> {
+): ResultAsync<HeadersInit | undefined, ClientErrorOf<RouteDef>> {
   if (headers === undefined) {
-    return Promise.resolve(undefined);
+    return ResultAsync.fromSafePromise(Promise.resolve(undefined));
   }
+
   if (typeof headers === 'function') {
-    return Promise.resolve(headers());
+    try {
+      const result = headers();
+      return ResultAsync.fromPromise(Promise.resolve(result), () =>
+        unavailableError(),
+      );
+    } catch {
+      return errAsync(internalError('Request headers callback failed'));
+    }
   }
-  return Promise.resolve(headers);
+
+  try {
+    return ResultAsync.fromSafePromise(Promise.resolve(headers));
+  } catch {
+    return errAsync(internalError('Request headers are invalid'));
+  }
 }
 
 function invokeFetch(
@@ -46,21 +64,25 @@ function invokeFetch(
 
 function callRoute<TRoute extends RouteDef>(
   route: TRoute,
+  compiledPath: CompiledPath,
   options: ClientOptions,
   fetchFn: typeof fetch,
-  input: InputOf<TRoute>,
+  input: ClientInputOf<TRoute>,
 ): ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>> {
-  return parseInput(route, input).andThen((validated) =>
-    ResultAsync.fromPromise(resolveHeaders(options.headers), () =>
-      unavailableError(),
-    ).andThen((headers) => {
-      const { url, init } = buildRequest(
+  return parseInput(route, input).andThen(() =>
+    resolveHeaders(options.headers).andThen((headers) => {
+      const built = buildRequest(
         route,
+        compiledPath,
         options.baseUrl,
-        validated,
+        input,
         headers,
         options.credentials,
       );
+      if (built.isErr()) {
+        return errAsync(built.error as ClientErrorOf<TRoute>);
+      }
+      const { url, init } = built.value;
       return ResultAsync.fromPromise(
         invokeFetch(fetchFn, url, init),
         () => unavailableError(),
@@ -74,14 +96,15 @@ export function createClient<TContract extends ContractDef>(
   contract: TContract,
   options: ClientOptions,
 ): Client<TContract> {
-  compileContract(contract);
+  const compiled = compileContract(contract);
   const fetchFn = options.fetch ?? globalThis.fetch.bind(globalThis);
   const client: Record<string, unknown> = {};
 
   for (const key of Object.keys(contract) as (keyof TContract & string)[]) {
     const route = contract[key];
-    client[key] = (input: InputOf<typeof route>) =>
-      callRoute(route, options, fetchFn, input);
+    const compiledPath = compiled.routes[key].compiledPath;
+    client[key] = (input: ClientInputOf<typeof route>) =>
+      callRoute(route, compiledPath, options, fetchFn, input);
   }
 
   return client as Client<TContract>;

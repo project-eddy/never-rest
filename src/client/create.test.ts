@@ -103,6 +103,7 @@ describe('createClient', () => {
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
       expect(result.error.code).toBe('internal');
+      expect(result.error.message).toBe('Unexpected error response');
       expect(result.error.cause?.code).toBe('database_corrupt');
       expect(result.error.cause?.message).toBe('WAL segment missing');
     }
@@ -382,6 +383,371 @@ describe('createClient', () => {
     if (result.isOk()) {
       expect(result.value).toBe(2);
     }
+  });
+});
+
+describe('client wire fidelity', () => {
+  it('accepts client InferInput for a transforming input schema', async () => {
+    const transformContract = {
+      getScore: {
+        method: 'GET',
+        path: '/scores/:id',
+        input: z.object({ id: z.string(), limit: z.string().transform(Number) }),
+        output: z.object({ score: z.number() }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn().mockResolvedValue(jsonResponse(200, { score: 42 }));
+    const client = createClient(transformContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.getScore({ id: 's_1', limit: '42' });
+
+    expect(result.isOk()).toBe(true);
+    expect(fetchStub).toHaveBeenCalledWith(
+      'https://api.example.com/scores/s_1?limit=42',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('rejects handler InferOutput shape before fetch for a transforming schema', async () => {
+    const transformContract = {
+      getScore: {
+        method: 'GET',
+        path: '/scores/:id',
+        input: z.object({ id: z.string(), limit: z.string().transform(Number) }),
+        output: z.object({ score: z.number() }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn();
+    const client = createClient(transformContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.getScore({ id: 's_1', limit: 42 });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('validation_error');
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('omits a defaulted query field instead of sending the default value', async () => {
+    const defaultContract = {
+      listItems: {
+        method: 'GET',
+        path: '/items',
+        input: z.object({ limit: z.number().default(10) }),
+        output: z.object({ items: z.array(z.string()) }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn().mockResolvedValue(jsonResponse(200, { items: [] }));
+    const client = createClient(defaultContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    await client.listItems({});
+
+    expect(fetchStub).toHaveBeenCalledWith(
+      'https://api.example.com/items',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('serializes array query params with a bracket suffix', async () => {
+    const tagsContract = {
+      search: {
+        method: 'GET',
+        path: '/search',
+        input: z.object({ tags: z.array(z.string()) }),
+        output: z.object({ hits: z.number() }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn().mockResolvedValue(jsonResponse(200, { hits: 2 }));
+    const client = createClient(tagsContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    await client.search({ tags: ['a', 'b'] });
+
+    expect(fetchStub).toHaveBeenCalledWith(
+      'https://api.example.com/search?tags%5B%5D=a&tags%5B%5D=b',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('serializes a single-element array with a bracket suffix', async () => {
+    const tagsContract = {
+      search: {
+        method: 'GET',
+        path: '/search',
+        input: z.object({ tags: z.array(z.string()) }),
+        output: z.object({ hits: z.number() }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn().mockResolvedValue(jsonResponse(200, { hits: 1 }));
+    const client = createClient(tagsContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    await client.search({ tags: ['a'] });
+
+    expect(fetchStub).toHaveBeenCalledWith(
+      'https://api.example.com/search?tags%5B%5D=a',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('returns validation_error for an empty array query param before fetch', async () => {
+    const tagsContract = {
+      search: {
+        method: 'GET',
+        path: '/search',
+        input: z.object({ tags: z.array(z.string()) }),
+        output: z.object({ hits: z.number() }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn();
+    const client = createClient(tagsContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.search({ tags: [] });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('validation_error');
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('returns validation_error for nested object query values before fetch', async () => {
+    const filterContract = {
+      search: {
+        method: 'GET',
+        path: '/search',
+        input: z.object({ filter: z.record(z.string()) }),
+        output: z.object({ hits: z.number() }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn();
+    const client = createClient(filterContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.search({ filter: { nested: 'x' } });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('validation_error');
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('returns validation_error for bigint query values before fetch', async () => {
+    const bigintContract = {
+      search: {
+        method: 'GET',
+        path: '/search',
+        input: z.object({ id: z.bigint() }),
+        output: z.object({ hits: z.number() }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn();
+    const client = createClient(bigintContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.search({ id: BigInt(1) });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('validation_error');
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('serializes Date query params as ISO 8601 scalars', async () => {
+    const dateContract = {
+      search: {
+        method: 'GET',
+        path: '/search',
+        input: z.object({ since: z.date() }),
+        output: z.object({ hits: z.number() }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const since = new Date('2024-01-15T12:00:00.000Z');
+    const fetchStub = vi.fn().mockResolvedValue(jsonResponse(200, { hits: 0 }));
+    const client = createClient(dateContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    await client.search({ since });
+
+    const [url] = fetchStub.mock.calls[0] as [string];
+    expect(url).toContain('since=2024-01-15T12%3A00%3A00.000Z');
+  });
+
+  it('returns validation_error for a missing path parameter before fetch', async () => {
+    const fetchStub = vi.fn();
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.getUser({ id: undefined } as { id: string });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('validation_error');
+      expect(result.error.message).toContain('id');
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('returns validation_error for an empty path parameter before fetch', async () => {
+    const fetchStub = vi.fn();
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.getUser({ id: '' });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('validation_error');
+      expect(result.error.message).toContain('id');
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('returns internal Err when a headers callback throws synchronously', async () => {
+    const fetchStub = vi.fn();
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+      headers: () => {
+        throw new Error('sync header boom');
+      },
+    });
+
+    const result = await client.getUser({ id: 'u_1' });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('internal');
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('returns internal Err for an invalid header value on GET', async () => {
+    const fetchStub = vi.fn();
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+      headers: { 'x-bad': 'line\nbreak' },
+    });
+
+    const result = await client.getUser({ id: 'u_1' });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('internal');
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('returns internal Err for a circular POST body without throwing', async () => {
+    const fetchStub = vi.fn();
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+    const body: Record<string, unknown> = { email: 'ada@example.com' };
+    body.self = body;
+
+    const result = await client.createUser(body as { email: string });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('internal');
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('returns internal Err for bigint POST bodies without throwing', async () => {
+    const bigintPostContract = {
+      create: {
+        method: 'POST',
+        path: '/records',
+        input: z.object({ amount: z.bigint() }),
+        output: z.object({ id: z.string() }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn();
+    const client = createClient(bigintPostContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.create({ amount: BigInt(42) });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('internal');
+    }
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('does not call compilePath on each request', async () => {
+    const pathModule = await import('../contract/path.js');
+    const compilePathSpy = vi.spyOn(pathModule, 'compilePath');
+
+    const fetchStub = vi.fn().mockResolvedValue(
+      jsonResponse(200, { id: 'u_1', name: 'Ada' }),
+    );
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    compilePathSpy.mockClear();
+    await client.getUser({ id: 'u_1' });
+    await client.getUser({ id: 'u_2' });
+
+    expect(compilePathSpy).not.toHaveBeenCalled();
+    compilePathSpy.mockRestore();
   });
 });
 
