@@ -6,6 +6,7 @@
   "exclude": [
     "**/*.test.ts",
     "**/*.test-d.ts",
+    "src/railway/**",
     "specs/**",
     "perf/**"
   ]
