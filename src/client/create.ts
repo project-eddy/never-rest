@@ -1,7 +1,14 @@
 import { ResultAsync } from 'neverthrow';
 
+import { compileContract } from '../contract/compile.js';
 import { parseInput } from '../contract/parse.js';
-import type { ContractDef, ErrorOf, InputOf, OutputOf, RouteDef } from '../contract/types.js';
+import type {
+  ClientErrorOf,
+  ContractDef,
+  InputOf,
+  OutputOf,
+  RouteDef,
+} from '../contract/types.js';
 import { railError } from '../error.js';
 import { buildRequest } from './request.js';
 import { mapResponse } from './response.js';
@@ -42,7 +49,7 @@ function callRoute<TRoute extends RouteDef>(
   options: ClientOptions,
   fetchFn: typeof fetch,
   input: InputOf<TRoute>,
-): ResultAsync<OutputOf<TRoute>, ErrorOf<TRoute>> {
+): ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>> {
   return parseInput(route, input).andThen((validated) =>
     ResultAsync.fromPromise(resolveHeaders(options.headers), () =>
       unavailableError(),
@@ -59,7 +66,7 @@ function callRoute<TRoute extends RouteDef>(
         () => unavailableError(),
       ).andThen((response) => mapResponse(route, response));
     }),
-  ) as ResultAsync<OutputOf<TRoute>, ErrorOf<TRoute>>;
+  );
 }
 
 /** Build a typed client with one composable ResultAsync function per contract operation. */
@@ -67,6 +74,7 @@ export function createClient<TContract extends ContractDef>(
   contract: TContract,
   options: ClientOptions,
 ): Client<TContract> {
+  compileContract(contract);
   const fetchFn = options.fetch ?? globalThis.fetch.bind(globalThis);
   const client: Record<string, unknown> = {};
 

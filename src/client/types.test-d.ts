@@ -1,7 +1,7 @@
 import type { ResultAsync } from 'neverthrow';
 import { z } from 'zod';
 
-import type { ContractDef, ErrorOf } from '../contract/types.js';
+import type { ClientErrorOf, ContractDef } from '../contract/types.js';
 import type { RailError } from '../error.js';
 import { createClient } from './create.js';
 
@@ -27,10 +27,12 @@ const contract = {
 
 const client = createClient(contract, { baseUrl: 'https://api.example.com' });
 
+type GetUserClientError = ClientErrorOf<(typeof contract)['getUser']>;
+
 type _GetUserResult = Expect<
   ReturnType<typeof client.getUser> extends ResultAsync<
     { id: string; name: string },
-    RailError<'not_found'>
+    GetUserClientError
   >
     ? true
     : false
@@ -42,15 +44,25 @@ const _composed = client
   .map((orders) => orders.orders.length);
 
 type _ComposedChain = Expect<
-  typeof _composed extends ResultAsync<number, RailError<'not_found'>> ? true : false
->;
-
-type GetUserError = ErrorOf<(typeof contract)['getUser']>;
-
-type _UndeclaredCodeNotAssignable = ExpectNot<
-  RailError<'database_corrupt'> extends GetUserError ? true : false
+  typeof _composed extends ResultAsync<number, GetUserClientError> ? true : false
 >;
 
 type _DeclaredCodeAssignable = Expect<
-  RailError<'not_found'> extends GetUserError ? true : false
+  RailError<'not_found'> extends GetUserClientError ? true : false
+>;
+
+type _ValidationInClient = Expect<
+  RailError<'validation_error'> extends GetUserClientError ? true : false
+>;
+
+type _InternalInClient = Expect<
+  RailError<'internal'> extends GetUserClientError ? true : false
+>;
+
+type _UnavailableInClient = Expect<
+  RailError<'unavailable'> extends GetUserClientError ? true : false
+>;
+
+type _UndeclaredCodeNotAssignable = ExpectNot<
+  RailError<'database_corrupt'> extends GetUserClientError ? true : false
 >;

@@ -28,7 +28,7 @@ const contract = {
     path: '/users',
     input: z.object({ email: z.string().email() }),
     output: z.object({ id: z.string() }),
-    errors: ['validation_error', 'conflict'],
+    errors: ['conflict'],
   },
   listUsers: {
     method: 'GET',
@@ -86,7 +86,7 @@ describe('createClient', () => {
     }
   });
 
-  it('maps an undeclared error code to internal Err', async () => {
+  it('maps an undeclared error code to internal Err with remote cause', async () => {
     const fetchStub = vi.fn().mockResolvedValue(
       jsonResponse(500, {
         code: 'database_corrupt',
@@ -103,7 +103,110 @@ describe('createClient', () => {
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
       expect(result.error.code).toBe('internal');
-      expect(result.error.code).not.toBe('database_corrupt');
+      expect(result.error.cause?.code).toBe('database_corrupt');
+      expect(result.error.cause?.message).toBe('WAL segment missing');
+    }
+  });
+
+  it('maps a validation_error envelope to Err', async () => {
+    const fetchStub = vi.fn().mockResolvedValue(
+      jsonResponse(400, {
+        code: 'validation_error',
+        message: 'Validation failed',
+        issues: [{ path: ['email'], message: 'Invalid email' }],
+      }),
+    );
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.createUser({ email: 'ada@example.com' });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('validation_error');
+      expect(result.error.issues).toEqual([
+        { path: ['email'], message: 'Invalid email' },
+      ]);
+    }
+    expect(fetchStub).toHaveBeenCalledOnce();
+  });
+
+  it('maps a malformed error envelope to internal Err', async () => {
+    const fetchStub = vi.fn().mockResolvedValue(
+      jsonResponse(400, { code: 'not_found', message: 123 }),
+    );
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.getUser({ id: 'u_1' });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('internal');
+      expect(result.error.message).toBe('Unexpected error response');
+    }
+  });
+
+  it('preserves a bounded nested cause on a declared error', async () => {
+    const fetchStub = vi.fn().mockResolvedValue(
+      jsonResponse(404, {
+        code: 'not_found',
+        message: 'User missing',
+        cause: {
+          code: 'lookup_failed',
+          message: 'Index miss',
+          origin: 'user-store',
+        },
+      }),
+    );
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.getUser({ id: 'missing' });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('not_found');
+      expect(result.error.cause?.code).toBe('lookup_failed');
+      expect(result.error.cause?.origin).toBe('user-store');
+    }
+  });
+
+  it('maps an error envelope exceeding cause depth to internal Err', async () => {
+    function nestCause(
+      depth: number,
+      inner: Record<string, unknown>,
+    ): Record<string, unknown> {
+      if (depth === 0) {
+        return inner;
+      }
+      return {
+        code: 'wrapper',
+        message: 'wrapped',
+        cause: nestCause(depth - 1, inner),
+      };
+    }
+
+    const fetchStub = vi.fn().mockResolvedValue(
+      jsonResponse(500, nestCause(17, { code: 'database_corrupt', message: 'deep' })),
+    );
+    const client = createClient(contract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.getUser({ id: 'u_1' });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('internal');
+      expect(result.error.message).toBe('Unexpected error response');
     }
   });
 
