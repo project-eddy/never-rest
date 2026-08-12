@@ -7,6 +7,10 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Internal
+
+- Examples teaching refresh for 0.3.0 protocol wins: handlers demo parsed-output stripping (`passwordHash`), smoke scenarios + README, gateway disclosure/`unavailable` demos.
+
 ## [0.3.0] - 2026-08-12
 
 ### Changed
