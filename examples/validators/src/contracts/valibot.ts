@@ -31,4 +31,4 @@ export const usersContract = {
     output: v.array(userSchema),
     errors: [],
   },
-} satisfies ContractDef;
+} as const satisfies ContractDef;

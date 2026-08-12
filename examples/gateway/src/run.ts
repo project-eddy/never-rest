@@ -43,7 +43,7 @@ const inventoryContract = {
     output: z.object({ reservationId: z.string() }),
     errors: ['not_found'],
   },
-} satisfies ContractDef;
+} as const satisfies ContractDef;
 
 const inventoryHandlers: Handlers<typeof inventoryContract, undefined> = {
   reserve: () =>
@@ -85,7 +85,7 @@ const ordersContract = {
     output: z.object({ orderId: z.string(), reservationId: z.string() }),
     errors: ['fulfilment_failed', 'not_found'],
   },
-} satisfies ContractDef;
+} as const satisfies ContractDef;
 
 const ordersHandlers: Handlers<typeof ordersContract, undefined> = {
   fulfil: async ({ input }) => {

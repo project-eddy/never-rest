@@ -29,7 +29,7 @@ export const usersContract = {
     output: z.array(userSchema),
     errors: [],
   },
-} satisfies ContractDef;
+} as const satisfies ContractDef;
 
 // Protocol surface for `serve`: every domain code on the contract plus host
 // codes (`validation_error`, `internal`, `route_not_found`). Missing map

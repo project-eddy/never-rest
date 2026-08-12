@@ -8,9 +8,11 @@ export default function HomePage() {
       </p>
       <h1 className="text-4xl font-bold tracking-tight mb-4">never-rest</h1>
       <p className="text-lg text-fd-muted-foreground mb-8">
-        HTTP contracts where handlers return Result instead of throwing. Errors
-        carry their cause chain across service boundaries. Disclosure is graded
-        by caller trust.
+        Never Rest is an opinionated architectural choice — it puts Result-based
+        railway-oriented programming at the API boundary. Whether either side
+        uses railway style internally is up to that team and does not matter to
+        the contract. The assumption is that at least one side wants it;
+        otherwise there is no reason to reach for this.
       </p>
       <div className="flex flex-wrap gap-4">
         <Link

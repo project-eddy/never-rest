@@ -29,4 +29,4 @@ export const usersContract = {
     output: userSchema.array(),
     errors: [],
   },
-} satisfies ContractDef;
+} as const satisfies ContractDef;
