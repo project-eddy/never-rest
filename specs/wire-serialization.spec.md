@@ -10,21 +10,21 @@ status: draft
 
 # Client wire serialization
 
-`buildRequest` uses the precompiled path from `compileContract`, validates path
-parameters before fetch, and serializes GET/DELETE remainder fields as query
-parameters. Primitives and dates become scalar keys; arrays of primitives or
-dates use a `key[]` suffix even for a single element. `undefined` and `null`
-are omitted. Empty arrays, nested objects, bigint, and nested arrays return
-`validation_error` before fetch. POST bodies and headers are built inside a
-railway boundary: invalid headers, circular JSON, and bigint bodies return
+`buildRequest` uses the precompiled path from `compileContract`, interpolates
+`args.params`, serializes `args.query` for any method, and JSON-stringifies
+`args.body` when present. Primitives and dates become scalar keys; arrays of
+primitives or dates use a `key[]` suffix even for a single element. `undefined`
+and `null` are omitted. Empty arrays, nested objects, bigint, and nested arrays
+return `validation_error` before fetch. POST bodies and headers are built inside
+a railway boundary: invalid headers, circular JSON, and bigint bodies return
 `internal` without throwing.
 
 ## Array query params use bracket suffix
 
 ```gherkin
 Scenario: Serializing array query params with a bracket suffix
-  Given a GET route with input { tags: string[] }
-  And client input { tags: ["a", "b"] }
+  Given a GET route with query { tags: string[] }
+  And client args { query: { tags: ["a", "b"] } }
   When the client operation is called
   Then fetch is called with URL query tags[]=a&tags[]=b
 ```
@@ -33,8 +33,8 @@ Scenario: Serializing array query params with a bracket suffix
 
 ```gherkin
 Scenario: Serializing a single-element array with a bracket suffix
-  Given a GET route with input { tags: string[] }
-  And client input { tags: ["a"] }
+  Given a GET route with query { tags: string[] }
+  And client args { query: { tags: ["a"] } }
   When the client operation is called
   Then fetch is called with URL query tags[]=a
 ```
@@ -43,8 +43,8 @@ Scenario: Serializing a single-element array with a bracket suffix
 
 ```gherkin
 Scenario: Returning validation_error for an empty array query param before fetch
-  Given a GET route with input { tags: string[] }
-  And client input { tags: [] }
+  Given a GET route with query { tags: string[] }
+  And client args { query: { tags: [] } }
   When the client operation is called
   Then the result is Err with code validation_error
   And fetch was not called
@@ -54,8 +54,8 @@ Scenario: Returning validation_error for an empty array query param before fetch
 
 ```gherkin
 Scenario: Returning validation_error for nested object query values before fetch
-  Given a GET route whose input accepts a nested object field
-  And client input with a nested object query value
+  Given a GET route whose query accepts a nested object field
+  And client args with a nested object query value
   When the client operation is called
   Then the result is Err with code validation_error
   And fetch was not called
@@ -65,8 +65,8 @@ Scenario: Returning validation_error for nested object query values before fetch
 
 ```gherkin
 Scenario: Serializing Date query params as ISO 8601 scalars
-  Given a GET route with input { since: Date }
-  And client input with since set to a known instant
+  Given a GET route with query { since: Date }
+  And client args with since set to a known instant
   When the client operation is called
   Then fetch is called with URL query since equal to that instant in ISO 8601
 ```
@@ -75,8 +75,8 @@ Scenario: Serializing Date query params as ISO 8601 scalars
 
 ```gherkin
 Scenario: Returning validation_error for a missing path parameter before fetch
-  Given a GET route with path /users/:id
-  And client input missing id
+  Given a GET route with path /users/:id and params schema
+  And client args with params missing id
   When the client operation is called
   Then the result is Err with code validation_error naming id
   And fetch was not called
@@ -86,8 +86,8 @@ Scenario: Returning validation_error for a missing path parameter before fetch
 
 ```gherkin
 Scenario: Returning validation_error for an empty path parameter before fetch
-  Given a GET route with path /users/:id
-  And client input with id ""
+  Given a GET route with path /users/:id and params schema
+  And client args with params.id ""
   When the client operation is called
   Then the result is Err with code validation_error naming id
   And fetch was not called
@@ -97,21 +97,32 @@ Scenario: Returning validation_error for an empty path parameter before fetch
 
 ```gherkin
 Scenario: Omitting a defaulted query field instead of sending the default value
-  Given a GET route with input { limit: number defaulting to 10 }
-  And client input with limit omitted
+  Given a GET route with query { limit: number defaulting to 10 }
+  And client args { query: {} }
   When the client operation is called
   Then fetch is called without a limit query parameter
 ```
 
-## Transforming input uses client InferInput on the wire
+## Transforming query uses client InferInput on the wire
 
 ```gherkin
-Scenario: Accepting client InferInput for a transforming input schema
-  Given a GET route with input { limit: string transforming to number }
-  And client input with limit "42"
+Scenario: Accepting client InferInput for a transforming query schema
+  Given a GET route with query { limit: string transforming to number }
+  And client args with query.limit "42"
   When the client operation is called
   Then fetch is called with query limit=42 as the string value
   And the result is Ok when the response matches the output schema
+```
+
+## POST can send query alongside body
+
+```gherkin
+Scenario: Sending query and body on POST
+  Given a POST route with query { force: boolean } and body { name: string }
+  And client args { query: { force: true }, body: { name: "Ada" } }
+  When the client operation is called
+  Then fetch is called with URL query force=true
+  And the request body is JSON { name: "Ada" }
 ```
 
 ## Invalid headers return internal without fetch
@@ -130,7 +141,7 @@ Scenario: Returning internal Err for an invalid header value on GET
 ```gherkin
 Scenario: Returning internal Err for a circular POST body without throwing
   Given a POST route with a JSON body
-  And client input forming a circular object reference
+  And client args forming a circular object reference
   When the client operation is called
   Then the promise resolves without throwing
   And the result is Err with code internal

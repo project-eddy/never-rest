@@ -1,11 +1,11 @@
 import { errAsync, ResultAsync } from 'neverthrow';
 
 import { compileContract } from '../contract/compile.js';
-import { parseInput } from '../contract/parse.js';
+import { parseRouteSources } from '../contract/parse.js';
 import type { CompiledPath } from '../contract/path.js';
 import type {
+  ClientArgsOf,
   ClientErrorOf,
-  ClientInputOf,
   ContractDef,
   OutputOf,
   RouteDef,
@@ -62,20 +62,33 @@ function invokeFetch(
   });
 }
 
+function toRawSources(args: ClientArgsOf<RouteDef>) {
+  const record = args as {
+    readonly params?: Record<string, string>;
+    readonly query?: unknown;
+    readonly body?: unknown;
+  };
+  return {
+    ...(record.params !== undefined ? { params: record.params } : {}),
+    ...(record.query !== undefined ? { query: record.query } : {}),
+    ...(record.body !== undefined ? { body: record.body } : {}),
+  };
+}
+
 function callRoute<TRoute extends RouteDef>(
   route: TRoute,
   compiledPath: CompiledPath,
   options: ClientOptions,
   fetchFn: typeof fetch,
-  input: ClientInputOf<TRoute>,
+  args: ClientArgsOf<TRoute>,
 ): ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>> {
-  return parseInput(route, input).andThen(() =>
+  return parseRouteSources(route, toRawSources(args)).andThen(() =>
     resolveHeaders(options.headers).andThen((headers) => {
       const built = buildRequest(
         route,
         compiledPath,
         options.baseUrl,
-        input,
+        args,
         headers,
         options.credentials,
       );
@@ -103,8 +116,14 @@ export function createClient<TContract extends ContractDef>(
   for (const key of Object.keys(contract) as (keyof TContract & string)[]) {
     const route = contract[key];
     const compiledPath = compiled.routes[key].compiledPath;
-    client[key] = (input: ClientInputOf<typeof route>) =>
-      callRoute(route, compiledPath, options, fetchFn, input);
+    client[key] = (args?: ClientArgsOf<typeof route>) =>
+      callRoute(
+        route,
+        compiledPath,
+        options,
+        fetchFn,
+        (args ?? {}) as ClientArgsOf<typeof route>,
+      );
   }
 
   return client as Client<TContract>;

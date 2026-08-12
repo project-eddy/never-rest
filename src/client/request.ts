@@ -1,7 +1,7 @@
 import { err, ok, type Result } from 'neverthrow';
 
 import type { CompiledPath } from '../contract/path.js';
-import type { RouteDef } from '../contract/types.js';
+import type { ClientArgsOf, RouteDef } from '../contract/types.js';
 import { railError, type RailError } from '../error.js';
 
 export interface BuiltRequest {
@@ -28,15 +28,20 @@ function interpolatePath(
   path: string,
   paramNames: readonly string[],
   pathParams: Record<string, string>,
-): string {
+): Result<string, RailError<'validation_error'>> {
   let result = path;
   for (const name of paramNames) {
     const value = pathParams[name];
-    if (value !== undefined) {
-      result = result.replace(`:${name}`, encodeURIComponent(value));
+    if (value === undefined || value === '') {
+      return err(
+        validationError(`Path parameter "${name}" is required`, [
+          { path: ['params', name], message: 'Path parameter is missing, empty, or null' },
+        ]),
+      );
     }
+    result = result.replace(`:${name}`, encodeURIComponent(value));
   }
-  return result;
+  return ok(result);
 }
 
 function isQueryPrimitive(value: unknown): value is string | number | boolean {
@@ -71,7 +76,12 @@ function appendQueryValue(
       return err(
         validationError(
           `Query parameter "${key}" cannot be an empty array; omit the field or use POST`,
-          [{ path: [key], message: 'Empty array is not representable in a query string' }],
+          [
+            {
+              path: ['query', key],
+              message: 'Empty array is not representable in a query string',
+            },
+          ],
         ),
       );
     }
@@ -83,10 +93,13 @@ function appendQueryValue(
         search.append(`${key}[]`, item.toISOString());
       } else {
         return err(
-          validationError(
-            `Query parameter "${key}" has an unrepresentable value`,
-            [{ path: [key], message: 'Nested objects, bigint, and nested arrays are not supported in query strings' }],
-          ),
+          validationError(`Query parameter "${key}" has an unrepresentable value`, [
+            {
+              path: ['query', key],
+              message:
+                'Nested objects, bigint, and nested arrays are not supported in query strings',
+            },
+          ]),
         );
       }
     }
@@ -94,60 +107,67 @@ function appendQueryValue(
   }
 
   return err(
-    validationError(
-      `Query parameter "${key}" has an unrepresentable value`,
-      [{ path: [key], message: 'Nested objects, bigint, and nested arrays are not supported in query strings' }],
-    ),
+    validationError(`Query parameter "${key}" has an unrepresentable value`, [
+      {
+        path: ['query', key],
+        message:
+          'Nested objects, bigint, and nested arrays are not supported in query strings',
+      },
+    ]),
   );
 }
 
 function toQueryString(
-  params: Record<string, unknown>,
+  query: Record<string, unknown>,
 ): Result<string, RailError<'validation_error'>> {
   const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
+  for (const [key, value] of Object.entries(query)) {
     const appended = appendQueryValue(search, key, value);
     if (appended.isErr()) {
       return err(appended.error);
     }
   }
-  const query = search.toString();
-  return ok(query.length > 0 ? `?${query}` : '');
+  const encoded = search.toString();
+  return ok(encoded.length > 0 ? `?${encoded}` : '');
 }
 
-function pathParamValue(
-  input: Record<string, unknown>,
-  name: string,
-): unknown {
-  return input[name];
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return undefined;
 }
 
-function validatePathParams(
+function pathParamsFromArgs(
   paramNames: readonly string[],
-  input: unknown,
+  args: ClientArgsOf<RouteDef>,
 ): Result<Record<string, string>, RailError<'validation_error'>> {
   if (paramNames.length === 0) {
     return ok({});
   }
 
-  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
-    const first = paramNames[0];
+  const paramsBag = asRecord(
+    (args as { readonly params?: unknown }).params,
+  );
+  if (paramsBag === undefined) {
+    const first = paramNames[0]!;
     return err(
       validationError(`Path parameter "${first}" is required`, [
-        { path: [first], message: 'Path parameter is missing' },
+        { path: ['params', first], message: 'Path parameter is missing' },
       ]),
     );
   }
 
-  const record = input as Record<string, unknown>;
   const pathParams: Record<string, string> = {};
-
   for (const name of paramNames) {
-    const value = pathParamValue(record, name);
+    const value = paramsBag[name];
     if (value === undefined || value === null || value === '') {
       return err(
         validationError(`Path parameter "${name}" is required`, [
-          { path: [name], message: 'Path parameter is missing, empty, or null' },
+          {
+            path: ['params', name],
+            message: 'Path parameter is missing, empty, or null',
+          },
         ]),
       );
     }
@@ -157,84 +177,49 @@ function validatePathParams(
   return ok(pathParams);
 }
 
-/** Split validated input into path params and the remainder for body or query. */
-export function splitInput(
-  paramNames: readonly string[],
-  input: unknown,
-): {
-  readonly pathParams: Record<string, string>;
-  readonly remainder: Record<string, unknown> | undefined;
-} {
-  if (paramNames.length === 0) {
-    if (input === undefined) {
-      return { pathParams: {}, remainder: undefined };
-    }
-    if (typeof input === 'object' && input !== null && !Array.isArray(input)) {
-      const record = input as Record<string, unknown>;
-      return Object.keys(record).length > 0
-        ? { pathParams: {}, remainder: record }
-        : { pathParams: {}, remainder: undefined };
-    }
-    return { pathParams: {}, remainder: undefined };
-  }
-
-  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
-    return { pathParams: {}, remainder: undefined };
-  }
-
-  const record = input as Record<string, unknown>;
-  const pathParams: Record<string, string> = {};
-  const remainder: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(record)) {
-    if (paramNames.includes(key)) {
-      if (value !== undefined && value !== null && value !== '') {
-        pathParams[key] = String(value);
-      }
-    } else {
-      remainder[key] = value;
-    }
-  }
-
-  return {
-    pathParams,
-    remainder: Object.keys(remainder).length > 0 ? remainder : undefined,
-  };
-}
-
-/** Build a fetch URL and init from a route definition and validated input. */
+/** Build a fetch URL and init from declared params / query / body sources. */
 export function buildRequest(
   route: RouteDef,
   compiledPath: CompiledPath,
   baseUrl: string,
-  input: unknown,
+  args: ClientArgsOf<RouteDef>,
   headers: HeadersInit | undefined,
   credentials?: RequestCredentials,
 ): Result<BuiltRequest, BuildRequestError> {
-  const pathParamsResult = validatePathParams(compiledPath.paramNames, input);
+  const pathParamsResult = pathParamsFromArgs(compiledPath.paramNames, args);
   if (pathParamsResult.isErr()) {
     return err(pathParamsResult.error);
   }
 
-  const { remainder } = splitInput(compiledPath.paramNames, input);
-  const pathname = interpolatePath(
+  const pathnameResult = interpolatePath(
     route.path,
     compiledPath.paramNames,
     pathParamsResult.value,
   );
-  const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  if (pathnameResult.isErr()) {
+    return err(pathnameResult.error);
+  }
 
-  const methodUsesQuery =
-    route.method === 'GET' || route.method === 'DELETE';
+  const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
   let query = '';
-  if (methodUsesQuery && remainder !== undefined) {
-    const queryResult = toQueryString(remainder);
+  const queryValue = (args as { readonly query?: unknown }).query;
+  if (queryValue !== undefined) {
+    const queryRecord = asRecord(queryValue);
+    if (queryRecord === undefined) {
+      return err(
+        validationError('Query must be an object', [
+          { path: ['query'], message: 'Query must be an object' },
+        ]),
+      );
+    }
+    const queryResult = toQueryString(queryRecord);
     if (queryResult.isErr()) {
       return err(queryResult.error);
     }
     query = queryResult.value;
   }
-  const url = `${base}${pathname}${query}`;
+
+  const url = `${base}${pathnameResult.value}${query}`;
 
   let mergedHeaders: Headers;
   try {
@@ -248,12 +233,13 @@ export function buildRequest(
     init.credentials = credentials;
   }
 
-  if (!methodUsesQuery && remainder !== undefined) {
+  const bodyValue = (args as { readonly body?: unknown }).body;
+  if (bodyValue !== undefined) {
     if (!mergedHeaders.has('content-type')) {
       mergedHeaders.set('content-type', 'application/json');
     }
     try {
-      init.body = JSON.stringify(remainder);
+      init.body = JSON.stringify(bodyValue);
     } catch {
       return err(internalError('Request body cannot be serialized'));
     }

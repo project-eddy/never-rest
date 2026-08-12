@@ -1,10 +1,11 @@
 import type { ResultAsync } from 'neverthrow';
 
 import type {
+  ClientArgsOf,
   ClientErrorOf,
-  ClientInputOf,
   ContractDef,
   OutputOf,
+  RouteDef,
 } from '../contract/types.js';
 
 export interface ClientOptions {
@@ -14,12 +15,16 @@ export interface ClientOptions {
   readonly credentials?: RequestCredentials;
 }
 
+type ClientMethod<TRoute extends RouteDef> = [keyof ClientArgsOf<TRoute>] extends [never]
+  ? () => ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>>
+  : (
+      args: ClientArgsOf<TRoute>,
+    ) => ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>>;
+
 /**
  * One mapped type over the contract, one level deep, resolving to a plain function type per
- * operation. No recursion, no conditional chains.
+ * operation. No recursion, no conditional chains beyond the empty-args branch.
  */
 export type Client<TContract extends ContractDef> = {
-  readonly [K in keyof TContract]: (
-    input: ClientInputOf<TContract[K]>,
-  ) => ResultAsync<OutputOf<TContract[K]>, ClientErrorOf<TContract[K]>>;
+  readonly [K in keyof TContract]: ClientMethod<TContract[K]>;
 };

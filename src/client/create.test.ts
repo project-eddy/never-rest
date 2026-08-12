@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 import type { ContractDef } from '../contract/types.js';
 import { createClient } from './create.js';
-import { splitInput } from './request.js';
 
 const userOutput = z.object({ id: z.string(), name: z.string() });
 const orderOutput = z.object({ orders: z.array(z.string()) });
@@ -12,28 +11,28 @@ const contract = {
   getUser: {
     method: 'GET',
     path: '/users/:id',
-    input: z.object({ id: z.string() }),
+    params: z.object({ id: z.string() }),
     output: userOutput,
     errors: ['not_found'],
   },
   loadOrders: {
     method: 'GET',
     path: '/users/:userId/orders',
-    input: z.object({ userId: z.string() }),
+    params: z.object({ userId: z.string() }),
     output: orderOutput,
     errors: ['not_found'],
   },
   createUser: {
     method: 'POST',
     path: '/users',
-    input: z.object({ email: z.string().email() }),
+    body: z.object({ email: z.string().email() }),
     output: z.object({ id: z.string() }),
     errors: ['conflict'],
   },
   listUsers: {
     method: 'GET',
     path: '/users',
-    input: z.object({ limit: z.number().optional() }),
+    query: z.object({ limit: z.number().optional() }),
     output: z.object({ users: z.array(userOutput) }),
     errors: [],
   },
@@ -56,7 +55,7 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getUser({ id: 'u_42' });
+    const result = await client.getUser({ params: { id: 'u_42' } });
 
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
@@ -77,7 +76,7 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getUser({ id: 'missing' });
+    const result = await client.getUser({ params: { id: 'missing' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -98,7 +97,7 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getUser({ id: 'u_1' });
+    const result = await client.getUser({ params: { id: 'u_1' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -122,7 +121,9 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.createUser({ email: 'ada@example.com' });
+    const result = await client.createUser({
+      body: { email: 'ada@example.com' },
+    });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -143,7 +144,7 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getUser({ id: 'u_1' });
+    const result = await client.getUser({ params: { id: 'u_1' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -169,7 +170,7 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getUser({ id: 'missing' });
+    const result = await client.getUser({ params: { id: 'missing' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -202,7 +203,7 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getUser({ id: 'u_1' });
+    const result = await client.getUser({ params: { id: 'u_1' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -220,7 +221,7 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getUser({ id: 'u_1' });
+    const result = await client.getUser({ params: { id: 'u_1' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -237,7 +238,7 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getUser({ id: 'u_1' });
+    const result = await client.getUser({ params: { id: 'u_1' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -255,12 +256,14 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    await expect(client.getUser({ id: 'u_1' })).resolves.toBeDefined();
-    const result = await client.getUser({ id: 'u_1' });
+    await expect(
+      client.getUser({ params: { id: 'u_1' } }),
+    ).resolves.toBeDefined();
+    const result = await client.getUser({ params: { id: 'u_1' } });
     expect(result.isErr()).toBe(true);
   });
 
-  it('sends POST remainder as JSON body', async () => {
+  it('sends POST body as JSON', async () => {
     const fetchStub = vi.fn().mockResolvedValue(
       jsonResponse(201, { id: 'u_new' }),
     );
@@ -269,13 +272,45 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    await client.createUser({ email: 'ada@example.com' });
+    await client.createUser({ body: { email: 'ada@example.com' } });
 
     expect(fetchStub).toHaveBeenCalledWith(
       'https://api.example.com/users',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ email: 'ada@example.com' }),
+      }),
+    );
+  });
+
+  it('sends POST query alongside body', async () => {
+    const postQueryContract = {
+      createUser: {
+        method: 'POST',
+        path: '/users',
+        query: z.object({ force: z.boolean() }),
+        body: z.object({ name: z.string() }),
+        output: z.object({ id: z.string() }),
+        errors: ['conflict'],
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn().mockResolvedValue(jsonResponse(200, { id: 'u_1' }));
+    const client = createClient(postQueryContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    await client.createUser({
+      query: { force: true },
+      body: { name: 'Ada' },
+    });
+
+    expect(fetchStub).toHaveBeenCalledWith(
+      'https://api.example.com/users?force=true',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ name: 'Ada' }),
       }),
     );
   });
@@ -290,7 +325,7 @@ describe('createClient', () => {
       credentials: 'include',
     });
 
-    await client.getUser({ id: 'u_1' });
+    await client.getUser({ params: { id: 'u_1' } });
 
     const [, init] = fetchStub.mock.calls[0] as [string, RequestInit];
     expect(init.credentials).toBe('include');
@@ -306,7 +341,7 @@ describe('createClient', () => {
       credentials: 'include',
     });
 
-    await client.createUser({ email: 'ada@example.com' });
+    await client.createUser({ body: { email: 'ada@example.com' } });
 
     const [, init] = fetchStub.mock.calls[0] as [string, RequestInit];
     expect(init.credentials).toBe('include');
@@ -322,13 +357,13 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    await client.getUser({ id: 'u_1' });
+    await client.getUser({ params: { id: 'u_1' } });
 
     const [, init] = fetchStub.mock.calls[0] as [string, RequestInit];
     expect('credentials' in init).toBe(false);
   });
 
-  it('sends GET remainder as query string', async () => {
+  it('sends GET query as query string', async () => {
     const fetchStub = vi.fn().mockResolvedValue(
       jsonResponse(200, { users: [] }),
     );
@@ -337,7 +372,7 @@ describe('createClient', () => {
       fetch: fetchStub,
     });
 
-    await client.listUsers({ limit: 10 });
+    await client.listUsers({ query: { limit: 10 } });
 
     expect(fetchStub).toHaveBeenCalledWith(
       'https://api.example.com/users?limit=10',
@@ -356,8 +391,10 @@ describe('createClient', () => {
     const loadOrdersSpy = vi.spyOn(client, 'loadOrders');
 
     const result = await client
-      .getUser({ id: 'missing' })
-      .andThen((user) => client.loadOrders({ userId: user.id }));
+      .getUser({ params: { id: 'missing' } })
+      .andThen((user) =>
+        client.loadOrders({ params: { userId: user.id } }),
+      );
 
     expect(result.isErr()).toBe(true);
     expect(loadOrdersSpy).not.toHaveBeenCalled();
@@ -375,8 +412,10 @@ describe('createClient', () => {
     });
 
     const result = await client
-      .getUser({ id: 'u_1' })
-      .andThen((user) => client.loadOrders({ userId: user.id }))
+      .getUser({ params: { id: 'u_1' } })
+      .andThen((user) =>
+        client.loadOrders({ params: { userId: user.id } }),
+      )
       .map((orders) => orders.orders.length);
 
     expect(result.isOk()).toBe(true);
@@ -387,12 +426,13 @@ describe('createClient', () => {
 });
 
 describe('client wire fidelity', () => {
-  it('accepts client InferInput for a transforming input schema', async () => {
+  it('accepts client InferInput for a transforming query schema', async () => {
     const transformContract = {
       getScore: {
         method: 'GET',
         path: '/scores/:id',
-        input: z.object({ id: z.string(), limit: z.string().transform(Number) }),
+        params: z.object({ id: z.string() }),
+        query: z.object({ limit: z.string().transform(Number) }),
         output: z.object({ score: z.number() }),
         errors: [],
       },
@@ -404,7 +444,10 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getScore({ id: 's_1', limit: '42' });
+    const result = await client.getScore({
+      params: { id: 's_1' },
+      query: { limit: '42' },
+    });
 
     expect(result.isOk()).toBe(true);
     expect(fetchStub).toHaveBeenCalledWith(
@@ -418,7 +461,8 @@ describe('client wire fidelity', () => {
       getScore: {
         method: 'GET',
         path: '/scores/:id',
-        input: z.object({ id: z.string(), limit: z.string().transform(Number) }),
+        params: z.object({ id: z.string() }),
+        query: z.object({ limit: z.string().transform(Number) }),
         output: z.object({ score: z.number() }),
         errors: [],
       },
@@ -430,7 +474,10 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getScore({ id: 's_1', limit: 42 });
+    const result = await client.getScore({
+      params: { id: 's_1' },
+      query: { limit: 42 as unknown as string },
+    });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -444,7 +491,7 @@ describe('client wire fidelity', () => {
       listItems: {
         method: 'GET',
         path: '/items',
-        input: z.object({ limit: z.number().default(10) }),
+        query: z.object({ limit: z.number().default(10) }),
         output: z.object({ items: z.array(z.string()) }),
         errors: [],
       },
@@ -456,7 +503,7 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    await client.listItems({});
+    await client.listItems({ query: {} });
 
     expect(fetchStub).toHaveBeenCalledWith(
       'https://api.example.com/items',
@@ -469,7 +516,7 @@ describe('client wire fidelity', () => {
       search: {
         method: 'GET',
         path: '/search',
-        input: z.object({ tags: z.array(z.string()) }),
+        query: z.object({ tags: z.array(z.string()) }),
         output: z.object({ hits: z.number() }),
         errors: [],
       },
@@ -481,7 +528,7 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    await client.search({ tags: ['a', 'b'] });
+    await client.search({ query: { tags: ['a', 'b'] } });
 
     expect(fetchStub).toHaveBeenCalledWith(
       'https://api.example.com/search?tags%5B%5D=a&tags%5B%5D=b',
@@ -494,7 +541,7 @@ describe('client wire fidelity', () => {
       search: {
         method: 'GET',
         path: '/search',
-        input: z.object({ tags: z.array(z.string()) }),
+        query: z.object({ tags: z.array(z.string()) }),
         output: z.object({ hits: z.number() }),
         errors: [],
       },
@@ -506,7 +553,7 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    await client.search({ tags: ['a'] });
+    await client.search({ query: { tags: ['a'] } });
 
     expect(fetchStub).toHaveBeenCalledWith(
       'https://api.example.com/search?tags%5B%5D=a',
@@ -519,7 +566,7 @@ describe('client wire fidelity', () => {
       search: {
         method: 'GET',
         path: '/search',
-        input: z.object({ tags: z.array(z.string()) }),
+        query: z.object({ tags: z.array(z.string()) }),
         output: z.object({ hits: z.number() }),
         errors: [],
       },
@@ -531,7 +578,7 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.search({ tags: [] });
+    const result = await client.search({ query: { tags: [] } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -545,7 +592,7 @@ describe('client wire fidelity', () => {
       search: {
         method: 'GET',
         path: '/search',
-        input: z.object({ filter: z.record(z.string()) }),
+        query: z.object({ filter: z.record(z.string(), z.string()) }),
         output: z.object({ hits: z.number() }),
         errors: [],
       },
@@ -557,7 +604,7 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.search({ filter: { nested: 'x' } });
+    const result = await client.search({ query: { filter: { nested: 'x' } } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -571,7 +618,7 @@ describe('client wire fidelity', () => {
       search: {
         method: 'GET',
         path: '/search',
-        input: z.object({ id: z.bigint() }),
+        query: z.object({ id: z.bigint() }),
         output: z.object({ hits: z.number() }),
         errors: [],
       },
@@ -583,7 +630,7 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.search({ id: BigInt(1) });
+    const result = await client.search({ query: { id: BigInt(1) } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -597,7 +644,7 @@ describe('client wire fidelity', () => {
       search: {
         method: 'GET',
         path: '/search',
-        input: z.object({ since: z.date() }),
+        query: z.object({ since: z.date() }),
         output: z.object({ hits: z.number() }),
         errors: [],
       },
@@ -610,7 +657,7 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    await client.search({ since });
+    await client.search({ query: { since } });
 
     const [url] = fetchStub.mock.calls[0] as [string];
     expect(url).toContain('since=2024-01-15T12%3A00%3A00.000Z');
@@ -623,7 +670,9 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getUser({ id: undefined } as { id: string });
+    const result = await client.getUser({
+      params: { id: undefined } as { id: string },
+    });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -640,7 +689,7 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.getUser({ id: '' });
+    const result = await client.getUser({ params: { id: '' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -660,7 +709,7 @@ describe('client wire fidelity', () => {
       },
     });
 
-    const result = await client.getUser({ id: 'u_1' });
+    const result = await client.getUser({ params: { id: 'u_1' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -677,7 +726,7 @@ describe('client wire fidelity', () => {
       headers: { 'x-bad': 'line\nbreak' },
     });
 
-    const result = await client.getUser({ id: 'u_1' });
+    const result = await client.getUser({ params: { id: 'u_1' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -695,7 +744,9 @@ describe('client wire fidelity', () => {
     const body: Record<string, unknown> = { email: 'ada@example.com' };
     body.self = body;
 
-    const result = await client.createUser(body as { email: string });
+    const result = await client.createUser({
+      body: body as { email: string },
+    });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -709,7 +760,7 @@ describe('client wire fidelity', () => {
       create: {
         method: 'POST',
         path: '/records',
-        input: z.object({ amount: z.bigint() }),
+        body: z.object({ amount: z.bigint() }),
         output: z.object({ id: z.string() }),
         errors: [],
       },
@@ -721,7 +772,7 @@ describe('client wire fidelity', () => {
       fetch: fetchStub,
     });
 
-    const result = await client.create({ amount: BigInt(42) });
+    const result = await client.create({ body: { amount: BigInt(42) } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
@@ -743,19 +794,10 @@ describe('client wire fidelity', () => {
     });
 
     compilePathSpy.mockClear();
-    await client.getUser({ id: 'u_1' });
-    await client.getUser({ id: 'u_2' });
+    await client.getUser({ params: { id: 'u_1' } });
+    await client.getUser({ params: { id: 'u_2' } });
 
     expect(compilePathSpy).not.toHaveBeenCalled();
     compilePathSpy.mockRestore();
-  });
-});
-
-describe('splitInput', () => {
-  it('extracts path params and leaves the remainder for the body', () => {
-    expect(splitInput(['id'], { id: 'u_1', email: 'a@b.com' })).toEqual({
-      pathParams: { id: 'u_1' },
-      remainder: { email: 'a@b.com' },
-    });
   });
 });

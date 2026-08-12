@@ -1,7 +1,7 @@
 import type { ResultAsync } from 'neverthrow';
 import { z } from 'zod';
 
-import type { ClientInputOf, ClientErrorOf, ContractDef } from '../contract/types.js';
+import type { ClientArgsOf, ClientErrorOf, ContractDef } from '../contract/types.js';
 import type { RailError } from '../error.js';
 import { createClient } from './create.js';
 
@@ -12,16 +12,22 @@ const contract = {
   getUser: {
     method: 'GET',
     path: '/users/:id',
-    input: z.object({ id: z.string() }),
+    params: z.object({ id: z.string() }),
     output: z.object({ id: z.string(), name: z.string() }),
     errors: ['not_found'] as const,
   },
   loadOrders: {
     method: 'GET',
     path: '/users/:userId/orders',
-    input: z.object({ userId: z.string() }),
+    params: z.object({ userId: z.string() }),
     output: z.object({ orders: z.array(z.string()) }),
     errors: ['not_found'] as const,
+  },
+  listUsers: {
+    method: 'GET',
+    path: '/users',
+    output: z.object({ users: z.array(z.object({ id: z.string() })) }),
+    errors: [] as const,
   },
 } satisfies ContractDef;
 
@@ -39,8 +45,8 @@ type _GetUserResult = Expect<
 >;
 
 const _composed = client
-  .getUser({ id: '1' })
-  .andThen((user) => client.loadOrders({ userId: user.id }))
+  .getUser({ params: { id: '1' } })
+  .andThen((user) => client.loadOrders({ params: { userId: user.id } }))
   .map((orders) => orders.orders.length);
 
 type _ComposedChain = Expect<
@@ -71,17 +77,22 @@ const _transformContract = {
   getLimit: {
     method: 'GET',
     path: '/limits/:id',
-    input: z.object({ id: z.string(), limit: z.string().transform(Number) }),
+    params: z.object({ id: z.string() }),
+    query: z.object({ limit: z.string().transform(Number) }),
     output: z.object({ value: z.number() }),
     errors: [] as const,
   },
 } satisfies ContractDef;
 
-type _ClientInputAcceptsInferInput = Expect<
-  ClientInputOf<(typeof _transformContract)['getLimit']> extends {
-    id: string;
-    limit: string;
+type _ClientArgsAcceptsInferInput = Expect<
+  ClientArgsOf<(typeof _transformContract)['getLimit']> extends {
+    readonly params: { id: string };
+    readonly query: { limit: string };
   }
     ? true
     : false
+>;
+
+type _ListTakesNoArgs = Expect<
+  Parameters<typeof client.listUsers>['length'] extends 0 ? true : false
 >;
