@@ -1,9 +1,12 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import { z } from 'zod';
 import type { RailError } from '../error.js';
 import type {
   ClientErrorOf,
+  ClientInputOf,
   ContractDef,
   ErrorOf,
+  HandlerInputOf,
   RouteDef,
 } from './types.js';
 
@@ -89,4 +92,37 @@ type _RejectsUnknownMethod = Expect<
 
 type _RejectsInvalidErrors = Expect<
   InvalidErrorsRoute extends RouteDef ? false : true
+>;
+
+const _transformInput = z.object({ limit: z.string().transform(Number) });
+
+type TransformRoute = {
+  method: 'GET';
+  path: '/items';
+  input: typeof _transformInput;
+  output: StandardSchemaV1;
+  errors: readonly ['not_found'];
+};
+
+type _ClientInputIsString = Expect<
+  ClientInputOf<TransformRoute> extends { limit: string } ? true : false
+>;
+
+type _HandlerInputIsNumber = Expect<
+  HandlerInputOf<TransformRoute> extends { limit: number } ? true : false
+>;
+
+type NoInputRoute = {
+  method: 'GET';
+  path: '/health';
+  output: StandardSchemaV1;
+  errors: readonly [];
+};
+
+type _NoInputClientUndefined = Expect<
+  ClientInputOf<NoInputRoute> extends undefined ? true : false
+>;
+
+type _NoInputHandlerUndefined = Expect<
+  HandlerInputOf<NoInputRoute> extends undefined ? true : false
 >;

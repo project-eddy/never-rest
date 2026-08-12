@@ -1,4 +1,5 @@
-import { compilePath, matchPath, type CompiledPath } from '../contract/path.js';
+import { compileContract } from '../contract/compile.js';
+import { matchPath, type CompiledPath } from '../contract/path.js';
 import type { ContractDef, RouteDef } from '../contract/types.js';
 
 export interface CompiledRoute {
@@ -15,16 +16,20 @@ export interface RouteMatch {
 
 /** Precompile every contract route for path matching. */
 export function compileRoutes(contract: ContractDef): readonly CompiledRoute[] {
-  return Object.entries(contract).map(([key, route]) => ({
+  const compiled = compileContract(contract);
+  return Object.entries(compiled.routes).map(([key, entry]) => ({
     key,
-    route,
-    compiledPath: compilePath(route.path),
+    route: entry.route,
+    compiledPath: entry.compiledPath,
   }));
 }
 
 /**
  * Match method and pathname against compiled routes in declaration order.
  * Returns the first match or undefined when nothing matches.
+ *
+ * Path captures that fail percent-decoding are treated as non-matches;
+ * use `matchPath` when the caller must distinguish `invalid_encoding`.
  */
 export function matchRoute(
   routes: readonly CompiledRoute[],
@@ -35,9 +40,13 @@ export function matchRoute(
     if (entry.route.method !== method) {
       continue;
     }
-    const params = matchPath(entry.compiledPath, pathname);
-    if (params !== undefined) {
-      return { key: entry.key, route: entry.route, params };
+    const pathMatch = matchPath(entry.compiledPath, pathname);
+    if (pathMatch.kind === 'match') {
+      return {
+        key: entry.key,
+        route: entry.route,
+        params: pathMatch.params,
+      };
     }
   }
   return undefined;

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import {
+  assertHandlersComplete,
   compileContract,
   ContractConfigurationError,
 } from './compile.js';
@@ -40,6 +41,56 @@ describe('compileContract', () => {
     );
   });
 
+  it('throws ContractConfigurationError for trailing-slash collision', () => {
+    const contract = {
+      listUsers: {
+        ...baseRoute,
+        path: '/users',
+      },
+      listUsersSlash: {
+        ...baseRoute,
+        path: '/users/',
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Duplicate route GET /users/ on operations "listUsers" and "listUsersSlash"',
+    );
+  });
+
+  it('throws ContractConfigurationError for duplicate compiled matchers', () => {
+    const contract = {
+      getById: {
+        ...baseRoute,
+        path: '/users/:id',
+      },
+      getByUserId: {
+        ...baseRoute,
+        path: '/users/:userId',
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Duplicate route matcher GET /users/:userId on operations "getById" and "getByUserId"',
+    );
+  });
+
+  it('throws ContractConfigurationError for duplicate path parameter names', () => {
+    const contract = {
+      badPath: {
+        ...baseRoute,
+        path: '/a/:id/b/:id',
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Invalid path on operation "badPath": Duplicate path parameter name: id',
+    );
+  });
+
   it('throws ContractConfigurationError for reserved domain error codes', () => {
     const contract = {
       getUser: {
@@ -66,5 +117,60 @@ describe('compileContract', () => {
     expect(() => compileContract(contract)).toThrow(
       'Duplicate error code "not_found" on operation "getUser"',
     );
+  });
+});
+
+describe('assertHandlersComplete', () => {
+  it('throws when a handler is missing', () => {
+    const contract = {
+      getUser: baseRoute,
+      deleteUser: { ...baseRoute, method: 'DELETE' as const },
+    } satisfies ContractDef;
+
+    const compiled = compileContract(contract);
+
+    expect(() =>
+      assertHandlersComplete(compiled, {
+        getUser: async () => {},
+      }),
+    ).toThrow(ContractConfigurationError);
+    expect(() =>
+      assertHandlersComplete(compiled, {
+        getUser: async () => {},
+      }),
+    ).toThrow('Missing handler for operation "deleteUser"');
+  });
+
+  it('throws when a handler is not a function', () => {
+    const contract = {
+      getUser: baseRoute,
+    } satisfies ContractDef;
+
+    const compiled = compileContract(contract);
+
+    expect(() =>
+      assertHandlersComplete(compiled, {
+        getUser: 'not-a-function',
+      }),
+    ).toThrow(ContractConfigurationError);
+    expect(() =>
+      assertHandlersComplete(compiled, {
+        getUser: 'not-a-function',
+      }),
+    ).toThrow('Missing handler for operation "getUser"');
+  });
+
+  it('passes when every operation has a function handler', () => {
+    const contract = {
+      getUser: baseRoute,
+    } satisfies ContractDef;
+
+    const compiled = compileContract(contract);
+
+    expect(() =>
+      assertHandlersComplete(compiled, {
+        getUser: async () => {},
+      }),
+    ).not.toThrow();
   });
 });

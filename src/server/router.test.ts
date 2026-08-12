@@ -10,6 +10,18 @@ describe('compileRoutes', () => {
     });
     expect(routes.map((route) => route.key)).toEqual(['first', 'second']);
   });
+
+  it('uses compileContract for precompiled paths', () => {
+    const routes = compileRoutes({
+      getUser: {
+        method: 'GET',
+        path: '/users/:id',
+        output: {} as never,
+        errors: [],
+      },
+    });
+    expect(routes[0].compiledPath.paramNames).toEqual(['id']);
+  });
 });
 
 describe('matchRoute', () => {
@@ -41,7 +53,7 @@ describe('matchRoute', () => {
     expect(matchRoute(routes, 'DELETE', '/users')).toBeUndefined();
   });
 
-  it('extracts path parameters', () => {
+  it('extracts decoded path parameters', () => {
     const compiled = compilePath('/users/:id');
     const routes = [
       {
@@ -56,7 +68,14 @@ describe('matchRoute', () => {
       },
     ];
     const match = matchRoute(routes, 'GET', '/users/42');
-    expect(match?.params).toEqual({ id: '42' });
-    expect(matchPath(compiled, '/users/42')).toEqual({ id: '42' });
+    expect(match).toEqual({
+      key: 'getUser',
+      route: routes[0].route,
+      params: { id: '42' },
+    });
+    expect(matchPath(compiled, '/users/42')).toEqual({
+      kind: 'match',
+      params: { id: '42' },
+    });
   });
 });

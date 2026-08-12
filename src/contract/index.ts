@@ -1,8 +1,10 @@
 export type {
   ClientErrorOf,
+  ClientInputOf,
   ClientSystemErrorCode,
   ContractDef,
   ErrorOf,
+  HandlerInputOf,
   InputOf,
   OutputOf,
   RouteDef,
@@ -10,11 +12,12 @@ export type {
   ServerSystemErrorCode,
 } from './types.js';
 export {
+  assertHandlersComplete,
   compileContract,
   ContractConfigurationError,
   type CompiledContract,
   type CompiledRouteEntry,
 } from './compile.js';
 export { parseInput, parseOutput, parseSchema, type SchemaFailure } from './parse.js';
-export type { CompiledPath } from './path.js';
-export { compilePath, matchPath } from './path.js';
+export type { CompiledPath, PathMatch } from './path.js';
+export { compilePath, matchPath, normalizePath } from './path.js';

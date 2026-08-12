@@ -1,4 +1,4 @@
-import { compilePath, type CompiledPath } from './path.js';
+import { compilePath, normalizePath, type CompiledPath } from './path.js';
 import type { ContractDef, RouteDef } from './types.js';
 
 export const RESERVED_ERROR_CODES = [
@@ -39,6 +39,22 @@ export interface CompiledContract<TContract extends ContractDef> {
   };
 }
 
+/** Ensure every compiled operation key maps to a handler function. */
+export function assertHandlersComplete(
+  compiled: CompiledContract<never>,
+  handlers: object,
+): void {
+  const handlerMap = handlers as Record<string, unknown>;
+  for (const operation of Object.keys(compiled.routes)) {
+    const handler = handlerMap[operation];
+    if (typeof handler !== 'function') {
+      throw new ContractConfigurationError(
+        `Missing handler for operation "${operation}"`,
+      );
+    }
+  }
+}
+
 /** Validate and precompile a contract for client and server construction. */
 export function compileContract<TContract extends ContractDef>(
   contract: TContract,
@@ -46,6 +62,8 @@ export function compileContract<TContract extends ContractDef>(
   const routeEntries: Record<string, CompiledRouteEntry> = {};
   const domainCodes: Record<string, readonly string[]> = {};
   const seenMethodPath = new Map<string, string>();
+  const seenNormalizedPath = new Map<string, string>();
+  const seenMatchers = new Map<string, string>();
 
   for (const [operation, route] of Object.entries(contract)) {
     const methodPath = `${route.method}:${route.path}`;
@@ -56,6 +74,16 @@ export function compileContract<TContract extends ContractDef>(
       );
     }
     seenMethodPath.set(methodPath, operation);
+
+    const normalizedPath = normalizePath(route.path);
+    const methodNormalized = `${route.method}:${normalizedPath}`;
+    const normalizedDuplicate = seenNormalizedPath.get(methodNormalized);
+    if (normalizedDuplicate !== undefined) {
+      throw new ContractConfigurationError(
+        `Duplicate route ${route.method} ${route.path} on operations "${normalizedDuplicate}" and "${operation}"`,
+      );
+    }
+    seenNormalizedPath.set(methodNormalized, operation);
 
     const seenCodes = new Set<string>();
     for (const code of route.errors) {
@@ -81,6 +109,15 @@ export function compileContract<TContract extends ContractDef>(
         `Invalid path on operation "${operation}": ${detail}`,
       );
     }
+
+    const matcherKey = `${route.method}:${compiledPath.regex.source}`;
+    const matcherDuplicate = seenMatchers.get(matcherKey);
+    if (matcherDuplicate !== undefined) {
+      throw new ContractConfigurationError(
+        `Duplicate route matcher ${route.method} ${route.path} on operations "${matcherDuplicate}" and "${operation}"`,
+      );
+    }
+    seenMatchers.set(matcherKey, operation);
 
     routeEntries[operation] = { route, compiledPath };
     domainCodes[operation] = route.errors;

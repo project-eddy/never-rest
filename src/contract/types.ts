@@ -14,10 +14,18 @@ export interface ContractDef {
   readonly [operation: string]: RouteDef;
 }
 
-export type InputOf<TRoute extends RouteDef> =
+export type ClientInputOf<TRoute extends RouteDef> =
+  TRoute['input'] extends StandardSchemaV1
+    ? StandardSchemaV1.InferInput<TRoute['input']>
+    : undefined;
+
+export type HandlerInputOf<TRoute extends RouteDef> =
   TRoute['input'] extends StandardSchemaV1
     ? StandardSchemaV1.InferOutput<TRoute['input']>
     : undefined;
+
+/** @deprecated use HandlerInputOf */
+export type InputOf<TRoute extends RouteDef> = HandlerInputOf<TRoute>;
 
 export type OutputOf<TRoute extends RouteDef> = StandardSchemaV1.InferOutput<
   TRoute['output']
