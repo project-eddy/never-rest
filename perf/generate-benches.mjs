@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * Generate isolated @ark/attest bench files under perf/benches/.
@@ -9,7 +9,7 @@ import { join } from 'node:path';
  * Then re-run all benches and update perf/baseline.json slopes.
  */
 
-const outDir = join(import.meta.dirname, 'benches');
+const outDir = join(import.meta.dirname, "benches");
 mkdirSync(outDir, { recursive: true });
 
 const counts = [1, 5, 20, 40];
@@ -19,11 +19,11 @@ function routeEntries(n) {
     return `  getRoute${i}: {
     method: 'GET' as const,
     path: '/items/${i}',
-    input: zodSchema(z.object({ id: z.string() })),
+    query: zodSchema(z.object({ id: z.string() })),
     output: zodSchema(z.object({ id: z.string(), value: z.number() })),
     errors: ['not_found', 'forbidden'] as const,
   },`;
-  }).join('\n');
+  }).join("\n");
 }
 
 const header = `import { bench } from '@ark/attest';
@@ -104,4 +104,4 @@ ${routes}
   );
 }
 
-console.log('Generated bench files for', counts.join(', '));
+console.log("Generated bench files for", counts.join(", "));

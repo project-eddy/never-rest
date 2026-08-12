@@ -9,7 +9,9 @@
 export interface PlainRouteDef {
   readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   readonly path: string;
-  readonly input?: import('@standard-schema/spec').StandardSchemaV1;
+  readonly params?: import('@standard-schema/spec').StandardSchemaV1;
+  readonly query?: import('@standard-schema/spec').StandardSchemaV1;
+  readonly body?: import('@standard-schema/spec').StandardSchemaV1;
   readonly output: import('@standard-schema/spec').StandardSchemaV1;
   readonly errors: readonly string[];
 }

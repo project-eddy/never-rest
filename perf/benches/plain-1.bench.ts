@@ -10,7 +10,7 @@ bench("plain-1", () => {
     getRoute0: {
       method: "GET" as const,
       path: "/items/0",
-      input: zodSchema(z.object({ id: z.string() })),
+      query: zodSchema(z.object({ id: z.string() })),
       output: zodSchema(z.object({ id: z.string(), value: z.number() })),
       errors: ["not_found", "forbidden"] as const,
     },
