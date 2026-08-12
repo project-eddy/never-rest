@@ -88,6 +88,7 @@ const statuses = {
   validation_error: 400,
   not_found: 404,
   conflict: 409,
+  route_not_found: 404,
   internal: 500,
 } as const;
 
@@ -136,7 +137,7 @@ await client
   .andThen((user) => client.createUser({ name: `${user.name} Jr` }))
   .match(
     (user) => console.log(user.id),
-    (error) => console.error(error.code), // not_found | conflict | …
+    (error) => console.error(error.code), // not_found | conflict | validation_error | internal | unavailable
   );
 ```
 
@@ -198,9 +199,10 @@ Agent lookup index: [skills/never-rest/SKILL.md](skills/never-rest/SKILL.md).
 
 | Spec | Tests |
 | --- | --- |
-| [specs/status-mapping.md](specs/status-mapping.md) | `src/status.test.ts`, `src/respond.test.ts` |
-| [specs/graded-disclosure.md](specs/graded-disclosure.md) | `src/disclose.test.ts`, `src/respond.test.ts`, `src/server/serve.test.ts` |
-| [specs/cause-chaining.md](specs/cause-chaining.md) | `src/error.test.ts`, `src/server/serve.test.ts` |
-| [specs/client-results.md](specs/client-results.md) | `src/client/create.test.ts` |
+| [specs/status-mapping.spec.md](specs/status-mapping.spec.md) | `src/status.test.ts`, `src/respond.test.ts`, `src/server/serve.test.ts` |
+| [specs/graded-disclosure.spec.md](specs/graded-disclosure.spec.md) | `src/disclose.test.ts`, `src/respond.test.ts`, `src/server/serve.test.ts` |
+| [specs/cause-chaining.spec.md](specs/cause-chaining.spec.md) | `src/error.test.ts`, `src/server/serve.test.ts` |
+| [specs/client-results.spec.md](specs/client-results.spec.md) | `src/client/create.test.ts` |
+| [specs/server-output-validation.spec.md](specs/server-output-validation.spec.md) | `src/server/serve.test.ts` |
 
 See [specs/README.md](specs/README.md) for extraction and layout.

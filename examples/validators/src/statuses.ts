@@ -3,6 +3,6 @@ export const statuses = {
   validation_error: 400,
   not_found: 404,
   conflict: 409,
-  unavailable: 503,
+  route_not_found: 404,
   internal: 500,
 } as const;

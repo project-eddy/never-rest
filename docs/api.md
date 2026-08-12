@@ -265,6 +265,28 @@ type OutputOf<TRoute extends RouteDef> = StandardSchemaV1.InferOutput<TRoute['ou
 type ErrorOf<TRoute extends RouteDef> = RailError<TRoute['errors'][number]>;
 ```
 
+Handler and server domain surface — declared route error codes only.
+
+### `ClientErrorOf`
+
+```ts
+type ClientErrorOf<TRoute extends RouteDef> =
+  | ErrorOf<TRoute>
+  | RailError<'validation_error' | 'internal' | 'unavailable'>;
+```
+
+Client operation error union — domain codes plus built-in wire and transport failures.
+
+### `ServerErrorOf`
+
+```ts
+type ServerErrorOf<TRoute extends RouteDef> =
+  | ErrorOf<TRoute>
+  | RailError<'validation_error' | 'internal'>;
+```
+
+Server-side error union for handlers (no client-synthesized `unavailable`).
+
 ### `parseInput`
 
 ```ts
@@ -394,16 +416,27 @@ type Handlers<TContract extends ContractDef, TContext> = {
 };
 ```
 
+### `ServeStatusMap`
+
+```ts
+type ServeStatusMap<TContract extends ContractDef> = StatusMap<
+  ContractDomainErrorCode<TContract> | 'validation_error' | 'internal' | 'route_not_found'
+>;
+```
+
+Every domain error code across the contract, plus host codes `validation_error`, `internal`, and `route_not_found`. `unavailable` is client-only — do not put it on server status maps.
+
 ### `ServeOptions`
 
 ```ts
-interface ServeOptions<TCode extends string> {
-  readonly statuses: StatusMap<TCode>;
+interface ServeOptions<TContract extends ContractDef> {
+  readonly statuses: ServeStatusMap<TContract>;
   readonly disclosure?: Disclosure | ((request: Request) => Disclosure);
   readonly origin?: string;
-  readonly validateOutput?: boolean;
 }
 ```
+
+Omitted `disclosure` defaults to `public`. `respond` still defaults to `full`.
 
 ### `serve`
 
@@ -411,7 +444,7 @@ interface ServeOptions<TCode extends string> {
 function serve<TContract extends ContractDef, TContext>(
   contract: TContract,
   handlers: Handlers<TContract, TContext>,
-  options: ServeOptions<string>,
+  options: ServeOptions<TContract>,
 ): (request: Request, context: TContext) => Promise<Response>;
 ```
 
@@ -426,6 +459,7 @@ const handler = serve(contract, handlers, {
     validation_error: 400,
     not_found: 404,
     conflict: 409,
+    route_not_found: 404,
     internal: 500,
   },
   origin: 'users-api',
@@ -436,19 +470,23 @@ const handler = serve(contract, handlers, {
 await handler(new Request('http://localhost/users/u1'), { requestId: 'r1' });
 ```
 
-**Routing:** exact paths and single `:param` segments, declaration order. Unmatched requests → `not_found` at `statuses.not_found`.
+**Construction:** `compileContract(contract)` runs at `serve()` call time; invalid contracts (duplicate routes, reserved domain codes, missing status-map entries) throw `ContractConfigurationError`. The status map is validated for every domain code plus `validation_error`, `internal`, and `route_not_found`.
+
+**Routing:** exact paths and single `:param` segments, declaration order. Unmatched requests → `route_not_found` at `statuses.route_not_found` (not domain `not_found`).
 
 **Input:** `GET` / `DELETE` read query params; `POST` / `PUT` / `PATCH` read JSON body (invalid JSON → `validation_error`). Path `:param` values are merged into that input before `parseInput`, so a client-shaped `input: z.object({ id: z.string() })` validates against `/users/:id`.
 
-**Declared statuses** per route: `200`, each route error code, `validation_error` when the route has `input`, and `internal`. Undeclared mapped statuses degrade to `500`.
+**Declared statuses** per route: `200`, each route error code, `validation_error` when the route has `input`, and `internal`. Undeclared mapped statuses degrade to `500`. Handler error codes not declared on the route are normalised to wire `internal` with the original error under `cause`.
 
 **Origin:** `options.origin` stamps errors when absent (recursive on `cause`). Existing `origin` on an error is preserved.
 
+**Disclosure:** omitted `disclosure` defaults to `public`. Per-request functions are supported as before.
+
 **Throws:** handler exceptions become `internal` 500 with the message under `cause` — never an unhandled rejection.
 
-**Output validation:** `validateOutput` defaults off. When `true`, successful handler values are validated against `route.output` before serialisation; handler `Err` results are not validated. Validation is a gate only — the handler's return value is serialised on success, not the schema's coerced or stripped value. Failures become `internal` with a generic top-level message and diagnostic detail (including issue paths) under `cause`, so `public` disclosure can redact field names.
+**Output validation:** always on. Successful handler values are validated through `parseOutput`; the **parsed** schema value is serialised (strips unknown fields, applies coerces/transforms). Handler `Err` results are not validated. Failures become `internal` with a generic top-level message and diagnostic detail (code `output_validation_failed`, including issue paths) under `cause`, so `public` disclosure can redact field names.
 
-**Tests:** `src/server/serve.test.ts` — scenarios from [specs/cause-chaining.md](https://github.com/project-eddy/never-rest/blob/main/specs/cause-chaining.md), [specs/graded-disclosure.md](https://github.com/project-eddy/never-rest/blob/main/specs/graded-disclosure.md), and [specs/server-output-validation.md](https://github.com/project-eddy/never-rest/blob/main/specs/server-output-validation.md).
+**Tests:** `src/server/serve.test.ts` — scenarios from [specs/cause-chaining.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/cause-chaining.spec.md), [specs/graded-disclosure.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/graded-disclosure.spec.md), and [specs/server-output-validation.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/server-output-validation.spec.md).
 
 ---
 
@@ -473,11 +511,11 @@ When `credentials` is omitted, the underlying `fetch` implementation's default a
 type Client<TContract extends ContractDef> = {
   readonly [K in keyof TContract]: (
     input: InputOf<TContract[K]>,
-  ) => ResultAsync<OutputOf<TContract[K]>, ErrorOf<TContract[K]>>;
+  ) => ResultAsync<OutputOf<TContract[K]>, ClientErrorOf<TContract[K]>>;
 };
 ```
 
-One mapped type over the contract, one level deep — no recursion.
+One mapped type over the contract, one level deep — no recursion. Error type is `ClientErrorOf` (domain codes plus `validation_error`, `internal`, and `unavailable`).
 
 ### `createClient`
 
@@ -500,9 +538,9 @@ await client
   .map((orders) => orders.orders.length);
 ```
 
-**Behaviour:** validates input via `parseInput`; path `:param` keys are taken from input, remainder sent as JSON body (`POST`/`PUT`/`PATCH`) or query string (`GET`/`DELETE`). 2xx → `Ok` (output schema); JSON `RailError` with a declared code → `Err`; undeclared error code → `Err(internal)`; non-JSON body → `Err(internal)`; network failure → `Err(unavailable, { retryable: true })`. Never throws.
+**Behaviour:** `compileContract` runs at construction. Validates input via `parseInput`; path `:param` keys are taken from input, remainder sent as JSON body (`POST`/`PUT`/`PATCH`) or query string (`GET`/`DELETE`). 2xx → `Ok` (output schema); JSON `RailError` with a declared domain code, `validation_error`, or `internal` → `Err`; undeclared error code → `Err(internal)` with remote error under `cause`; non-JSON body → `Err(internal)`; network failure → `Err(unavailable, { retryable: true })`. Never throws.
 
-**Tests:** `src/client/create.test.ts` — scenarios from [specs/client-results.md](https://github.com/project-eddy/never-rest/blob/main/specs/client-results.md).
+**Tests:** `src/client/create.test.ts` — scenarios from [specs/client-results.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/client-results.spec.md).
 
 ---
 

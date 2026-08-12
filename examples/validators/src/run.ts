@@ -5,7 +5,7 @@
 import { err, ok } from 'neverthrow';
 
 import { railError } from '@eddy-works/never-rest';
-import { serve, type Handlers } from '@eddy-works/never-rest/server';
+import { serve, type Handlers, type ServeStatusMap } from '@eddy-works/never-rest/server';
 import type { ContractDef } from '@eddy-works/never-rest/contract';
 
 import { usersContract as arktypeContract } from './contracts/arktype.js';
@@ -48,7 +48,8 @@ async function smoke<TContract extends ContractDef>(
   contract: TContract,
 ): Promise<void> {
   const api = serve(contract, createHandlers(contract), {
-    statuses,
+    // Shared fixture covers the three users-contract variants equally.
+    statuses: statuses as ServeStatusMap<TContract>,
     origin: `${label}-demo`,
   });
 

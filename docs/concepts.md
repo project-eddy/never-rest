@@ -80,8 +80,10 @@ HTTP status is not embedded in the error. Consumers supply a `StatusMap` and `st
 | `internal` | Staff tools, support consoles | `code`, `message`, `issues`, `nextStep` | `cause` chain |
 | `public` | Internet clients, untrusted agents | Safe `code` and message; advisory `nextStep` only | `cause`, `origin`, diagnostic `issues` paths |
 
-`disclose(error, level)` is the mechanism, used by `respond` and `serve`. oRPC documents the same problem as repeated DANGER callouts about sensitive data in error payloads; never-rest encodes the policy in one function. `serve` resolves `disclosure` per incoming `Request` when a function is supplied in `ServeOptions`.
+`disclose(error, level)` is the mechanism, used by `respond` and `serve`. oRPC documents the same problem as repeated DANGER callouts about sensitive data in error payloads; never-rest encodes the policy in one function. `serve` resolves `disclosure` per incoming `Request` when a function is supplied in `ServeOptions`; when `disclosure` is omitted, `serve` defaults to `public`. `respond` still defaults to `full`.
 
-Route matching uses `compileRoutes` / `matchRoute` (via `./server`), built on `compilePath` / `matchPath`: exact segments and single `:param` placeholders, declaration order.
+Route matching uses `compileRoutes` / `matchRoute` (via `./server`), built on `compilePath` / `matchPath`: exact segments and single `:param` placeholders, declaration order. Unmatched method or path → host code `route_not_found` (not domain `not_found`).
+
+Successful handler output is always validated and serialised through the route's output schema — the parsed value reaches the wire, not the handler's raw return value. See [api.md — serve](./api.md#serve).
 
 `origin` stamps which service produced each hop so a gateway can show a chain without guessing order. See [errors-as-intelligence.md](./errors-as-intelligence.md) and [api.md — disclose](./api.md#disclose).

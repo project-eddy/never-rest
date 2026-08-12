@@ -25,15 +25,19 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | How do I wrap a downstream error? | [api.md — chain](docs/api.md#chain) · [errors-as-intelligence.md — Gateway composition](docs/errors-as-intelligence.md#gateway-composition) |
 | How do I walk or log a cause chain? | [api.md — flatten](docs/api.md#flatten) · [formatChain](docs/api.md#formatchain) |
 | How do I map error codes to HTTP status? | [api.md — statusFor](docs/api.md#statusfor) |
-| What happens if a status is not declared on the route? | [api.md — toDeclaredResponse](docs/api.md#todeclaredresponse) · [specs/status-mapping.md](specs/status-mapping.md) → `src/status.test.ts`, `src/respond.test.ts` |
+| What happens if a status is not declared on the route? | [api.md — toDeclaredResponse](docs/api.md#todeclaredresponse) · [specs/status-mapping.spec.md](specs/status-mapping.spec.md) → `src/status.test.ts`, `src/respond.test.ts` |
 | How do I turn a handler `Result` into status + body? | [api.md — respond](docs/api.md#respond) |
-| What are disclosure levels and when to use each? | [concepts.md — Trust circles](docs/concepts.md#trust-circles-and-graded-disclosure) · [api.md — disclose](docs/api.md#disclose) · [specs/graded-disclosure.md](specs/graded-disclosure.md) → `src/disclose.test.ts`, `src/server/serve.test.ts` |
+| What are disclosure levels and when to use each? | [concepts.md — Trust circles](docs/concepts.md#trust-circles-and-graded-disclosure) · [api.md — disclose](docs/api.md#disclose) · [specs/graded-disclosure.spec.md](specs/graded-disclosure.spec.md) → `src/disclose.test.ts`, `src/server/serve.test.ts` |
 | How does `serve` pick disclosure per request? | [api.md — ServeOptions](docs/api.md#serveoptions) · [api.md — serve](docs/api.md#serve) |
 | What is `nextStep` for agents? | [errors-as-intelligence.md](docs/errors-as-intelligence.md) |
 | What is `origin` and who sets it? | [errors-as-intelligence.md — Origin](docs/errors-as-intelligence.md#origin) · [api.md — serve](docs/api.md#serve) |
 | When is an error `retryable`? | [errors-as-intelligence.md — Retryable](docs/errors-as-intelligence.md#retryable) |
 | How do I define a contract? | [api.md — ContractDef](docs/api.md#contractdef) · [api.md — RouteDef](docs/api.md#routedef) |
-| How do I type input/output/errors for a route? | [api.md — InputOf](docs/api.md#inputof) · [OutputOf](docs/api.md#outputof) · [ErrorOf](docs/api.md#errorof) |
+| How do I type input/output/errors for a route? | [api.md — InputOf](docs/api.md#inputof) · [OutputOf](docs/api.md#outputof) · [ErrorOf](docs/api.md#errorof) · [ClientErrorOf](docs/api.md#clienterrorof) |
+| What error codes can the client return? | [api.md — ClientErrorOf](docs/api.md#clienterrorof) · [specs/client-results.spec.md](specs/client-results.spec.md) |
+| What must a server status map include? | [api.md — ServeStatusMap](docs/api.md#servestatusmap) · [migrating.md — Server status map](docs/migrating.md#server-status-map) |
+| What happens on unmatched routes? | [api.md — serve](docs/api.md#serve) · [specs/status-mapping.spec.md](specs/status-mapping.spec.md) (`route_not_found`) |
+| How does output validation work on the server? | [api.md — serve](docs/api.md#serve) · [specs/server-output-validation.spec.md](specs/server-output-validation.spec.md) |
 | How does validation work? | [api.md — parseInput](docs/api.md#parseinput) · [concepts.md — Errors as data](docs/concepts.md#errors-as-data) |
 | How do I compile or match route paths? | [api.md — compilePath](docs/api.md#compilepath) · [matchPath](docs/api.md#matchpath) · [compileRoutes](docs/api.md#compileroutes) · [matchRoute](docs/api.md#matchroute) |
 | What path patterns are supported? | [api.md — compilePath](docs/api.md#compilepath) (exact segments, single `:param`) |
@@ -42,8 +46,8 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | How do I mount on Node http / Express? | [api.md — toNodeHandler](docs/api.md#tonodehandler) · [examples/express](examples/express) |
 | Where are runnable framework examples? | [examples/README.md](examples/README.md) · [docs/examples.md](docs/examples.md) |
 | How do I create a typed client? | [api.md — createClient](docs/api.md#createclient) |
-| How do I chain client calls with neverthrow? | [api.md — Client](docs/api.md#client) · [specs/client-results.md](specs/client-results.md) → `src/client/create.test.ts` |
-| What does the client do on network failure? | [api.md — createClient](docs/api.md#createclient) · [specs/client-results.md](specs/client-results.md) |
+| How do I chain client calls with neverthrow? | [api.md — Client](docs/api.md#client) · [specs/client-results.spec.md](specs/client-results.spec.md) → `src/client/create.test.ts` |
+| What does the client do on network failure? | [api.md — createClient](docs/api.md#createclient) · [specs/client-results.spec.md](specs/client-results.spec.md) |
 | Type instantiation budget and ts-rest comparison? | [README.md — Type budget](README.md#type-budget) · [docs/performance.md](docs/performance.md) · [comparison.md](docs/comparison.md) |
 | When should I use ts-rest instead? | [README.md — When not to use](README.md#when-not-to-use-this) · [comparison.md — ts-rest](docs/comparison.md#ts-rest) |
 | When should I use oRPC instead? | [README.md — When not to use](README.md#when-not-to-use-this) · [comparison.md — oRPC](docs/comparison.md#orpc) |
@@ -75,6 +79,8 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | `InputOf` | `./contract` | [api.md#inputof](docs/api.md#inputof) |
 | `OutputOf` | `./contract` | [api.md#outputof](docs/api.md#outputof) |
 | `ErrorOf` | `./contract` | [api.md#errorof](docs/api.md#errorof) |
+| `ClientErrorOf` | `./contract` | [api.md#clienterrorof](docs/api.md#clienterrorof) |
+| `ServerErrorOf` | `./contract` | [api.md#servererrorof](docs/api.md#servererrorof) |
 | `parseInput` | `./contract` | [api.md#parseinput](docs/api.md#parseinput) |
 | `CompiledPath` | `./contract` | [api.md#compiledpath](docs/api.md#compiledpath) |
 | `compilePath` | `./contract` | [api.md#compilepath](docs/api.md#compilepath) |
@@ -85,6 +91,7 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | `matchRoute` | `./server` | [api.md#matchroute](docs/api.md#matchroute) |
 | `Handler` | `./server` | [api.md#handler](docs/api.md#handler) |
 | `Handlers` | `./server` | [api.md#handlers](docs/api.md#handlers) |
+| `ServeStatusMap` | `./server` | [api.md#servestatusmap](docs/api.md#servestatusmap) |
 | `ServeOptions` | `./server` | [api.md#serveoptions](docs/api.md#serveoptions) |
 | `serve` | `./server` | [api.md#serve](docs/api.md#serve) |
 | `ClientOptions` | `./client` | [api.md#clientoptions](docs/api.md#clientoptions) |
@@ -98,8 +105,9 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 
 | Spec file | Topic | Tests |
 | --- | --- | --- |
-| [specs/status-mapping.md](specs/status-mapping.md) | Declared vs undeclared statuses, 500 degradation | `src/status.test.ts`, `src/respond.test.ts` |
-| [specs/graded-disclosure.md](specs/graded-disclosure.md) | `full` / `internal` / `public` leak cases | `src/disclose.test.ts`, `src/respond.test.ts`, `src/server/serve.test.ts` |
-| [specs/cause-chaining.md](specs/cause-chaining.md) | Downstream bubble, `origin`, serialisation | `src/error.test.ts`, `src/server/serve.test.ts` |
-| [specs/client-results.md](specs/client-results.md) | `Ok` / `Err` mapping, retryable network, short-circuit | `src/client/create.test.ts` |
-| [specs/README.md](specs/README.md) | `pnpm specs:extract` (28 scenarios) | — |
+| [specs/status-mapping.spec.md](specs/status-mapping.spec.md) | Declared vs undeclared statuses, `route_not_found` | `src/status.test.ts`, `src/respond.test.ts`, `src/server/serve.test.ts` |
+| [specs/graded-disclosure.spec.md](specs/graded-disclosure.spec.md) | `full` / `internal` / `public` leak cases | `src/disclose.test.ts`, `src/respond.test.ts`, `src/server/serve.test.ts` |
+| [specs/cause-chaining.spec.md](specs/cause-chaining.spec.md) | Downstream bubble, `origin`, serialisation | `src/error.test.ts`, `src/server/serve.test.ts` |
+| [specs/client-results.spec.md](specs/client-results.spec.md) | `Ok` / `Err` mapping, `ClientErrorOf`, retryable network | `src/client/create.test.ts` |
+| [specs/server-output-validation.spec.md](specs/server-output-validation.spec.md) | Always-on parsed output serialisation | `src/server/serve.test.ts` |
+| [specs/README.md](specs/README.md) | `pnpm specs:extract` | — |

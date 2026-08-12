@@ -7,6 +7,19 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Client operations return `ResultAsync` with `ClientErrorOf` per route — domain codes plus `validation_error`, `internal`, and client-synthesized `unavailable` on network failure; the cast that hid built-in codes is removed.
+- `serve` always validates successful handler output through each route's output schema and serialises the **parsed** schema value (strips unknown fields, applies coerces/transforms); handler `Err` results are unchanged.
+- Omitted `disclosure` in `serve()` defaults to `public` (`respond` still defaults to `full`).
+- Unmatched method or path requests return host code `route_not_found` (not domain `not_found`).
+- Handler error codes not declared on the route are normalised to wire `internal` with the original error nested under `cause`.
+- `serve` and `createClient` validate the contract at construction via `compileContract`; reserved error codes cannot be domain codes; `ServeOptions.statuses` must satisfy `ServeStatusMap` (every domain code plus `validation_error`, `internal`, and `route_not_found`).
+
+### Removed
+
+- `ServeOptions.validateOutput` — output validation is always on; the 0.2.0 opt-in gate-only behaviour is reversed.
+
 ### Internal
 
 - Rename behaviour specs to `*.spec.md`, add `pnpm specs:lint` (`scripts/lint-gherkin.mjs`), and run it from a Husky pre-commit hook.

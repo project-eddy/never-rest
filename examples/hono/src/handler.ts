@@ -37,5 +37,4 @@ const usersHandlers: Handlers<typeof usersContract, undefined> = {
 export const usersApi = serve(usersContract, usersHandlers, {
   statuses,
   origin: 'hono-demo',
-  validateOutput: true,
 });

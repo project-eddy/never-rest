@@ -32,10 +32,11 @@ export const usersContract = {
 } satisfies ContractDef;
 
 // never-rest does not guess statuses — undeclared codes become 500.
+// `unavailable` is client-only; server maps need domain codes + host codes.
 export const statuses = {
   validation_error: 400,
   not_found: 404,
   conflict: 409,
-  unavailable: 503,
+  route_not_found: 404,
   internal: 500,
 } as const;
