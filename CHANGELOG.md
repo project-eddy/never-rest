@@ -7,6 +7,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-12
+
 ### Added
 
 - `ClientInputOf` and `HandlerInputOf` split wire-shaped client input from handler-parsed input.
@@ -36,12 +38,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Deprecated
 
 - `InputOf` — use `HandlerInputOf` for handlers and `ClientInputOf` for clients.
-
-### Internal
-
-- Relocated library protocol tests from `examples/smoke/protocol/` into `src/protocol/`; renamed the remaining example-app suite to `examples/conformance/` (`examples:smoke` → `examples:conformance`).
-- CI runs `pnpm specs:lint` and `pnpm test:coverage` with gated thresholds; release workflow runs the full validation block before publish.
-- `scripts/typeperf.mjs` warns on TypeScript version mismatch instead of hard-failing when the installed compiler differs from the baseline pin.
 
 ## [0.3.0] - 2026-08-12
 
@@ -81,7 +77,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `@eddy-works/never-rest/node`: `toNodeHandler` for Node's `http` interface.
 - A published type-instantiation budget of 1,800 per route, enforced in CI with `@ark/attest`.
 
-[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.4.0
 [0.3.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.3.0
 [0.2.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.2.0
 [0.1.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.1.0
