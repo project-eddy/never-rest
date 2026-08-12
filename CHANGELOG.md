@@ -7,9 +7,41 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `ClientInputOf` and `HandlerInputOf` split wire-shaped client input from handler-parsed input.
+- `compileContract`, `assertHandlersComplete`, and `normalizePath` on `@eddy-works/never-rest/contract`.
+- `parseOutput` on `@eddy-works/never-rest/contract`.
+- `checkTransportStability` on `@eddy-works/never-rest/testing` — test-time helper to prove output schemas survive JSON wire round-trip.
+- Gherkin specs for contract compilation and client wire serialization ([specs/contract-compilation.spec.md](specs/contract-compilation.spec.md), [specs/wire-serialization.spec.md](specs/wire-serialization.spec.md)).
+
+### Changed
+
+- `matchPath` returns `PathMatch` (`match` / `miss` / `invalid_encoding`) with safe percent-decoding of captures.
+- `compileContract` rejects trailing-slash aliases, duplicate compiled matchers, and duplicate path parameter names within a route.
+- Client operations are typed on `ClientInputOf`; client validates raw input and uses precompiled paths from `compileContract`.
+- GET/DELETE query arrays serialize as `key[]=`; empty or unrepresentable query values return `validation_error` before fetch.
+- Missing or empty path parameters return `validation_error` before fetch on the client.
+- Undecodable path captures return `validation_error` on the server; repeated `k[]` query keys deserialize to arrays.
+- Handler error codes not declared on the route — including forged `internal` — are normalised at public disclosure; the client no longer copies untrusted remote messages into its own `internal`.
+- Ultimate server fail-safe returns a constant JSON body; cycle guards on cause-chain walking.
+- Example contracts use `as const satisfies ContractDef`; docs site rewrites `../examples/` to GitHub tree URLs; homepage tagline reflects railway-at-boundary framing.
+
+### Fixed
+
+- Header and body serialization throws on the client become `Err` instead of escaping the railway.
+- Unknown remote error codes map to `internal` with a constant message and the remote error preserved as `cause`.
+- `request.text()` rejection, disclosure callback throws, and `JSON.stringify` failures on the server are handled without hanging or throwing out of `serve()`.
+
+### Deprecated
+
+- `InputOf` — use `HandlerInputOf` for handlers and `ClientInputOf` for clients.
+
 ### Internal
 
-- Examples teaching refresh for 0.3.0 protocol wins: handlers demo parsed-output stripping (`passwordHash`), smoke scenarios + README, gateway disclosure/`unavailable` demos.
+- Relocated library protocol tests from `examples/smoke/protocol/` into `src/protocol/`; renamed the remaining example-app suite to `examples/conformance/` (`examples:smoke` → `examples:conformance`).
+- CI runs `pnpm specs:lint` and `pnpm test:coverage` with gated thresholds; release workflow runs the full validation block before publish.
+- `scripts/typeperf.mjs` warns on TypeScript version mismatch instead of hard-failing when the installed compiler differs from the baseline pin.
 
 ## [0.3.0] - 2026-08-12
 

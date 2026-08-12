@@ -22,7 +22,7 @@ never-rest publishes a **per-route TypeScript instantiation budget** and enforce
 
 | Series | Intercept (fixed) | Per-route slope | Verdict |
 | --- | --- | --- | --- |
-| Contract `satisfies ContractDef` | 74,915 | **584** | PASS |
+| Contract `as const satisfies ContractDef` | 74,915 | **584** | PASS |
 | `Client<TContract>` | 74,921 | **584** | PASS |
 | Combined (contract + client) | 74,921 | **584** | PASS |
 | `Handlers<TContract>` (serve surface) | 74,925 | **584** | PASS |
@@ -69,7 +69,7 @@ Research anchors used lighter fixtures (minimal literals, no Zod per route). Thi
 
 ## Which construct dominates cost?
 
-Not `Client` (+6 fixed). Not `Handlers` (+10). Per-route cost is dominated by **per-route schema inference** (`StandardSchemaV1.InferOutput` via `InputOf` / `OutputOf`) and the **Zod object schemas** in each route fixture — the same work plain object literals do, plus a small premium for `satisfies ContractDef` vs the plain control (~276/route marginal delta: 584 − 308).
+Not `Client` (+6 fixed). Not `Handlers` (+10). Per-route cost is dominated by **per-route schema inference** (`StandardSchemaV1.InferOutput` via `HandlerInputOf` / `OutputOf`) and the **Zod object schemas** in each route fixture — the same work plain object literals do, plus a small premium for `as const satisfies ContractDef` vs the plain control (~276/route marginal delta: 584 − 308).
 
 ## Reproduce
 

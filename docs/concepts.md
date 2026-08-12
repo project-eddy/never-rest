@@ -7,6 +7,8 @@ description: Railway at the HTTP boundary, no middleware via andThen, errors as 
 
 ## Railway at the boundary
 
+Never-rest is an **opinionated architectural choice**: Result-based railway-oriented programming at the API boundary. Whether either side uses railway style internally is up to that team; the contract assumes at least one side wants `Result` at the edge.
+
 A **railway** is a success/failure track: operations stay on `Ok` until something fails, then the chain moves to `Err` and stays there. never-rest puts the railway at the HTTP boundary.
 
 Handlers return `Result` or `ResultAsync` — never throw for expected failures (`not_found`, `validation_error`, domain codes). `createClient` returns `ResultAsync` for every operation; network failures, parse failures, and declared error responses become `Err(RailError)` so callers use `map`, `mapErr`, `andThen`, and `match` without `try/catch` at each hop.
@@ -82,8 +84,14 @@ HTTP status is not embedded in the error. Consumers supply a `StatusMap` and `st
 
 `disclose(error, level)` is the mechanism, used by `respond` and `serve`. oRPC documents the same problem as repeated DANGER callouts about sensitive data in error payloads; never-rest encodes the policy in one function. `serve` resolves `disclosure` per incoming `Request` when a function is supplied in `ServeOptions`; when `disclosure` is omitted, `serve` defaults to `public`. `respond` still defaults to `full`.
 
-Route matching uses `compileRoutes` / `matchRoute` (via `./server`), built on `compilePath` / `matchPath`: exact segments and single `:param` placeholders, declaration order. Unmatched method or path → host code `route_not_found` (not domain `not_found`).
+### Route matching order
 
-Successful handler output is always validated and serialised through the route's output schema — the parsed value reaches the wire, not the handler's raw return value. See [api.md — serve](./api.md#serve).
+Route matching uses `compileRoutes` / `matchRoute` (via `./server`), built on `compileContract`, `compilePath`, and `matchPath`: exact segments and single `:param` placeholders, **declaration order**. Static segments win over dynamic ones in the same position — declare `GET /users/me` before `GET /users/:id` so `me` is not captured as an id. That overlap is intentional; `compileContract` does not reject it. It does reject duplicate compiled matchers (for example `/users/:id` and `/users/:userId` on the same method), trailing-slash aliases, and duplicate parameter names within one path. Unmatched method or path → host code `route_not_found` (not domain `not_found`). Path captures are percent-decoded; malformed encoding → `validation_error`.
+
+### Trust boundary at the edge
+
+Reserved wire codes (`internal`, `validation_error`, `route_not_found`, `unavailable`) are host-owned. A handler cannot put an attacker-visible string on the public wire by returning a forged reserved code — undeclared and reserved codes are normalised to wire `internal` with diagnostics under `cause`, and `public` disclosure shows a constant top-level message. Put actionable detail in declared domain codes and `nextStep`; reserve `cause` for trusted callers at `full` disclosure.
+
+Successful handler output is always validated and serialised through the route's output schema — the parsed value reaches the wire, not the handler's raw return value. Output schemas must be **transport-stable** (survive JSON round-trip and client re-parse); see [api.md — parseOutput](./api.md#parseoutput) and [migrating.md — Output schemas](./migrating.md#output-schemas--transport-stability). See [api.md — serve](./api.md#serve).
 
 `origin` stamps which service produced each hop so a gateway can show a chain without guessing order. See [errors-as-intelligence.md](./errors-as-intelligence.md) and [api.md — disclose](./api.md#disclose).

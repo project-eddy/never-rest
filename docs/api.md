@@ -5,7 +5,7 @@ description: Public exports for never-rest — errors, contract, server, and cli
 
 # API reference
 
-Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `./client`, `./node`.
+Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `./client`, `./node`, `./testing`.
 
 | Module | Status |
 | --- | --- |
@@ -14,6 +14,7 @@ Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `.
 | `./server` | **Shipped** |
 | `./client` | **Shipped** |
 | `./node` | **Shipped** |
+| `./testing` | **Shipped** (test-time helpers; not for production handlers) |
 
 Types import `Result` / `ResultAsync` from `neverthrow`.
 
@@ -241,17 +242,66 @@ export const contract = {
     output: userSchema,
     errors: ['not_found'],
   },
-} satisfies ContractDef;
+} as const satisfies ContractDef;
 ```
 
-### `InputOf`
+Use `as const satisfies ContractDef` so `errors` stays a literal tuple and `ServeStatusMap` checks every domain code.
+
+### `compileContract`
 
 ```ts
-type InputOf<TRoute extends RouteDef> =
+function compileContract<TContract extends ContractDef>(
+  contract: TContract,
+): CompiledContract<TContract>;
+```
+
+Validates the contract once at `serve` / `createClient` construction. Rejects duplicate literal paths, trailing-slash aliases, duplicate compiled matchers (for example `/users/:id` and `/users/:userId`), duplicate path parameter names within a route, reserved domain error codes, and duplicate error codes within a route. Throws `ContractConfigurationError` naming the conflicting operations.
+
+### `ContractConfigurationError`
+
+Thrown when `compileContract` finds an invalid contract. Fix the contract or status map before construction proceeds.
+
+### `assertHandlersComplete`
+
+```ts
+function assertHandlersComplete<TContract extends ContractDef>(
+  contract: TContract,
+  handlers: Record<string, unknown>,
+): asserts handlers is Handlers<TContract, unknown>;
+```
+
+Ensures every operation key in the contract maps to a function handler. Called by `serve` at construction.
+
+### `ClientInputOf`
+
+```ts
+type ClientInputOf<TRoute extends RouteDef> =
+  TRoute['input'] extends StandardSchemaV1
+    ? StandardSchemaV1.InferInput<TRoute['input']>
+    : undefined;
+```
+
+Wire-shaped input for `createClient` callers — use `InferInput` so transforms and coerces type correctly on each side.
+
+### `HandlerInputOf`
+
+```ts
+type HandlerInputOf<TRoute extends RouteDef> =
   TRoute['input'] extends StandardSchemaV1
     ? StandardSchemaV1.InferOutput<TRoute['input']>
     : undefined;
 ```
+
+Parsed input inside handlers after server-side `parseInput`.
+
+### `InputOf`
+
+```ts
+/** @deprecated use HandlerInputOf */
+type InputOf<TRoute extends RouteDef> = HandlerInputOf<TRoute>;
+```
+
+Deprecated alias of `HandlerInputOf`. Prefer `ClientInputOf` on the client and `HandlerInputOf` in handlers.
 
 ### `OutputOf`
 
@@ -293,7 +343,7 @@ Server-side error union for handlers (no client-synthesized `unavailable`).
 function parseInput<TRoute extends RouteDef>(
   route: TRoute,
   value: unknown,
-): ResultAsync<InputOf<TRoute>, RailError<'validation_error'>>;
+): ResultAsync<HandlerInputOf<TRoute>, RailError<'validation_error'>>;
 ```
 
 ```ts
@@ -305,6 +355,19 @@ await parseInput(contract.getUser, undefined);
 ```
 
 Works with any Standard Schema validator (Zod 4, Valibot, ArkType). Validation never throws; rejections and thrown validators become `Err(validation_error)`.
+
+### `parseOutput`
+
+```ts
+function parseOutput<TRoute extends RouteDef>(
+  route: TRoute,
+  value: unknown,
+): ResultAsync<OutputOf<TRoute>, RailError<'validation_error'>>;
+```
+
+Parse a handler success value through the route output schema. `serve` serialises the **parsed** value — not the handler's raw return.
+
+**Transport stability:** the client re-parses the JSON body with the same schema. Output schemas must survive parse → `JSON.stringify` → `JSON.parse` → parse with equal values. Type-changing transforms (for example `z.number().transform(String)`) break the client. Prove compliance in tests with [`checkTransportStability`](#checktransportstability) from `./testing`.
 
 ### `CompiledPath`
 
@@ -325,6 +388,14 @@ function compilePath(path: string): CompiledPath;
 
 Compile `/users/:id` into a regex and param names. Exact segments and single `:param` segments only; invalid segments (empty `:`, multiple `:` in one segment) throw.
 
+### `normalizePath`
+
+```ts
+function normalizePath(path: string): string;
+```
+
+Strip trailing slashes so `/users` and `/users/` share one matcher. `compileContract` rejects contracts where both forms appear.
+
 ```ts
 const compiled = compilePath('/users/:id');
 // { regex: /^\/users\/([^/]+)$/, paramNames: ['id'] }
@@ -333,20 +404,23 @@ const compiled = compilePath('/users/:id');
 ### `matchPath`
 
 ```ts
-function matchPath(
-  compiled: CompiledPath,
-  pathname: string,
-): Record<string, string> | undefined;
+type PathMatch =
+  | { readonly kind: 'match'; readonly params: Record<string, string> }
+  | { readonly kind: 'miss' }
+  | { readonly kind: 'invalid_encoding'; readonly param: string };
+
+function matchPath(compiled: CompiledPath, pathname: string): PathMatch;
 ```
 
-Match a pathname against a compiled path; return extracted params or `undefined`.
+Match a pathname against a compiled path; return decoded params, a miss, or an invalid percent-encoding capture.
 
 ```ts
-matchPath(compiled, '/users/u1'); // { id: 'u1' }
-matchPath(compiled, '/orders/1'); // undefined
+matchPath(compiled, '/users/u1'); // { kind: 'match', params: { id: 'u1' } }
+matchPath(compiled, '/orders/1'); // { kind: 'miss' }
+matchPath(compiled, '/users/%zz'); // { kind: 'invalid_encoding', param: 'id' }
 ```
 
-`serve` uses `compileRoutes` / `matchPath` (via `./server`), matching routes in contract declaration order.
+`serve` uses `compileRoutes` / `matchPath` (via `./server`), matching routes in contract declaration order. Static segments before dynamic (`/users/me` before `/users/:id`) is intentional — not a compile error.
 
 ---
 
@@ -397,7 +471,7 @@ First match by method and pathname in declaration order, or `undefined`.
 ```ts
 type Handler<TRoute extends RouteDef, TContext> = (
   args: {
-    input: InputOf<TRoute>;
+    input: HandlerInputOf<TRoute>;
     params: Record<string, string>;
     request: Request;
     context: TContext;
@@ -472,19 +546,19 @@ await handler(new Request('http://localhost/users/u1'), { requestId: 'r1' });
 
 **Construction:** `compileContract(contract)` runs at `serve()` call time; invalid contracts (duplicate routes, reserved domain codes, missing status-map entries) throw `ContractConfigurationError`. The status map is validated for every domain code plus `validation_error`, `internal`, and `route_not_found`.
 
-**Routing:** exact paths and single `:param` segments, declaration order. Unmatched requests → `route_not_found` at `statuses.route_not_found` (not domain `not_found`).
+**Routing:** exact paths and single `:param` segments, declaration order (static before dynamic when both match). Unmatched requests → `route_not_found` at `statuses.route_not_found` (not domain `not_found`). Path captures are percent-decoded; `invalid_encoding` → `validation_error`.
 
-**Input:** `GET` / `DELETE` read query params; `POST` / `PUT` / `PATCH` read JSON body (invalid JSON → `validation_error`). Path `:param` values are merged into that input before `parseInput`, so a client-shaped `input: z.object({ id: z.string() })` validates against `/users/:id`.
+**Input:** `GET` / `DELETE` read query params (arrays as `key[]=`, unrepresentable shapes → `validation_error` before handler); `POST` / `PUT` / `PATCH` read JSON body (invalid JSON → `validation_error`). Path `:param` values are merged into that input before `parseInput`. Empty or missing path params → `validation_error`.
 
-**Declared statuses** per route: `200`, each route error code, `validation_error` when the route has `input`, and `internal`. Undeclared mapped statuses degrade to `500`. Handler error codes not declared on the route are normalised to wire `internal` with the original error under `cause`.
+**Declared statuses** per route: `200`, each route error code, `validation_error` when the route has `input`, and `internal`. Undeclared mapped statuses degrade to `500`. Handler error codes not declared on the route — including forged `internal` — are normalised to wire `internal` with the original error under `cause`; `public` disclosure shows a constant top-level message.
 
 **Origin:** `options.origin` stamps errors when absent (recursive on `cause`). Existing `origin` on an error is preserved.
 
-**Disclosure:** omitted `disclosure` defaults to `public`. Per-request functions are supported as before.
+**Disclosure:** omitted `disclosure` defaults to `public`. Per-request functions are supported; a throwing callback falls back to `public`.
 
-**Throws:** handler exceptions become `internal` 500 with the message under `cause` — never an unhandled rejection.
+**Throws:** handler exceptions and library escape paths become `internal` with diagnostics under `cause` — never an unhandled rejection. Ultimate fail-safe returns a constant JSON body.
 
-**Output validation:** always on. Successful handler values are validated through `parseOutput`; the **parsed** schema value is serialised (strips unknown fields, applies coerces/transforms). Handler `Err` results are not validated. Failures become `internal` with a generic top-level message and diagnostic detail (code `output_validation_failed`, including issue paths) under `cause`, so `public` disclosure can redact field names.
+**Output validation:** always on. Successful handler values are validated through `parseOutput`; the **parsed** schema value is serialised. Handler `Err` results are not validated. Schemas must be transport-stable (see [`parseOutput`](#parseoutput)). Failures become `internal` with a generic top-level message and diagnostic detail under `cause`.
 
 **Tests:** `src/server/serve.test.ts` — scenarios from [specs/cause-chaining.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/cause-chaining.spec.md), [specs/graded-disclosure.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/graded-disclosure.spec.md), and [specs/server-output-validation.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/server-output-validation.spec.md).
 
@@ -510,7 +584,7 @@ When `credentials` is omitted, the underlying `fetch` implementation's default a
 ```ts
 type Client<TContract extends ContractDef> = {
   readonly [K in keyof TContract]: (
-    input: InputOf<TContract[K]>,
+    input: ClientInputOf<TContract[K]>,
   ) => ResultAsync<OutputOf<TContract[K]>, ClientErrorOf<TContract[K]>>;
 };
 ```
@@ -538,9 +612,35 @@ await client
   .map((orders) => orders.orders.length);
 ```
 
-**Behaviour:** `compileContract` runs at construction. Validates input via `parseInput`; path `:param` keys are taken from input, remainder sent as JSON body (`POST`/`PUT`/`PATCH`) or query string (`GET`/`DELETE`). 2xx → `Ok` (output schema); JSON `RailError` with a declared domain code, `validation_error`, or `internal` → `Err`; undeclared error code → `Err(internal)` with remote error under `cause`; non-JSON body → `Err(internal)`; network failure → `Err(unavailable, { retryable: true })`. Never throws.
+**Behaviour:** `compileContract` runs at construction. Validates raw client input via `parseInput` (`ClientInputOf`); path params must be non-empty; query arrays use `key[]=`. 2xx → `Ok` (output schema re-parse); JSON `RailError` with a declared domain code, `validation_error`, or `internal` → `Err`; undeclared or reserved remote codes → `Err(internal)` with constant message and remote error under `cause`; non-JSON body → `Err(internal)`; network failure → `Err(unavailable, { retryable: true })`. Header/body serialization failures → `Err(internal)`. Never throws.
 
-**Tests:** `src/client/create.test.ts` — scenarios from [specs/client-results.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/client-results.spec.md).
+**Tests:** `src/client/create.test.ts` — scenarios from [specs/client-results.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/client-results.spec.md) and [specs/wire-serialization.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/wire-serialization.spec.md).
+
+---
+
+## `@eddy-works/never-rest/testing`
+
+Test-time helpers — not for production request paths.
+
+### `checkTransportStability`
+
+```ts
+function checkTransportStability<T extends StandardSchemaV1>(
+  schema: T,
+  sample: StandardSchemaV1.InferInput<T>,
+): ResultAsync<void, RailError<'transport_unstable'>>;
+```
+
+Verify a schema survives JSON wire round-trip: parse the sample, serialise, parse again, and compare values. Use in contract tests for every output schema (and any input schema with transforms you rely on).
+
+```ts
+import { checkTransportStability } from '@eddy-works/never-rest/testing';
+
+const result = await checkTransportStability(userSchema, { id: 'u1', name: 'Ada' });
+result.isOk(); // true when transport-stable
+```
+
+Fails for schemas whose transforms change the wire shape — for example `z.number().transform(String)`.
 
 ---
 

@@ -1,9 +1,9 @@
 # never-rest behaviour specs
 
 Gherkin scenarios for rule-shaped library behaviour: status mapping, graded
-disclosure, cause chaining, and client result mapping. Type-level behaviour
-(instantiation budgets, assignability) is **not** specified here — see `perf/`
-and type tests (slice 06).
+disclosure, cause chaining, client result mapping, contract compilation, and
+wire serialization. Type-level behaviour (instantiation budgets, assignability) is
+**not** specified here — see `perf/` and type tests.
 
 Spec files use the `*.spec.md` suffix so they stay distinct from handbook and
 docs markdown. Lint them with `pnpm specs:lint` (also run by the pre-commit hook).
@@ -17,6 +17,8 @@ docs markdown. Lint them with `pnpm specs:lint` (also run by the pre-commit hook
 | [cause-chaining.spec.md](./cause-chaining.spec.md) | `chain`, `flatten`, `formatChain`, origin stamping, JSON round-trip |
 | [client-results.spec.md](./client-results.spec.md) | `createClient` — `Ok` / `Err` mapping, `ClientErrorOf`, short-circuit chains |
 | [server-output-validation.spec.md](./server-output-validation.spec.md) | `serve` — always-on output validation; parsed schema value serialised |
+| [contract-compilation.spec.md](./contract-compilation.spec.md) | `compileContract`, `assertHandlersComplete`, `matchPath` decode — duplicate matchers, trailing slashes, handler completeness |
+| [wire-serialization.spec.md](./wire-serialization.spec.md) | Client `buildRequest` — path params, `key[]=` query arrays, pre-fetch validation errors |
 
 Each file follows the [utility-belt Gherkin convention](https://github.com/project-eddy/utility-belt/blob/main/mixins/gherkin/SKILL.md): YAML frontmatter, a job-story callout, overview prose, and one fenced `gherkin` block per scenario with **exactly one `When`**.
 
@@ -42,8 +44,6 @@ pnpm specs:lint
 # or
 node scripts/lint-gherkin.mjs specs/
 ```
-
-Once slice 01 wires the package script:
 
 ```bash
 pnpm specs:extract
@@ -76,10 +76,11 @@ one-to-one — they do not invent parallel wording.
 | Layer | Seams | Spec files |
 | --- | --- | --- |
 | Unit / integration | `statusFor`, `toDeclaredResponse`, `disclose`, `chain`, `flatten`, `respond` | `status-mapping.spec.md`, `graded-disclosure.spec.md`, `cause-chaining.spec.md` |
-| Integration | `serve` (origin stamping, disclosure per request, `route_not_found`, output validation) | `cause-chaining.spec.md`, `graded-disclosure.spec.md`, `server-output-validation.spec.md`, `status-mapping.spec.md` |
-| Integration | `createClient` against a stubbed or in-process handler | `client-results.spec.md` |
+| Integration | `serve` (origin stamping, disclosure per request, `route_not_found`, output validation, forged codes) | `cause-chaining.spec.md`, `graded-disclosure.spec.md`, `server-output-validation.spec.md`, `status-mapping.spec.md` |
+| Integration | `createClient` against a stubbed or in-process handler | `client-results.spec.md`, `wire-serialization.spec.md` |
+| Unit | `compileContract`, `matchPath`, `assertHandlersComplete` | `contract-compilation.spec.md` |
 
-Suggested test file mapping (slice 02–05 implementers):
+Suggested test file mapping:
 
 | Test file | Scenarios from |
 | --- | --- |
@@ -87,8 +88,11 @@ Suggested test file mapping (slice 02–05 implementers):
 | `src/disclose.test.ts` | `graded-disclosure.spec.md` |
 | `src/error.test.ts` | `cause-chaining.spec.md` (chain, flatten, format, round-trip) |
 | `src/respond.test.ts` | `status-mapping.spec.md`, `graded-disclosure.spec.md` (respond paths) |
-| `src/server/serve.test.ts` | `cause-chaining.spec.md` (origin), `graded-disclosure.spec.md` (per-request disclosure, omitted→public), `server-output-validation.spec.md`, `status-mapping.spec.md` (`route_not_found`) |
-| `src/client/create.test.ts` | `client-results.spec.md` |
+| `src/contract/compile.test.ts` | `contract-compilation.spec.md` |
+| `src/contract/path.test.ts` | `contract-compilation.spec.md` (path decode) |
+| `src/server/serve.test.ts` | `cause-chaining.spec.md` (origin), `graded-disclosure.spec.md` (per-request disclosure, omitted→public, forged codes), `server-output-validation.spec.md`, `status-mapping.spec.md` (`route_not_found`), `contract-compilation.spec.md` (handler completeness) |
+| `src/client/create.test.ts` | `client-results.spec.md`, `wire-serialization.spec.md` |
+| `src/testing/transport.test.ts` | transport-stability helper (complements `server-output-validation.spec.md`) |
 
 ### Agent workflow
 

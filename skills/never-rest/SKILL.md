@@ -33,14 +33,16 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | What is `origin` and who sets it? | [errors-as-intelligence.md — Origin](docs/errors-as-intelligence.md#origin) · [api.md — serve](docs/api.md#serve) |
 | When is an error `retryable`? | [errors-as-intelligence.md — Retryable](docs/errors-as-intelligence.md#retryable) |
 | How do I define a contract? | [api.md — ContractDef](docs/api.md#contractdef) · [api.md — RouteDef](docs/api.md#routedef) |
-| How do I type input/output/errors for a route? | [api.md — InputOf](docs/api.md#inputof) · [OutputOf](docs/api.md#outputof) · [ErrorOf](docs/api.md#errorof) · [ClientErrorOf](docs/api.md#clienterrorof) |
+| How do I type input/output/errors for a route? | [api.md — ClientInputOf](docs/api.md#clientinputof) · [HandlerInputOf](docs/api.md#handlerinputof) · [OutputOf](docs/api.md#outputof) · [ErrorOf](docs/api.md#errorof) · [ClientErrorOf](docs/api.md#clienterrorof) |
+| How do I prove an output schema is transport-stable? | [api.md — checkTransportStability](docs/api.md#checktransportstability) · [migrating.md — Output schemas](docs/migrating.md#output-schemas--transport-stability) |
 | What error codes can the client return? | [api.md — ClientErrorOf](docs/api.md#clienterrorof) · [specs/client-results.spec.md](specs/client-results.spec.md) |
 | What must a server status map include? | [api.md — ServeStatusMap](docs/api.md#servestatusmap) · [migrating.md — Server status map](docs/migrating.md#server-status-map) |
 | What happens on unmatched routes? | [api.md — serve](docs/api.md#serve) · [specs/status-mapping.spec.md](specs/status-mapping.spec.md) (`route_not_found`) |
 | How does output validation work on the server? | [api.md — serve](docs/api.md#serve) · [specs/server-output-validation.spec.md](specs/server-output-validation.spec.md) |
 | How does validation work? | [api.md — parseInput](docs/api.md#parseinput) · [concepts.md — Errors as data](docs/concepts.md#errors-as-data) |
-| How do I compile or match route paths? | [api.md — compilePath](docs/api.md#compilepath) · [matchPath](docs/api.md#matchpath) · [compileRoutes](docs/api.md#compileroutes) · [matchRoute](docs/api.md#matchroute) |
-| What path patterns are supported? | [api.md — compilePath](docs/api.md#compilepath) (exact segments, single `:param`) |
+| How do I compile or match route paths? | [api.md — compileContract](docs/api.md#compilecontract) · [compilePath](docs/api.md#compilepath) · [matchPath](docs/api.md#matchpath) · [normalizePath](docs/api.md#normalizepath) · [compileRoutes](docs/api.md#compileroutes) · [matchRoute](docs/api.md#matchroute) |
+| What path patterns are supported? | [api.md — compilePath](docs/api.md#compilepath) (exact segments, single `:param`; static before dynamic) |
+| Migrate from 0.3.0? | [migrating.md — Upgrading from 0.3.0](docs/migrating.md#upgrading-from-030) |
 | How do I implement a handler? | [api.md — Handler](docs/api.md#handler) · [api.md — Handlers](docs/api.md#handlers) |
 | How do I expose the server on fetch? | [api.md — serve](docs/api.md#serve) |
 | How do I mount on Node http / Express? | [api.md — toNodeHandler](docs/api.md#tonodehandler) · [examples/express](examples/express) |
@@ -76,15 +78,23 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | `respond` | `.` | [api.md#respond](docs/api.md#respond) |
 | `RouteDef` | `./contract` | [api.md#routedef](docs/api.md#routedef) |
 | `ContractDef` | `./contract` | [api.md#contractdef](docs/api.md#contractdef) |
-| `InputOf` | `./contract` | [api.md#inputof](docs/api.md#inputof) |
+| `compileContract` | `./contract` | [api.md#compilecontract](docs/api.md#compilecontract) |
+| `ContractConfigurationError` | `./contract` | [api.md#contractconfigurationerror](docs/api.md#contractconfigurationerror) |
+| `assertHandlersComplete` | `./contract` | [api.md#asserthandlerscomplete](docs/api.md#asserthandlerscomplete) |
+| `ClientInputOf` | `./contract` | [api.md#clientinputof](docs/api.md#clientinputof) |
+| `HandlerInputOf` | `./contract` | [api.md#handlerinputof](docs/api.md#handlerinputof) |
+| `InputOf` | `./contract` | [api.md#inputof](docs/api.md#inputof) (deprecated) |
 | `OutputOf` | `./contract` | [api.md#outputof](docs/api.md#outputof) |
 | `ErrorOf` | `./contract` | [api.md#errorof](docs/api.md#errorof) |
 | `ClientErrorOf` | `./contract` | [api.md#clienterrorof](docs/api.md#clienterrorof) |
 | `ServerErrorOf` | `./contract` | [api.md#servererrorof](docs/api.md#servererrorof) |
 | `parseInput` | `./contract` | [api.md#parseinput](docs/api.md#parseinput) |
+| `parseOutput` | `./contract` | [api.md#parseoutput](docs/api.md#parseoutput) |
 | `CompiledPath` | `./contract` | [api.md#compiledpath](docs/api.md#compiledpath) |
+| `PathMatch` | `./contract` | [api.md#matchpath](docs/api.md#matchpath) |
 | `compilePath` | `./contract` | [api.md#compilepath](docs/api.md#compilepath) |
 | `matchPath` | `./contract` | [api.md#matchpath](docs/api.md#matchpath) |
+| `normalizePath` | `./contract` | [api.md#normalizepath](docs/api.md#normalizepath) |
 | `CompiledRoute` | `./server` | [api.md#compiledroute](docs/api.md#compiledroute) |
 | `RouteMatch` | `./server` | [api.md#routematch](docs/api.md#routematch) |
 | `compileRoutes` | `./server` | [api.md#compileroutes](docs/api.md#compileroutes) |
@@ -97,6 +107,7 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | `ClientOptions` | `./client` | [api.md#clientoptions](docs/api.md#clientoptions) |
 | `Client` | `./client` | [api.md#client](docs/api.md#client) |
 | `createClient` | `./client` | [api.md#createclient](docs/api.md#createclient) |
+| `checkTransportStability` | `./testing` | [api.md#checktransportstability](docs/api.md#checktransportstability) |
 | `toNodeHandler` | `./node` | [api.md#tonodehandler](docs/api.md#tonodehandler) |
 | `FetchHandler` | `./node` | [api.md#fetchhandler](docs/api.md#fetchhandler) |
 | `NodeHttpHandler` | `./node` | [api.md#nodehttphandler](docs/api.md#nodehttphandler) |
@@ -110,4 +121,6 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | [specs/cause-chaining.spec.md](specs/cause-chaining.spec.md) | Downstream bubble, `origin`, serialisation | `src/error.test.ts`, `src/server/serve.test.ts` |
 | [specs/client-results.spec.md](specs/client-results.spec.md) | `Ok` / `Err` mapping, `ClientErrorOf`, retryable network | `src/client/create.test.ts` |
 | [specs/server-output-validation.spec.md](specs/server-output-validation.spec.md) | Always-on parsed output serialisation | `src/server/serve.test.ts` |
+| [specs/contract-compilation.spec.md](specs/contract-compilation.spec.md) | `compileContract`, path decode, handler completeness | `src/contract/compile.test.ts`, `src/contract/path.test.ts`, `src/server/serve.test.ts` |
+| [specs/wire-serialization.spec.md](specs/wire-serialization.spec.md) | Client path/query wire encoding | `src/client/create.test.ts` |
 | [specs/README.md](specs/README.md) | `pnpm specs:extract` | — |

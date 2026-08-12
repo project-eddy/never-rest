@@ -5,6 +5,69 @@ description: Move from ts-rest, oRPC, or throwing handlers to never-rest Result 
 
 # Migrating
 
+## Upgrading from 0.3.0
+
+### Contract style — `as const`
+
+Use `as const satisfies ContractDef` on every contract. Without `as const`, `errors` widens to `string` and `ServeStatusMap` silently accepts a status map that omits domain codes.
+
+```ts
+const contract = {
+  getUser: { /* … */ errors: ['not_found'] },
+} as const satisfies ContractDef;
+```
+
+### Input type split
+
+`InputOf` is deprecated — it aliases the **handler** side (`InferOutput`). Use the split types:
+
+| Type | Meaning |
+| --- | --- |
+| `ClientInputOf<Route>` | What callers pass to `createClient` (`InferInput` — wire-shaped) |
+| `HandlerInputOf<Route>` | What handlers receive after server parsing (`InferOutput` — coerced/transformed) |
+
+A route with `z.string().transform(Number)` on input types as `{ limit: string }` on the client and `{ limit: number }` in the handler. The client validates raw input; the server applies transforms after path/query merge.
+
+### Path decoding and `matchPath`
+
+Path captures are percent-decoded before they reach handlers (`hello%20world` → `hello world`). `matchPath` now returns a `PathMatch` discriminated union — `{ kind: 'match', params }`, `{ kind: 'miss' }`, or `{ kind: 'invalid_encoding', param }` — instead of `Record<string, string> | undefined`. Malformed percent sequences become `validation_error` on the server, not a thrown `URIError`.
+
+Empty or missing path parameters are rejected as `validation_error` before fetch on the client.
+
+### Query encoding
+
+GET/DELETE query fields serialize predictably:
+
+- Primitives and dates as scalar `key=value`
+- Arrays of primitives (or dates) as `key[]=a&key[]=b` — including single-element arrays
+- `undefined` / `null` omitted; empty arrays, nested objects, `bigint`, and nested arrays → `validation_error` before fetch
+
+The server reads `k[]` keys back into arrays.
+
+### Forged and reserved error codes
+
+Handler `Err` values whose `code` is not on the route's `errors` array — including forged `internal`, `validation_error`, and `route_not_found` — are normalised to wire `internal` with the original error under `cause`. At default `public` disclosure the top-level message is a constant; diagnostics are visible at `full` disclosure only.
+
+Do not `mapErr` into `internal` inside handler pipelines expecting that message on the public wire — use a **declared domain code** instead (see [railway-patterns.md — Translate](./railway-patterns.md#translate-maperr)). The client mirrors this: unknown remote codes become `internal` with a constant message and the remote error preserved as `cause`.
+
+### Output schemas — transport stability
+
+Output validation parses handler output, serialises the parsed value, and the client re-parses the JSON with the same schema. Schemas whose transforms change the wire shape (for example `z.number().transform(String)`) fail on the client after a successful server response. Output schemas must be **transport-stable**: parse → `JSON.stringify` → `JSON.parse` → parse again must yield an equal value.
+
+Prove compliance in tests with `checkTransportStability` from `@eddy-works/never-rest/testing`:
+
+```ts
+import { checkTransportStability } from '@eddy-works/never-rest/testing';
+
+await checkTransportStability(userSchema, { id: 'u1', name: 'Ada' });
+```
+
+### Construction-time validation
+
+`compileContract` now rejects trailing-slash aliases (`/users` vs `/users/`), duplicate compiled matchers (`/users/:id` and `/users/:userId`), duplicate path parameter names within a route, and incomplete handler maps (`assertHandlersComplete`). Both `serve` and `createClient` use the compiled representation — paths are not recompiled per request.
+
+---
+
 ## Upgrading from 0.2.0
 
 ### Client error type
@@ -76,10 +139,10 @@ const contract = {
     output: userSchema,
     errors: ['not_found'],
   },
-} satisfies ContractDef;
+} as const satisfies ContractDef;
 ```
 
-Declare error **codes** on the route; HTTP statuses live in a shared `StatusMap` passed to `serve` and `respond`, not in nested response objects per status.
+Declare error **codes** on the route; HTTP statuses live in a shared `StatusMap` passed to `serve` and `respond`, not in nested response objects per status. Use `as const satisfies ContractDef` so `ServeStatusMap` checks every domain code.
 
 ### Handlers
 
@@ -133,7 +196,7 @@ return result.match(
 
 ### Type performance
 
-Expect lower instantiations per route after dropping `c.router()` — verify with `pnpm perf:check` once slice 06 lands.
+Expect lower instantiations per route after dropping `c.router()` — verify with `pnpm perf:check`.
 
 ---
 

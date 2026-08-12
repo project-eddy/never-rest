@@ -6,7 +6,9 @@
 [![license](https://img.shields.io/npm/l/@eddy-works/never-rest.svg?color=blue)](LICENSE)
 [![node](https://img.shields.io/node/v/@eddy-works/never-rest.svg)](package.json)
 
-HTTP contracts where handlers return `Result` instead of throwing. Errors carry their cause chain across service boundaries. Disclosure is graded by caller trust — not blanket obfuscation.
+**An opinionated architectural choice** — never-rest puts Result-based railway-oriented programming at the API boundary. Whether either side uses railway style internally is up to that team and does not matter to the contract. The assumption is that at least one side wants it; otherwise there is no reason to reach for this.
+
+On top of that choice: HTTP contracts where handlers return `Result` instead of throwing, errors carry their cause chain across service boundaries, and disclosure is graded by caller trust — not blanket obfuscation.
 
 **Package:** `@eddy-works/never-rest` · **Licence:** Apache-2.0 · **Peer:** `neverthrow` · **Runtime deps:** none (validation via Standard Schema)
 
@@ -27,10 +29,11 @@ pnpm add @eddy-works/never-rest neverthrow
 | Module | Key exports |
 | --- | --- |
 | `@eddy-works/never-rest` | `RailError`, `railError`, `chain`, `flatten`, `formatChain`, `statusFor`, `toDeclaredResponse`, `disclose`, `respond` |
-| `@eddy-works/never-rest/contract` | `RouteDef`, `ContractDef`, `InputOf`, `OutputOf`, `ErrorOf`, `parseInput`, `compilePath`, `matchPath` |
+| `@eddy-works/never-rest/contract` | `RouteDef`, `ContractDef`, `ClientInputOf`, `HandlerInputOf`, `InputOf` (deprecated), `OutputOf`, `ErrorOf`, `ClientErrorOf`, `ServerErrorOf`, `parseInput`, `parseOutput`, `compileContract`, `compilePath`, `matchPath`, `normalizePath`, `assertHandlersComplete`, `ContractConfigurationError` |
 | `@eddy-works/never-rest/server` | `serve`, `Handler`, `Handlers`, `compileRoutes`, `matchRoute` |
 | `@eddy-works/never-rest/client` | `createClient`, `Client`, `ClientOptions` |
 | `@eddy-works/never-rest/node` | `toNodeHandler`, `FetchHandler`, `NodeHttpHandler` |
+| `@eddy-works/never-rest/testing` | `checkTransportStability` |
 
 ## The problem
 
@@ -82,7 +85,7 @@ const contract = {
     output: userSchema,
     errors: ['conflict'],
   },
-} satisfies ContractDef;
+} as const satisfies ContractDef;
 
 const statuses = {
   validation_error: 400,
@@ -141,7 +144,7 @@ await client
   );
 ```
 
-Bring any Standard Schema validator (Zod 4, Valibot, ArkType). `serve` returns `(request, context) => Promise<Response>` on Workers, Deno, Bun, Node 18+, SvelteKit, Next. For classic Node/`http` or Express, use [`toNodeHandler`](docs/api.md#tonodehandler) from `@eddy-works/never-rest/node`.
+Bring any Standard Schema validator (Zod 4, Valibot, ArkType). Use `as const satisfies ContractDef` on every contract — without `as const`, `errors` widens to `string` and `ServeStatusMap` stops checking that your status map covers every domain code. `serve` returns `(request, context) => Promise<Response>` on Workers, Deno, Bun, Node 18+, SvelteKit, Next. For classic Node/`http` or Express, use [`toNodeHandler`](docs/api.md#tonodehandler) from `@eddy-works/never-rest/node`.
 
 ## Examples
 
@@ -187,7 +190,7 @@ Browsable site: [project-eddy.github.io/never-rest](https://project-eddy.github.
 | [docs/api.md](docs/api.md) | Every public export, signature, example |
 | [docs/examples.md](docs/examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway |
 | [docs/errors-as-intelligence.md](docs/errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |
-| [docs/comparison.md](docs/comparison.md) | vs ts-rest and oRPC (versions, trade-offs) |
+| [docs/comparison.md](docs/comparison.md) | vs ts-rest, oRPC, tRPC, and Hono RPC |
 | [docs/migrating.md](docs/migrating.md) | From ts-rest, oRPC, throwing handlers |
 | [docs/performance.md](docs/performance.md) | Type instantiation budget (~584/route, CI gate) |
 
@@ -195,7 +198,7 @@ Agent lookup index: [skills/never-rest/SKILL.md](skills/never-rest/SKILL.md).
 
 ## Specs
 
-28 Gherkin scenarios in `specs/` — extract with `pnpm specs:extract`. Tests map one-to-one to scenario titles:
+38+ Gherkin scenarios in `specs/` (63 across seven files) — extract with `pnpm specs:extract`. Tests map one-to-one to scenario titles:
 
 | Spec | Tests |
 | --- | --- |
@@ -204,5 +207,7 @@ Agent lookup index: [skills/never-rest/SKILL.md](skills/never-rest/SKILL.md).
 | [specs/cause-chaining.spec.md](specs/cause-chaining.spec.md) | `src/error.test.ts`, `src/server/serve.test.ts` |
 | [specs/client-results.spec.md](specs/client-results.spec.md) | `src/client/create.test.ts` |
 | [specs/server-output-validation.spec.md](specs/server-output-validation.spec.md) | `src/server/serve.test.ts` |
+| [specs/contract-compilation.spec.md](specs/contract-compilation.spec.md) | `src/contract/compile.test.ts`, `src/contract/path.test.ts`, `src/server/serve.test.ts` |
+| [specs/wire-serialization.spec.md](specs/wire-serialization.spec.md) | `src/client/create.test.ts`, `src/client/request.ts` paths |
 
 See [specs/README.md](specs/README.md) for extraction and layout.

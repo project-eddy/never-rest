@@ -86,7 +86,9 @@ neverthrow: [map](https://supermacro-neverthrow-22.mintlify.app/api/result/map).
 
 ## Translate (mapErr)
 
-`mapErr` reshapes the failure track — unify vendor errors onto your `RailError` codes, add `nextStep`, stamp `origin`, or narrow a wide union before the HTTP edge.
+`mapErr` reshapes the failure track — unify vendor errors onto your **declared** `RailError` codes, add `nextStep`, stamp `origin`, or narrow a wide union before the HTTP edge.
+
+Do not `mapErr` into `internal` (or other reserved wire codes) inside handler pipelines expecting that message on the public wire — reserved codes are host-owned and normalised at disclosure. Use a domain code on the route's `errors` array; put downstream detail under `cause` for `full` disclosure.
 
 ```ts
 billing.createCustomer(input).mapErr((e) =>
@@ -626,7 +628,9 @@ function persistLiveTenant(
       ...wired,
       createdBy: actor.userId,
     })
-    .mapErr(() => railError('internal', 'Could not persist live tenant row'))
+    .mapErr(() =>
+      railError('dependency_failed', 'Could not persist live tenant row', { retryable: true }),
+    )
     .map((tenantId) => ({ ...wired, tenantId, status: 'live' as const }));
 }
 
@@ -636,7 +640,11 @@ function emitProvisioned(
   return outbox
     .write('tenant.whitelabel_provisioned', tenant)
     .map(() => tenant)
-    .mapErr(() => railError('internal', 'Outbox write failed after white-label provision'));
+    .mapErr(() =>
+      railError('dependency_failed', 'Outbox write failed after white-label provision', {
+        retryable: true,
+      }),
+    );
 }
 
 // Handler — commercial gates, geo router, residency/capacity gates, HA infra,

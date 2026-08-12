@@ -9,18 +9,18 @@ Checkable anchors as of project research (August 2026). Re-verify versions befor
 
 ## Summary
 
-| | never-rest | ts-rest | oRPC |
-| --- | --- | --- | --- |
-| Contract shape | Plain object + `satisfies ContractDef` | `initContract()` builder / `c.router()` | Procedure router |
-| Handler model | `Result` / `ResultAsync` | Throws (middleware catches) | **Throw** `errors.NOT_FOUND()` on server |
-| Client model | `ResultAsync`, composable | Varies by adapter | `safe()` tuple; no `andThen` chain |
-| Validation | Standard Schema (bring your validator) | Zod-first; Zod 4 gaps in shipped types | Standard Schema |
-| Middleware | None — auth/gates are `andThen` in the handler | Built-in interceptors | Built-in |
-| Node bridge | `./node` `toNodeHandler` | Adapters (Express, …) | Adapters / plugins |
-| Type cost (20-route fixture, per route) | Spike ~1,346; budget 1,800 | ~5,984 (`c.router()`) | Not published by oRPC |
-| Plain object control | ~1,193 per route (no library) | — | — |
+| | never-rest | ts-rest | oRPC | tRPC | Hono RPC |
+| --- | --- | --- | --- | --- | --- |
+| Contract shape | Plain object + `as const satisfies ContractDef` | `initContract()` builder / `c.router()` | Procedure router | Procedure router | Chained `app` routes + validators |
+| Handler model | `Result` / `ResultAsync` | Throws (middleware catches) | **Throw** `errors.NOT_FOUND()` on server | **Throw** `TRPCError` | Throws or raw `Response` |
+| Client model | `ResultAsync`, composable | Varies by adapter | `safe()` tuple; no `andThen` chain | Promise + `try/catch` on client | Typed client; varies by setup |
+| Validation | Standard Schema (bring your validator) | Zod-first; Zod 4 gaps in shipped types | Standard Schema | Zod (typical) | Zod / Valibot (typical) |
+| Middleware | None — auth/gates are `andThen` in the handler | Built-in interceptors | Built-in | Built-in | Hono middleware stack |
+| Node bridge | `./node` `toNodeHandler` | Adapters (Express, …) | Adapters / plugins | Adapters | Hono-native |
+| Type cost (20-route fixture, per route) | Spike ~1,346; budget 1,800 | ~5,984 (`c.router()`) | Not published by oRPC | Not published | Not published |
+| Plain object control | ~1,193 per route (no library) | — | — | — | — |
 
-Instantiation numbers for never-rest and ts-rest are **provisional** until [performance.md](./performance.md) publishes the full `@ark/attest` gate (slice 06).
+Instantiation numbers for never-rest and ts-rest are measured in CI via `@ark/attest` — see [performance.md](./performance.md).
 
 ## ts-rest
 
@@ -63,6 +63,42 @@ oRPC's own docs warn repeatedly not to put sensitive data in `ORPCError.data`; n
 
 **When to stay on oRPC:** RPC fits your API shape, you rely on throw-based server handlers, or you need oRPC's streaming/plugin surface.
 
+## tRPC
+
+**Reference:** [trpc.io](https://trpc.io) — end-to-end typesafe RPC over HTTP, Zod-typical, procedure router with middleware.
+
+**What tRPC does better**
+
+- Large ecosystem, React Query integration, subscriptions, and framework adapters.
+- Familiar procedure model if the team already standardises on tRPC routers.
+- Input/output inference without maintaining explicit HTTP paths per operation.
+
+**What never-rest optimises for**
+
+- **HTTP contract-first** with explicit `method` + `path` and declared status codes per route — REST-shaped APIs, not procedure namespaces.
+- **`Result` handlers and `ResultAsync` clients** — no `TRPCError` throws; failures compose with `andThen` / `match` on both sides.
+- **Graded disclosure** and **cause chains** as first-class wire data for gateways and agents.
+
+**When to stay on tRPC:** your API is procedure-centric, you want tRPC's client integrations, or the team will not adopt `Result` at the boundary.
+
+## Hono RPC
+
+**Reference:** [Hono RPC](https://hono.dev/docs/guides/rpc) — type inference from Hono route chains; client calls mirror server `app` composition.
+
+**What Hono RPC does better**
+
+- Native Hono stack — middleware, bindings, and deployment targets Hono already targets.
+- Types flow from the same `app` instance; no separate contract object.
+- Lightweight when the API is already a Hono app.
+
+**What never-rest optimises for**
+
+- **Runtime-agnostic `fetch`** — same contract on Workers, Node, Deno, and frameworks via `serve` / `toNodeHandler`, not Hono-specific chaining.
+- **`Result` at the boundary** instead of throw middleware or ad-hoc `Response` construction in handlers.
+- **Cross-service error intelligence** — `origin`, `cause`, `nextStep`, and disclosure levels for multi-hop systems.
+
+**When to stay on Hono RPC:** the API lives entirely in Hono, you want RPC inference from route chains, and graded disclosure / cause chains are unnecessary.
+
 ## never-rest
 
 **Best fit**
@@ -73,6 +109,6 @@ oRPC's own docs warn repeatedly not to put sensitive data in `ORPCError.data`; n
 - Teams already on `neverthrow` who want the same railway at the HTTP edge.
 - TypeScript projects where **published instantiation per route** matters in CI.
 
-**Not in v0.1**
+**Not in scope today**
 
-OpenAPI codegen, middleware, TanStack Query integrations, streaming, multipart, CLI/codegen, wildcards/nested routers. A thin Node bridge (`./node` → `toNodeHandler`) ships for Express/`http`; full framework adapter suites are out of scope. See the plan's exclusion table.
+OpenAPI codegen, middleware, TanStack Query integrations, streaming, multipart, CLI/codegen, wildcards/nested routers. A thin Node bridge (`./node` → `toNodeHandler`) ships for Express/`http`; full framework adapter suites are out of scope.
