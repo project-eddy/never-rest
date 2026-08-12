@@ -7,17 +7,38 @@ import {
   usersContract,
 } from '@never-rest-examples/shared-contract';
 
-const users = new Map<string, { id: string; name: string }>([
-  ['ada', { id: 'ada', name: 'Ada Lovelace' }],
+type UserRecord = { id: string; name: string; passwordHash: string };
+
+const users = new Map<string, UserRecord>([
+  [
+    'ada',
+    {
+      id: 'ada',
+      name: 'Ada Lovelace',
+      // Stored server-side only — must never appear on the wire.
+      passwordHash: 'demo-hash-ada',
+    },
+  ],
 ]);
 
+/**
+ * Handlers return Result — expected failures are `err(railError(...))`, not throws.
+ * `serve` always serialises the **parsed** output schema, so extra fields below
+ * are stripped before the response leaves the process.
+ */
 const usersHandlers: Handlers<typeof usersContract, undefined> = {
   getUser: ({ input }) => {
     const user = users.get(input.id);
     if (user === undefined) {
+      // Domain miss (resource) — distinct from host `route_not_found` on /nope.
       return err(railError('not_found', `User ${input.id} not found`));
     }
-    return ok(user);
+    const wireCandidate = {
+      id: user.id,
+      name: user.name,
+      passwordHash: user.passwordHash,
+    };
+    return ok(wireCandidate);
   },
 
   createUser: ({ input }) => {
@@ -26,14 +47,31 @@ const usersHandlers: Handlers<typeof usersContract, undefined> = {
     if (users.has(id)) {
       return err(railError('conflict', `User ${id} already exists`));
     }
-    const user = { id, name: input.name };
+    const user: UserRecord = {
+      id,
+      name: input.name,
+      passwordHash: `demo-hash-${id}`,
+    };
     users.set(id, user);
-    return ok(user);
+    const wireCandidate = {
+      id: user.id,
+      name: user.name,
+      passwordHash: user.passwordHash,
+    };
+    return ok(wireCandidate);
   },
 
-  listUsers: () => ok([...users.values()]),
+  listUsers: () => {
+    const wireCandidates = [...users.values()].map((user) => ({
+      id: user.id,
+      name: user.name,
+      passwordHash: user.passwordHash,
+    }));
+    return ok(wireCandidates);
+  },
 };
 
+// disclosure omitted → `public` (fail-closed at the HTTP edge).
 export const usersApi = serve(usersContract, usersHandlers, {
   statuses,
   origin: 'express-demo',
