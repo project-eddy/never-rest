@@ -2,13 +2,15 @@ import { err, ok } from 'neverthrow';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
-import { chain, railError } from '../error.js';
+import { ContractConfigurationError } from '../contract/compile.js';
 import type { ContractDef } from '../contract/types.js';
+import { chain, railError } from '../error.js';
 import { serve, type Handlers } from './serve.js';
 
 const statuses = {
   validation_error: 400,
   not_found: 404,
+  route_not_found: 404,
   conflict: 409,
   internal: 500,
 } as const;
@@ -72,6 +74,52 @@ async function call(
   return { response, body };
 }
 
+describe('serve construction', () => {
+  it('throws ContractConfigurationError when a required status is missing', () => {
+    const { conflict: _conflict, ...incomplete } = statuses;
+    expect(() =>
+      serve(contract, handlers, {
+        statuses: incomplete as typeof statuses,
+        origin: 'users-api',
+      }),
+    ).toThrow(ContractConfigurationError);
+    expect(() =>
+      serve(contract, handlers, {
+        statuses: incomplete as typeof statuses,
+        origin: 'users-api',
+      }),
+    ).toThrow('Missing or invalid HTTP status for "conflict"');
+  });
+
+  it('throws ContractConfigurationError when a status is out of range', () => {
+    expect(() =>
+      serve(contract, handlers, {
+        statuses: { ...statuses, internal: 200 },
+        origin: 'users-api',
+      }),
+    ).toThrow(ContractConfigurationError);
+  });
+
+  it('throws ContractConfigurationError when a route uses a reserved domain code', () => {
+    const badContract = {
+      getUser: {
+        ...contract.getUser,
+        errors: ['route_not_found'],
+      },
+    } satisfies ContractDef;
+
+    expect(() =>
+      serve(
+        badContract,
+        {
+          getUser: handlers.getUser,
+        },
+        { statuses },
+      ),
+    ).toThrow(ContractConfigurationError);
+  });
+});
+
 describe('serve', () => {
   it.each([
     {
@@ -118,13 +166,12 @@ describe('serve', () => {
       label: 'unknown path',
       request: new Request('http://localhost/missing'),
     },
-  ])('returns 404 RailError for $label', async ({ request }) => {
+  ])('returns route_not_found for $label', async ({ request }) => {
     const { response, body } = await call(createHandler(), request);
     expect(response.status).toBe(404);
     expect(body).toEqual({
-      code: 'not_found',
+      code: 'route_not_found',
       message: 'Not found',
-      origin: 'users-api',
     });
   });
 
@@ -137,7 +184,6 @@ describe('serve', () => {
     const { response, body } = await call(createHandler(), request);
     expect(response.status).toBe(400);
     expect(body.code).toBe('validation_error');
-    expect(body.origin).toBe('users-api');
   });
 
   it('returns validation_error for schema validation failure', async () => {
@@ -166,11 +212,10 @@ describe('serve', () => {
     expect(body).toEqual({
       code: 'conflict',
       message: 'Name taken',
-      origin: 'users-api',
     });
   });
 
-  it('degrades undeclared handler errors to 500', async () => {
+  it('normalizes undeclared handler errors to internal', async () => {
     const handler = createHandler({
       getUser: () =>
         err(railError('conflict', 'Unexpected clash') as never),
@@ -180,16 +225,67 @@ describe('serve', () => {
       new Request('http://localhost/users/u1'),
     );
     expect(response.status).toBe(500);
-    expect(body.code).toBe('conflict');
-    expect(body.origin).toBe('users-api');
+    expect(body.code).toBe('internal');
+    expect(body.message).toBe('An unexpected error occurred');
+    expect(body.cause).toBeUndefined();
+  });
+
+  it('preserves undeclared handler cause at full disclosure', async () => {
+    const handler = createHandler(
+      {
+        getUser: () =>
+          err(railError('conflict', 'Unexpected clash') as never),
+      },
+      {
+        statuses,
+        origin: 'users-api',
+        disclosure: 'full',
+      },
+    );
+    const { body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+    expect(body.code).toBe('internal');
+    expect(body.cause).toMatchObject({
+      code: 'undeclared_handler_error',
+      message: 'Handler returned an undeclared error code',
+      cause: { code: 'conflict', message: 'Unexpected clash' },
+    });
+  });
+
+  it('defaults omitted disclosure to public', async () => {
+    const handler = createHandler({
+      getUser: () =>
+        err(railError('conflict', 'Unexpected clash') as never),
+    });
+    const omitted = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+    const explicitPublic = await call(
+      createHandler(
+        {
+          getUser: () =>
+            err(railError('conflict', 'Unexpected clash') as never),
+        },
+        { statuses, origin: 'users-api', disclosure: 'public' },
+      ),
+      new Request('http://localhost/users/u1'),
+    );
+    expect(omitted.body).toEqual(explicitPublic.body);
+    expect(omitted.body.cause).toBeUndefined();
   });
 
   it('converts thrown exceptions to internal 500 with cause message', async () => {
-    const handler = createHandler({
-      getUser: () => {
-        throw new Error('database exploded');
+    const handler = createHandler(
+      {
+        getUser: () => {
+          throw new Error('database exploded');
+        },
       },
-    });
+      { statuses, origin: 'users-api', disclosure: 'full' },
+    );
     const { response, body } = await call(
       handler,
       new Request('http://localhost/users/u1'),
@@ -205,15 +301,21 @@ describe('serve', () => {
   });
 
   it('stamps origin when absent but preserves an existing origin', async () => {
-    const withoutOrigin = createHandler({
-      getUser: () => err(railError('not_found', 'Missing')),
-    });
-    const withOrigin = createHandler({
-      getUser: () =>
-        err(
-          railError('not_found', 'Missing', { origin: 'orders-service' }),
-        ),
-    });
+    const withoutOrigin = createHandler(
+      {
+        getUser: () => err(railError('not_found', 'Missing')),
+      },
+      { statuses, origin: 'users-api', disclosure: 'full' },
+    );
+    const withOrigin = createHandler(
+      {
+        getUser: () =>
+          err(
+            railError('not_found', 'Missing', { origin: 'orders-service' }),
+          ),
+      },
+      { statuses, origin: 'users-api', disclosure: 'full' },
+    );
 
     const missing = await call(
       withoutOrigin,
@@ -273,18 +375,21 @@ describe('serve', () => {
     const downstreamError = railError('internal', 'pool exhausted', {
       origin: 'inventory-api',
     });
-    const handler = createHandler({
-      getUser: () =>
-        err(
-          chain(
-            {
-              code: 'not_found',
-              message: 'User unavailable',
-            },
-            downstreamError,
+    const handler = createHandler(
+      {
+        getUser: () =>
+          err(
+            chain(
+              {
+                code: 'not_found',
+                message: 'User unavailable',
+              },
+              downstreamError,
+            ),
           ),
-        ),
-    });
+      },
+      { statuses, origin: 'users-api', disclosure: 'full' },
+    );
 
     const { body } = await call(
       handler,
@@ -332,7 +437,7 @@ describe('serve', () => {
 });
 
 describe('server output validation', () => {
-  it('Skipping output schema work when validation is off', async () => {
+  it('always validates output through the route schema', async () => {
     const validateSpy = vi.spyOn(userSchema['~standard'], 'validate');
     const handler = createHandler();
 
@@ -343,52 +448,36 @@ describe('server output validation', () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual({ id: 'u1', name: 'Ada' });
-    expect(validateSpy).not.toHaveBeenCalled();
+    expect(validateSpy).toHaveBeenCalled();
     validateSpy.mockRestore();
   });
 
-  it('Returning the handler value when output validation passes', async () => {
-    const overrides = {
+  it('serialises the parsed schema output, stripping undeclared fields', async () => {
+    const handler = createHandler({
       getUser: () =>
         ok({
           id: 'u1',
           name: 'Ada',
-          extraField: 'preserved',
+          extraField: 'stripped',
         }),
-    };
-    const context = { requestId: 'req-1' };
-    const request = () => new Request('http://localhost/users/u1');
-
-    const validatedHandler = createHandler(overrides, {
-      statuses,
-      origin: 'users-api',
-      validateOutput: true,
-    });
-    const baselineHandler = createHandler(overrides, {
-      statuses,
-      origin: 'users-api',
     });
 
-    const validatedResponse = await validatedHandler(request(), context);
-    const baselineResponse = await baselineHandler(request(), context);
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
 
-    expect(validatedResponse.status).toBe(200);
-    const validatedText = await validatedResponse.text();
-    const baselineText = await baselineResponse.text();
-    expect(validatedText).toBe(baselineText);
-    expect(JSON.parse(validatedText)).toEqual({
-      id: 'u1',
-      name: 'Ada',
-      extraField: 'preserved',
-    });
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ id: 'u1', name: 'Ada' });
+    expect(body).not.toHaveProperty('extraField');
   });
 
-  it('Mapping output validation failure to internal', async () => {
+  it('maps output validation failure to internal', async () => {
     const handler = createHandler(
       {
         getUser: () => ok({ id: 'u1', name: 42 } as never),
       },
-      { statuses, origin: 'users-api', validateOutput: true },
+      { statuses, origin: 'users-api', disclosure: 'full' },
     );
 
     const { response, body } = await call(
@@ -401,8 +490,8 @@ describe('server output validation', () => {
     expect(body.message).toBe('An unexpected error occurred');
     expect(body.origin).toBe('users-api');
     expect(body.cause).toMatchObject({
-      code: 'internal',
-      message: 'Output validation failed',
+      code: 'output_validation_failed',
+      message: 'Handler output violated the route contract',
       issues: expect.arrayContaining([
         expect.objectContaining({ path: ['name'] }),
       ]),
@@ -410,7 +499,7 @@ describe('server output validation', () => {
     expect(body.issues).toBeUndefined();
   });
 
-  it('Redacting output validation detail at public disclosure', async () => {
+  it('redacts output validation detail at public disclosure', async () => {
     const handler = createHandler(
       {
         getUser: () => ok({ id: 123, name: 'Ada' } as never),
@@ -418,7 +507,6 @@ describe('server output validation', () => {
       {
         statuses,
         origin: 'users-api',
-        validateOutput: true,
         disclosure: 'public',
       },
     );

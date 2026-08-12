@@ -1,13 +1,16 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
-import { err, errAsync, ok, okAsync, type Result, ResultAsync } from 'neverthrow';
+import { err, ok, type Result, ResultAsync } from 'neverthrow';
 
-import { parseInput } from '../contract/parse.js';
+import {
+  compileContract,
+  ContractConfigurationError,
+} from '../contract/compile.js';
+import { parseInput, parseOutput } from '../contract/parse.js';
 import type { ContractDef, InputOf, OutputOf, RouteDef } from '../contract/types.js';
 import type { Disclosure } from '../disclose.js';
-import { railError, type RailError, type RailIssue } from '../error.js';
+import { railError, type RailError } from '../error.js';
 import { respond } from '../respond.js';
-import type { StatusMap } from '../status.js';
 import { compileRoutes, matchRoute } from './router.js';
+import type { ServeStatusMap } from './types.js';
 
 export type Handler<TRoute extends RouteDef, TContext> = (
   args: {
@@ -25,22 +28,53 @@ export type Handlers<TContract extends ContractDef, TContext> = {
   readonly [K in keyof TContract]: Handler<TContract[K], TContext>;
 };
 
-export interface ServeOptions<TCode extends string> {
-  readonly statuses: StatusMap<TCode>;
+export interface ServeOptions<TContract extends ContractDef> {
+  readonly statuses: ServeStatusMap<TContract>;
   readonly disclosure?: Disclosure | ((request: Request) => Disclosure);
   readonly origin?: string;
-  readonly validateOutput?: boolean;
 }
 
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
-function declaredStatusesForRoute(
+const SERVER_HOST_ERROR_CODES = [
+  'validation_error',
+  'internal',
+  'route_not_found',
+] as const;
+
+function collectDomainErrorCodes<TContract extends ContractDef>(
+  contract: TContract,
+): string[] {
+  const codes = new Set<string>();
+  for (const route of Object.values(contract)) {
+    for (const code of route.errors) {
+      codes.add(code);
+    }
+  }
+  return [...codes];
+}
+
+function assertStatusMap(
+  requiredCodes: readonly string[],
+  statuses: Record<string, number>,
+): void {
+  for (const code of requiredCodes) {
+    const status = statuses[code];
+    if (!Number.isInteger(status) || status < 400 || status > 599) {
+      throw new ContractConfigurationError(
+        `Missing or invalid HTTP status for "${code}"`,
+      );
+    }
+  }
+}
+
+function declaredStatusesForRoute<TContract extends ContractDef>(
   route: RouteDef,
-  statuses: StatusMap<string>,
+  statuses: ServeStatusMap<TContract>,
 ): number[] {
   const declared = new Set<number>([200]);
   for (const code of route.errors) {
-    declared.add(statuses[code]);
+    declared.add(statuses[code as keyof ServeStatusMap<TContract>]);
   }
   if (route.input !== undefined) {
     declared.add(statuses.validation_error);
@@ -123,78 +157,30 @@ function internalFromThrown(thrown: unknown): RailError<'internal'> {
   });
 }
 
-function toPathSegment(
-  segment: PropertyKey | StandardSchemaV1.PathSegment,
-): string | number {
-  if (typeof segment === 'object' && segment !== null && 'key' in segment) {
-    const key = segment.key;
-    if (typeof key === 'string' || typeof key === 'number') {
-      return key;
-    }
-    return String(key);
+function normalizeHandlerError(
+  error: RailError<string>,
+  declaredCodes: readonly string[],
+): RailError<string> {
+  if (declaredCodes.includes(error.code) || error.code === 'internal') {
+    return error;
   }
-  if (typeof segment === 'string' || typeof segment === 'number') {
-    return segment;
-  }
-  return String(segment);
-}
-
-function mapIssue(issue: StandardSchemaV1.Issue): RailIssue {
-  const path = issue.path?.map(toPathSegment) ?? [];
-  return { path, message: issue.message };
-}
-
-function internalFromOutputValidation(
-  detail: string,
-  issues?: readonly RailIssue[],
-): RailError<'internal'> {
   return railError('internal', 'An unexpected error occurred', {
-    cause: railError('internal', detail, issues !== undefined ? { issues } : undefined),
+    cause: railError(
+      'undeclared_handler_error',
+      'Handler returned an undeclared error code',
+      { cause: error },
+    ),
   });
-}
-
-function toOutputValidationResult<Output>(
-  result: StandardSchemaV1.Result<Output>,
-): ResultAsync<void, RailError<'internal'>> {
-  if (result.issues !== undefined && result.issues.length > 0) {
-    return errAsync(
-      internalFromOutputValidation(
-        'Output validation failed',
-        result.issues.map(mapIssue),
-      ),
-    );
-  }
-  if ('value' in result) {
-    return okAsync(undefined);
-  }
-  return errAsync(internalFromOutputValidation('Output validation failed'));
-}
-
-function validateOutput<Output>(
-  schema: StandardSchemaV1<unknown, Output>,
-  value: unknown,
-): ResultAsync<void, RailError<'internal'>> {
-  try {
-    const outcome = schema['~standard'].validate(value);
-    if (outcome instanceof Promise) {
-      return ResultAsync.fromPromise(outcome, () =>
-        internalFromOutputValidation('Validation rejected'),
-      ).andThen(toOutputValidationResult);
-    }
-    return toOutputValidationResult(outcome);
-  } catch {
-    return errAsync(internalFromOutputValidation('Validation threw unexpectedly'));
-  }
 }
 
 function resolveDisclosure(
   disclosure: Disclosure | ((request: Request) => Disclosure) | undefined,
   request: Request,
-): Disclosure | undefined {
+): Disclosure {
   if (typeof disclosure === 'function') {
     return disclosure(request);
   }
-  return disclosure;
+  return disclosure ?? 'public';
 }
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -204,11 +190,11 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-function respondWithError(
+function respondWithError<TContract extends ContractDef>(
   error: RailError<string>,
-  options: ServeOptions<string>,
+  options: ServeOptions<TContract>,
   declared: readonly number[],
-  disclosure: Disclosure | undefined,
+  disclosure: Disclosure,
 ): Response {
   const stamped = stampOrigin(error, options.origin);
   const response = respond(err(stamped), {
@@ -245,8 +231,15 @@ async function invokeHandler<TContext>(
 export function serve<TContract extends ContractDef, TContext>(
   contract: TContract,
   handlers: Handlers<TContract, TContext>,
-  options: ServeOptions<string>,
+  options: ServeOptions<TContract>,
 ): (request: Request, context: TContext) => Promise<Response> {
+  compileContract(contract);
+  const requiredCodes = [
+    ...collectDomainErrorCodes(contract),
+    ...SERVER_HOST_ERROR_CODES,
+  ];
+  assertStatusMap(requiredCodes, options.statuses);
+
   const routes = compileRoutes(contract);
 
   return async (request: Request, context: TContext): Promise<Response> => {
@@ -256,9 +249,9 @@ export function serve<TContract extends ContractDef, TContext>(
 
     if (match === undefined) {
       return respondWithError(
-        railError('not_found', 'Not found'),
+        railError('route_not_found', 'Not found'),
         options,
-        [options.statuses.not_found],
+        [options.statuses.route_not_found],
         disclosure,
       );
     }
@@ -291,23 +284,27 @@ export function serve<TContract extends ContractDef, TContext>(
       context,
     });
 
-    if (handlerResult.isOk() && options.validateOutput === true) {
-      const outputValidation = await validateOutput(route.output, handlerResult.value);
-      if (outputValidation.isErr()) {
-        return respondWithError(
-          outputValidation.error,
-          options,
-          declared,
-          disclosure,
-        );
-      }
+    if (handlerResult.isErr()) {
+      const normalized = normalizeHandlerError(handlerResult.error, route.errors);
+      return respondWithError(
+        stampOrigin(normalized, options.origin),
+        options,
+        declared,
+        disclosure,
+      );
     }
 
-    const stampedResult = handlerResult.mapErr((error) =>
-      stampOrigin(error, options.origin),
-    );
+    const outputResult = await parseOutput(route, handlerResult.value);
+    if (outputResult.isErr()) {
+      return respondWithError(
+        stampOrigin(outputResult.error, options.origin),
+        options,
+        declared,
+        disclosure,
+      );
+    }
 
-    const response = respond(stampedResult, {
+    const response = respond(ok(outputResult.value), {
       success: 200,
       statuses: options.statuses,
       declared,
