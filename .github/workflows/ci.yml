@@ -60,6 +60,12 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Test coverage
+        run: pnpm test:coverage
+
+      - name: Specs lint
+        run: pnpm specs:lint
+
       - name: Type performance
         run: pnpm perf:check
 
@@ -69,8 +75,8 @@ jobs:
       - name: Docs build
         run: pnpm docs:build
 
-      - name: Examples smoke
-        run: pnpm examples:smoke
+      - name: Examples conformance
+        run: pnpm exec vitest run --config examples/conformance/vitest.config.ts
 
       - name: Examples typecheck
         run: pnpm examples:typecheck

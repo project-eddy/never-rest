@@ -16,7 +16,7 @@ Handlers return `Result` — no throw middleware. Each mount returns a user
 object that still includes `passwordHash`; `serve` serialises the **parsed**
 output schema and strips it. Unmatched routes are `route_not_found` (not domain
 `not_found`). Omitted `disclosure` defaults to `public`. See
-[`../smoke/README.md`](../smoke/README.md).
+[`../conformance/README.md`](../conformance/README.md).
 
 ## What this stack does differently
 

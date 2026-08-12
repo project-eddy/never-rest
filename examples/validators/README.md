@@ -5,7 +5,7 @@ Same `users` contract rewritten with three Standard Schema libraries.
 
 **Protocol win.** Standard Schema is not only input: the same schemas define
 the wire output never-rest always parses and serialises. (Parsed-output
-stripping is asserted in `pnpm examples:smoke`.)
+stripping is asserted in `pnpm test` via `src/protocol/parsed-output.test.ts`.)
 
 | File | Validator |
 | --- | --- |

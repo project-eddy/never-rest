@@ -6,8 +6,8 @@
 import { err } from 'neverthrow';
 import { describe, expect, it } from 'vitest';
 
-import { railError } from '@eddy-works/never-rest';
-import { serve, type Handlers } from '@eddy-works/never-rest/server';
+import { railError } from '../error.js';
+import { serve, type Handlers } from '../server/serve.js';
 
 import {
   isRecord,

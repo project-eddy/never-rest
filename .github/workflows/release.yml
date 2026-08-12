@@ -43,8 +43,41 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Test coverage
+        run: pnpm test:coverage
+
+      - name: Specs lint
+        run: pnpm specs:lint
+
+      - name: Type performance
+        run: pnpm perf:check
+
       - name: Build
         run: pnpm build
+
+      - name: Docs build
+        run: pnpm docs:build
+
+      - name: Examples conformance
+        run: pnpm exec vitest run --config examples/conformance/vitest.config.ts
+
+      - name: Examples typecheck
+        run: pnpm examples:typecheck
+
+      - name: Publint
+        run: pnpm exec publint
+
+      - name: Are the types wrong?
+        run: pnpm exec attw --pack --profile esm-only
 
       - name: Publish to npm with trusted publishing
         run: npm publish --access public

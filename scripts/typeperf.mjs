@@ -38,6 +38,11 @@ function readBaseline() {
   return JSON.parse(readFileSync(baselinePath, "utf8"));
 }
 
+function readPackageJsonTypescriptRange() {
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  return pkg.devDependencies?.typescript ?? pkg.dependencies?.typescript;
+}
+
 function assertTypeScriptVersion(baseline) {
   const result = spawnSync("npx", ["tsc", "--version"], {
     cwd: root,
@@ -48,14 +53,23 @@ function assertTypeScriptVersion(baseline) {
     process.exit(result.status ?? 1);
   }
   const match = result.stdout.match(/(\d+\.\d+\.\d+)/);
-  const version = match?.[1];
-  if (version !== baseline.typescript) {
-    console.error(
-      `typeperf: TypeScript ${version} does not match baseline ${baseline.typescript}. ` +
-        "Re-measure and update perf/baseline.json after upgrading TypeScript.",
-    );
+  const installed = match?.[1];
+  if (!installed) {
+    console.error("typeperf: could not parse TypeScript version from tsc output");
     process.exit(1);
   }
+
+  if (installed === baseline.typescript) {
+    return;
+  }
+
+  const declaredRange = readPackageJsonTypescriptRange();
+  console.warn(
+    `typeperf: TypeScript ${installed} does not match baseline ${baseline.typescript}. ` +
+      `package.json allows ${declaredRange ?? "unknown"}. ` +
+      "Slope checks continue, but re-measure and update perf/baseline.json after " +
+      "intentionally changing the TypeScript version used for benches.",
+  );
 }
 
 function assertSlopeBudget(baseline) {

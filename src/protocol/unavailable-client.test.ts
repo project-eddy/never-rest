@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { createClient } from '@eddy-works/never-rest/client';
+import { createClient } from '../client/create.js';
 
 import { protocolContract } from './fixture.js';
 

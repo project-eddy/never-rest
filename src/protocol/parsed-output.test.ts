@@ -5,7 +5,7 @@
 import { ok } from 'neverthrow';
 import { describe, expect, it } from 'vitest';
 
-import { serve, type Handlers } from '@eddy-works/never-rest/server';
+import { serve, type Handlers } from '../server/serve.js';
 
 import {
   isRecord,

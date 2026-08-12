@@ -15,6 +15,12 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/**/*.test-d.ts'],
       reporter: ['text', 'text-summary', 'html'],
+      thresholds: {
+        statements: 88,
+        branches: 83,
+        functions: 95,
+        lines: 88,
+      },
     },
   },
 });

@@ -76,10 +76,10 @@ Typecheck all examples:
 pnpm examples:typecheck
 ```
 
-Protocol smoke (users contract + protocol invariants):
+Example conformance (users contract against Express + Hono mounts):
 
 ```bash
-pnpm examples:smoke
+pnpm exec vitest run --config examples/conformance/vitest.config.ts
 ```
 
-See [`smoke/README.md`](smoke/README.md) for what each smoke file proves.
+See [`conformance/README.md`](conformance/README.md) for what each conformance file checks.

@@ -3,7 +3,7 @@
  */
 import { z } from 'zod';
 
-import type { ContractDef } from '@eddy-works/never-rest/contract';
+import type { ContractDef } from '../contract/types.js';
 
 export const itemSchema = z.object({
   id: z.string(),
@@ -18,7 +18,7 @@ export const protocolContract = {
     output: itemSchema,
     errors: ['not_found'],
   },
-} satisfies ContractDef;
+} as const satisfies ContractDef;
 
 export const protocolStatuses = {
   validation_error: 400,
