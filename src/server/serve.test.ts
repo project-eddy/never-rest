@@ -28,13 +28,14 @@ const contract = {
   getUser: {
     method: 'GET',
     path: '/users/:id',
+    params: z.object({ id: z.string() }),
     output: userSchema,
     errors: ['not_found'],
   },
   createUser: {
     method: 'POST',
     path: '/users',
-    input: createInputSchema,
+    body: createInputSchema,
     output: userSchema,
     errors: ['conflict'],
   },
@@ -50,7 +51,7 @@ type TestContext = { requestId: string };
 
 const handlers: Handlers<typeof contract, TestContext> = {
   getUser: ({ params }) => ok({ id: params.id, name: 'Ada' }),
-  createUser: ({ input }) => ok({ id: 'new', name: input.name }),
+  createUser: ({ body }) => ok({ id: 'new', name: body.name }),
   listUsers: () => ok([{ id: '1', name: 'Ada' }]),
 };
 
@@ -422,21 +423,21 @@ describe('serve', () => {
     });
   });
 
-  it('merges path params into input before validation', async () => {
-    const withPathInput = {
+  it('validates path params through the params schema', async () => {
+    const withPathParams = {
       getUser: {
         method: 'GET' as const,
         path: '/users/:id',
-        input: z.object({ id: z.string() }),
+        params: z.object({ id: z.string() }),
         output: userSchema,
         errors: ['not_found'],
       },
     } satisfies ContractDef;
 
     const handler = serve(
-      withPathInput,
+      withPathParams,
       {
-        getUser: ({ input }) => ok({ id: input.id, name: 'Ada' }),
+        getUser: ({ params }) => ok({ id: params.id, name: 'Ada' }),
       },
       { statuses, origin: 'users-api' },
     );
@@ -447,6 +448,47 @@ describe('serve', () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: 'u1', name: 'Ada' });
+  });
+
+  it('keeps params.id and body.id distinct on PUT routes', async () => {
+    const updateContract = {
+      updateUser: {
+        method: 'PUT' as const,
+        path: '/users/:id',
+        params: z.object({ id: z.string() }),
+        body: z.object({ id: z.string(), name: z.string() }),
+        output: z.object({
+          pathId: z.string(),
+          bodyId: z.string(),
+          name: z.string(),
+        }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const handler = serve(
+      updateContract,
+      {
+        updateUser: ({ params, body }) =>
+          ok({ pathId: params.id, bodyId: body.id, name: body.name }),
+      },
+      { statuses, origin: 'users-api' },
+    );
+
+    const response = await handler(
+      new Request('http://localhost/users/path-id', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: 'body-id', name: 'Ada' }),
+      }),
+      { requestId: 'req-1' },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      pathId: 'path-id',
+      bodyId: 'body-id',
+      name: 'Ada',
+    });
   });
 
   it('wraps forged internal errors with a generic public message', async () => {
@@ -624,7 +666,7 @@ describe('serve', () => {
       listTags: {
         method: 'GET' as const,
         path: '/tags',
-        input: z.object({ tags: z.array(z.string()) }),
+        query: z.object({ tags: z.array(z.string()) }),
         output: z.object({ tags: z.array(z.string()) }),
         errors: [],
       },
@@ -633,7 +675,7 @@ describe('serve', () => {
     const handler = serve(
       tagsContract,
       {
-        listTags: ({ input }) => ok({ tags: input.tags }),
+        listTags: ({ query }) => ok({ tags: query.tags }),
       },
       { statuses, origin: 'users-api' },
     );
@@ -651,7 +693,7 @@ describe('serve', () => {
       listTags: {
         method: 'GET' as const,
         path: '/tags',
-        input: z.object({ tags: z.array(z.string()) }),
+        query: z.object({ tags: z.array(z.string()) }),
         output: z.object({ tags: z.array(z.string()) }),
         errors: [],
       },
@@ -660,7 +702,7 @@ describe('serve', () => {
     const handler = serve(
       tagsContract,
       {
-        listTags: ({ input }) => ok({ tags: input.tags }),
+        listTags: ({ query }) => ok({ tags: query.tags }),
       },
       { statuses, origin: 'users-api' },
     );

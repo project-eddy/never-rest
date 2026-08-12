@@ -15,7 +15,7 @@ describe('protocol: client unavailable', () => {
       fetch: () => Promise.reject(new TypeError('Failed to fetch')),
     });
 
-    const result = await client.getItem({ id: 'i1' });
+    const result = await client.getItem({ params: { id: 'i1' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {

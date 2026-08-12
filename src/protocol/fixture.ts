@@ -14,7 +14,7 @@ export const protocolContract = {
   getItem: {
     method: 'GET',
     path: '/items/:id',
-    input: z.object({ id: z.string() }),
+    params: z.object({ id: z.string() }),
     output: itemSchema,
     errors: ['not_found'],
   },

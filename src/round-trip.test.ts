@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { err, ok } from 'neverthrow';
+import { err, ok, ResultAsync } from 'neverthrow';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -20,14 +20,14 @@ const roundTripContract = {
   getItem: {
     method: 'GET',
     path: '/items/:id',
-    input: z.object({ id: z.string() }),
+    params: z.object({ id: z.string() }),
     output: z.object({ id: z.string(), label: z.string() }),
     errors: ['not_found'],
   },
   search: {
     method: 'GET',
     path: '/search',
-    input: z.object({ tags: z.array(z.string()) }),
+    query: z.object({ tags: z.array(z.string()) }),
     output: z.object({ tags: z.array(z.string()) }),
     errors: [],
   },
@@ -83,7 +83,7 @@ describe('HTTP round-trip (toNodeHandler + createClient)', () => {
       const cases = ['hello world', 'a/b', 'café'];
 
       for (const id of cases) {
-        const result = await client.getItem({ id });
+        const result = await client.getItem({ params: { id } });
         expect(result.isOk()).toBe(true);
       }
 
@@ -95,15 +95,15 @@ describe('HTTP round-trip (toNodeHandler + createClient)', () => {
     let received: string[] | undefined;
     const handlers: Handlers<typeof roundTripContract, RoundTripContext> = {
       getItem: () => ok({ id: 'x', label: 'x' }),
-      search: ({ input }) => {
-        received = input.tags;
-        return ok({ tags: input.tags });
+      search: ({ query }) => {
+        received = query.tags;
+        return ok({ tags: query.tags });
       },
     };
 
     await withServer(serveRoundTrip(handlers), async (baseUrl) => {
       const client = createClient(roundTripContract, { baseUrl });
-      const result = await client.search({ tags: ['alpha', 'beta'] });
+      const result = await client.search({ query: { tags: ['alpha', 'beta'] } });
 
       expect(result.isOk()).toBe(true);
       if (result.isOk()) {
@@ -121,7 +121,7 @@ describe('HTTP round-trip (toNodeHandler + createClient)', () => {
 
     await withServer(serveRoundTrip(handlers), async (baseUrl) => {
       const client = createClient(roundTripContract, { baseUrl });
-      const result = await client.getItem({ id: 'missing' });
+      const result = await client.getItem({ params: { id: 'missing' } });
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
@@ -140,7 +140,7 @@ describe('HTTP round-trip (toNodeHandler + createClient)', () => {
 
     await withServer(serveRoundTrip(handlers), async (baseUrl) => {
       const client = createClient(roundTripContract, { baseUrl });
-      const result = await client.getItem({ id: 'i1' });
+      const result = await client.getItem({ params: { id: 'i1' } });
 
       expect(result.isErr()).toBe(true);
       if (result.isErr()) {
@@ -163,7 +163,7 @@ describe('HTTP round-trip (toNodeHandler + createClient)', () => {
       serveRoundTrip(handlers, { statuses, origin: 'round-trip', disclosure: 'full' }),
       async (baseUrl) => {
         const client = createClient(roundTripContract, { baseUrl });
-        const result = await client.getItem({ id: 'i1' });
+        const result = await client.getItem({ params: { id: 'i1' } });
 
         expect(result.isErr()).toBe(true);
         if (result.isErr()) {
@@ -197,12 +197,78 @@ describe('HTTP round-trip (toNodeHandler + createClient)', () => {
     });
 
     const client = createClient(roundTripContract, { baseUrl });
-    const result = await client.getItem({ id: 'i1' });
+    const result = await client.getItem({ params: { id: 'i1' } });
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
       expect(result.error.code).toBe('unavailable');
       expect(result.error.retryable).toBe(true);
     }
+  });
+
+  it('round-trips a gate railway that returns a declared Err', async () => {
+    const handlers: Handlers<typeof roundTripContract, RoundTripContext> = {
+      getItem: ({ params }) =>
+        (params.id === 'deny'
+          ? err(railError('not_found', 'denied'))
+          : ok({ userId: params.id })
+        ).andThen((session) =>
+          ok({ id: session.userId, label: 'ok' }),
+        ),
+      search: () => ok({ tags: [] }),
+    };
+
+    await withServer(serveRoundTrip(handlers), async (baseUrl) => {
+      const client = createClient(roundTripContract, { baseUrl });
+      const result = await client.getItem({ params: { id: 'deny' } });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('not_found');
+      }
+    });
+  });
+
+  it('round-trips mapErr to forged internal without leaking the secret', async () => {
+    const secret = 'postgres://admin:secret@db.internal';
+    const handlers: Handlers<typeof roundTripContract, RoundTripContext> = {
+      getItem: () =>
+        err(railError('not_found', 'missing')).mapErr(
+          () => railError('internal', secret) as never,
+        ),
+      search: () => ok({ tags: [] }),
+    };
+
+    await withServer(serveRoundTrip(handlers), async (baseUrl) => {
+      const client = createClient(roundTripContract, { baseUrl });
+      const result = await client.getItem({ params: { id: 'i1' } });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('internal');
+        expect(result.error.message).toBe('An unexpected error occurred');
+        expect(JSON.stringify(result.error)).not.toContain('postgres://');
+      }
+    });
+  });
+
+  it('round-trips a ResultAsync lift failure as declared Err', async () => {
+    const handlers: Handlers<typeof roundTripContract, RoundTripContext> = {
+      getItem: ({ params }) =>
+        ResultAsync.fromPromise(Promise.reject(new Error('db')), () =>
+          railError('not_found', `Item ${params.id} unavailable`),
+        ).map(() => ({ id: params.id, label: 'ok' })),
+      search: () => ok({ tags: [] }),
+    };
+
+    await withServer(serveRoundTrip(handlers), async (baseUrl) => {
+      const client = createClient(roundTripContract, { baseUrl });
+      const result = await client.getItem({ params: { id: 'i1' } });
+
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('not_found');
+      }
+    });
   });
 });

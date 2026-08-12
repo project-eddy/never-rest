@@ -7,10 +7,10 @@ import {
   type CompiledContract,
 } from '../contract/compile.js';
 import { matchPath } from '../contract/path.js';
-import { parseInput, parseOutput } from '../contract/parse.js';
+import { parseOutput, parseRouteSources } from '../contract/parse.js';
 import type {
   ContractDef,
-  HandlerInputOf,
+  HandlerArgsOf,
   OutputOf,
   RouteDef,
 } from '../contract/types.js';
@@ -21,9 +21,7 @@ import type { CompiledRoute } from './router.js';
 import type { ServeStatusMap } from './types.js';
 
 export type Handler<TRoute extends RouteDef, TContext> = (
-  args: {
-    input: HandlerInputOf<TRoute>;
-    params: Record<string, string>;
+  args: HandlerArgsOf<TRoute> & {
     request: Request;
     context: TContext;
   },
@@ -41,8 +39,6 @@ export interface ServeOptions<TContract extends ContractDef> {
   readonly disclosure?: Disclosure | ((request: Request) => Disclosure);
   readonly origin?: string;
 }
-
-const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
 const SERVER_HOST_ERROR_CODES = [
   'validation_error',
@@ -97,7 +93,11 @@ function declaredStatusesForRoute<TContract extends ContractDef>(
   for (const code of route.errors) {
     declared.add(statuses[code as keyof ServeStatusMap<TContract>]);
   }
-  if (route.input !== undefined) {
+  if (
+    route.params !== undefined ||
+    route.query !== undefined ||
+    route.body !== undefined
+  ) {
     declared.add(statuses.validation_error);
   }
   declared.add(statuses.internal);
@@ -166,58 +166,31 @@ function searchParamsToObject(url: URL): Record<string, unknown> {
   return values;
 }
 
-/** Merge URL path params into body/query input so `:id` keys validate like the client sends. */
-function mergePathParamsIntoInput(
-  rawInput: unknown,
-  params: Record<string, string>,
-): unknown {
-  const keys = Object.keys(params);
-  if (keys.length === 0) {
-    return rawInput;
-  }
-
-  const base: Record<string, unknown> =
-    typeof rawInput === 'object' &&
-    rawInput !== null &&
-    !Array.isArray(rawInput)
-      ? { ...(rawInput as Record<string, unknown>) }
-      : {};
-
-  for (const key of keys) {
-    base[key] = params[key];
-  }
-  return base;
-}
-
-async function readRequestInput(
+async function readRequestBody(
   request: Request,
-  method: string,
 ): Promise<Result<unknown, RailError<'validation_error'>>> {
-  if (BODY_METHODS.has(method)) {
-    let text: string;
-    try {
-      text = await request.text();
-    } catch {
-      return err(
-        railError('validation_error', 'Validation failed', {
-          issues: [{ path: [], message: 'Could not read request body' }],
-        }),
-      );
-    }
-    if (text.length === 0) {
-      return ok(undefined);
-    }
-    try {
-      return ok(JSON.parse(text) as unknown);
-    } catch {
-      return err(
-        railError('validation_error', 'Validation failed', {
-          issues: [{ path: [], message: 'Invalid JSON body' }],
-        }),
-      );
-    }
+  let text: string;
+  try {
+    text = await request.text();
+  } catch {
+    return err(
+      railError('validation_error', 'Validation failed', {
+        issues: [{ path: ['body'], message: 'Could not read request body' }],
+      }),
+    );
   }
-  return ok(searchParamsToObject(new URL(request.url)));
+  if (text.length === 0) {
+    return ok(undefined);
+  }
+  try {
+    return ok(JSON.parse(text) as unknown);
+  } catch {
+    return err(
+      railError('validation_error', 'Validation failed', {
+        issues: [{ path: ['body'], message: 'Invalid JSON body' }],
+      }),
+    );
+  }
 }
 
 function internalFromThrown(thrown: unknown): RailError<'internal'> {
@@ -301,20 +274,13 @@ function respondWithError<TContract extends ContractDef>(
 
 async function invokeHandler<TContext>(
   handler: Handler<RouteDef, TContext>,
-  args: {
-    input: unknown;
-    params: Record<string, string>;
+  args: HandlerArgsOf<RouteDef> & {
     request: Request;
     context: TContext;
   },
 ): Promise<Result<unknown, RailError<string>>> {
   try {
-    return await handler({
-      input: args.input as HandlerInputOf<RouteDef>,
-      params: args.params,
-      request: args.request,
-      context: args.context,
-    });
+    return await handler(args);
   } catch (thrown) {
     return err(internalFromThrown(thrown));
   }
@@ -395,7 +361,7 @@ export function serve<TContract extends ContractDef, TContext>(
           railError('validation_error', 'Validation failed', {
             issues: [
               {
-                path: [match.param],
+                path: ['params', match.param],
                 message: 'Path parameter has invalid percent-encoding',
               },
             ],
@@ -408,24 +374,36 @@ export function serve<TContract extends ContractDef, TContext>(
 
       const route = match.route;
       const declared = declaredStatusesForRoute(route, options.statuses);
-      const rawInputResult = await readRequestInput(request, request.method);
 
-      if (rawInputResult.isErr()) {
+      let rawBody: unknown;
+      if (route.body !== undefined) {
+        const bodyResult = await readRequestBody(request);
+        if (bodyResult.isErr()) {
+          return respondWithError(
+            bodyResult.error,
+            options,
+            declared,
+            disclosure,
+          );
+        }
+        rawBody = bodyResult.value;
+      }
+
+      const sourcesResult = await parseRouteSources(route, {
+        ...(route.params !== undefined ? { params: match.params } : {}),
+        ...(route.query !== undefined
+          ? { query: searchParamsToObject(url) }
+          : {}),
+        ...(route.body !== undefined ? { body: rawBody } : {}),
+      });
+
+      if (sourcesResult.isErr()) {
         return respondWithError(
-          rawInputResult.error,
+          sourcesResult.error,
           options,
           declared,
           disclosure,
         );
-      }
-
-      const mergedInput = mergePathParamsIntoInput(
-        rawInputResult.value,
-        match.params,
-      );
-      const inputResult = await parseInput(route, mergedInput);
-      if (inputResult.isErr()) {
-        return respondWithError(inputResult.error, options, declared, disclosure);
       }
 
       const handler = handlers[match.key as keyof TContract] as Handler<
@@ -433,8 +411,7 @@ export function serve<TContract extends ContractDef, TContext>(
         TContext
       >;
       const handlerResult = await invokeHandler(handler, {
-        input: inputResult.value,
-        params: match.params,
+        ...sourcesResult.value,
         request,
         context,
       });

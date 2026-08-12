@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { compilePath, matchPath } from '../contract/path.js';
 import { compileRoutes, matchRoute } from './router.js';
 
@@ -16,6 +17,7 @@ describe('compileRoutes', () => {
       getUser: {
         method: 'GET',
         path: '/users/:id',
+        params: z.object({ id: z.string() }),
         output: {} as never,
         errors: [],
       },
@@ -36,6 +38,7 @@ describe('matchRoute', () => {
       getUser: {
         method: 'GET',
         path: '/users/:id',
+        params: z.object({ id: z.string() }),
         output: {} as never,
         errors: [],
       },
