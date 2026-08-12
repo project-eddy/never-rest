@@ -31,8 +31,10 @@ export const usersContract = {
   },
 } satisfies ContractDef;
 
-// never-rest does not guess statuses — undeclared codes become 500.
-// `unavailable` is client-only; server maps need domain codes + host codes.
+// Protocol surface for `serve`: every domain code on the contract plus host
+// codes (`validation_error`, `internal`, `route_not_found`). Missing map
+// entries fail construction. `unavailable` is client-only — synthesised on
+// network failure by `createClient`, never listed here.
 export const statuses = {
   validation_error: 400,
   not_found: 404,
