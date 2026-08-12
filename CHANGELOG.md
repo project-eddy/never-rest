@@ -7,6 +7,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-12
+
 ### Changed
 
 - Client operations return `ResultAsync` with `ClientErrorOf` per route — domain codes plus `validation_error`, `internal`, and client-synthesized `unavailable` on network failure; the cast that hid built-in codes is removed.
@@ -19,13 +21,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Removed
 
 - `ServeOptions.validateOutput` — output validation is always on; the 0.2.0 opt-in gate-only behaviour is reversed.
-
-### Internal
-
-- Rename behaviour specs to `*.spec.md`, add `pnpm specs:lint` (`scripts/lint-gherkin.mjs`), and run it from a Husky pre-commit hook.
-- Bump `@sveltejs/adapter-auto` from 6 to 7 in the SvelteKit example ([#11](https://github.com/project-eddy/never-rest/pull/11)).
-- Bump `next` from 15 to 16 in the Next App Router example ([#10](https://github.com/project-eddy/never-rest/pull/10)).
-- Bump SvelteKit example tooling to `vite` 8 and `@sveltejs/vite-plugin-svelte` 7 together ([#12](https://github.com/project-eddy/never-rest/pull/12), [#14](https://github.com/project-eddy/never-rest/pull/14)).
 
 ## [0.2.0] - 2026-08-10
 
@@ -50,6 +45,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `@eddy-works/never-rest/node`: `toNodeHandler` for Node's `http` interface.
 - A published type-instantiation budget of 1,800 per route, enforced in CI with `@ark/attest`.
 
-[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.3.0
 [0.2.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.2.0
 [0.1.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.1.0
