@@ -270,7 +270,7 @@ if (downstream.isErr()) {
 }
 ```
 
-See [errors-as-intelligence.md — Gateway composition](./errors-as-intelligence.md#gateway-composition) and [specs/cause-chaining.md](https://github.com/project-eddy/never-rest/blob/main/specs/cause-chaining.md).
+See [errors-as-intelligence.md — Gateway composition](./errors-as-intelligence.md#gateway-composition) and [specs/cause-chaining.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/cause-chaining.spec.md).
 
 ## Disclose
 

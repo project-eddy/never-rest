@@ -2,7 +2,7 @@
 /**
  * extract-gherkin.mjs — pull Gherkin out of markdown spec files for agents/tests.
  *
- * Scans the given files/directories (recursing into dirs, picking up .md/.mdx),
+ * Scans the given files/directories (recursing into dirs, picking up `*.spec.md`),
  * extracts YAML frontmatter and every fenced ```gherkin code block, and prints
  * JSON to stdout. Each block is tagged with the nearest preceding markdown
  * heading so scenario groups survive extraction.
@@ -14,7 +14,7 @@
  * JSON shape:
  * [
  *   {
- *     "file": "specs/session-handoff.md",
+ *     "file": "specs/session-handoff.spec.md",
  *     "frontmatter": { "title": "...", "status": "..." },
  *     "scenarios": [
  *       { "heading": "Completing a step", "name": "Completing the final step of a stage",
@@ -25,25 +25,24 @@
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { join } from 'node:path';
 
-const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx']);
 const SCENARIO_KEYWORDS =
 	/^(Scenario Outline|Scenario|Example|Background|Feature):\s*(.*)$/;
 
-/** Recursively collect markdown file paths from a file or directory path. */
-function collectMarkdownFiles(path) {
+/** Recursively collect `*.spec.md` paths from a file or directory path. */
+function collectSpecFiles(path) {
 	const stats = statSync(path);
 	if (stats.isFile()) {
-		return MARKDOWN_EXTENSIONS.has(extname(path)) ? [path] : [];
+		return path.endsWith('.spec.md') ? [path] : [];
 	}
 	const files = [];
 	for (const entry of readdirSync(path, { withFileTypes: true })) {
 		if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
 		const child = join(path, entry.name);
 		if (entry.isDirectory()) {
-			files.push(...collectMarkdownFiles(child));
-		} else if (MARKDOWN_EXTENSIONS.has(extname(entry.name))) {
+			files.push(...collectSpecFiles(child));
+		} else if (entry.name.endsWith('.spec.md')) {
 			files.push(child);
 		}
 	}
@@ -129,7 +128,7 @@ function main() {
 		process.exit(1);
 	}
 
-	const files = paths.flatMap(collectMarkdownFiles);
+	const files = paths.flatMap(collectSpecFiles);
 	const results = files.map(extractFile).filter(function hasScenarios(result) {
 		return result.scenarios.length > 0;
 	});

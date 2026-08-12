@@ -33,7 +33,7 @@ Size budget: 4 existing files edited, 1 new spec file, roughly 60–95 added lin
 | Error response and disclosure | `src/server/serve.ts` — `respondWithError` | reuse | It preserves origin stamping, declared-status handling, and graded disclosure. |
 | Declared failure status | `src/server/serve.ts` — `declaredStatusesForRoute` | reuse | `internal` is already declared for every route, so no status-map or declaration change is needed. |
 | Server behaviour tests | `src/server/serve.test.ts` | extend | `createHandler` and `call` fixtures already exercise `serve()` and response bodies. |
-| Behaviour specification | `specs/` + `specs/README.md` | extend, plus one new file | `specs/README.md` makes specs the source of truth and requires tests to cite scenario titles one-to-one. Output validation is its own capability, so it warrants a sibling file rather than being wedged into `status-mapping.md` or `graded-disclosure.md`, whose capability rows are already scoped to other seams. |
+| Behaviour specification | `specs/` + `specs/README.md` | extend, plus one new file | `specs/README.md` makes specs the source of truth and requires tests to cite scenario titles one-to-one. Output validation is its own capability, so it warrants a sibling file rather than being wedged into `status-mapping.spec.md` or `graded-disclosure.spec.md`, whose capability rows are already scoped to other seams. |
 | Public API documentation | `docs/api.md` — `ServeOptions` and `serve` behaviour | extend | This is the canonical server reference. |
 | Release notes | `CHANGELOG.md` — `## [Unreleased]` | extend | `AGENTS.md` requires an entry for any consumer-visible change; this adds a public option. |
 
@@ -57,7 +57,7 @@ Both resolved; none left open.
 
 | Slice | Objective | Owns (exclusive) | Must not touch | Interfaces exposed | Interfaces consumed | After |
 | --- | --- | --- | --- | --- | --- | --- |
-| 01 | Add, specify, test, and document opt-in output validation | `src/server/serve.ts`, `src/server/serve.test.ts`, `specs/server-output-validation.md`, `specs/README.md`, `docs/api.md`, `CHANGELOG.md` | Client and contract modules; status map; `package.json`; lock files | `ServeOptions.validateOutput?: boolean` | `route.output['~standard'].validate`, `respondWithError`, `internalFromThrown`, existing `internal` status | - |
+| 01 | Add, specify, test, and document opt-in output validation | `src/server/serve.ts`, `src/server/serve.test.ts`, `specs/server-output-validation.spec.md`, `specs/README.md`, `docs/api.md`, `CHANGELOG.md` | Client and contract modules; status map; `package.json`; lock files | `ServeOptions.validateOutput?: boolean` | `route.output['~standard'].validate`, `respondWithError`, `internalFromThrown`, existing `internal` status | - |
 
 Contested files:
 
@@ -68,7 +68,7 @@ Contested files:
 
 Objective: Gate successful handler values against the route's output schema at the server boundary, without altering passing responses or existing error behaviour.
 
-Owned paths: `src/server/serve.ts`, `src/server/serve.test.ts`, `specs/server-output-validation.md`, `specs/README.md`, `docs/api.md`, `CHANGELOG.md`
+Owned paths: `src/server/serve.ts`, `src/server/serve.test.ts`, `specs/server-output-validation.spec.md`, `specs/README.md`, `docs/api.md`, `CHANGELOG.md`
 
 Steps:
 
@@ -78,7 +78,7 @@ Steps:
 4. After `invokeHandler`, leave `Err` results untouched. When the result is `Ok` and `options.validateOutput === true`, run the helper against `handlerResult.value`.
 5. On failure, route the error through `respondWithError` so origin stamping, declared statuses, and disclosure all apply. Do not construct ad-hoc JSON.
 6. On success, pass the original `handlerResult` to `respond`. Discard the schema's returned value — it is only a pass/fail signal here.
-7. Write `specs/server-output-validation.md` following the convention in `specs/README.md`: frontmatter (`title`, `domain: server`, `status: draft`), a job-story callout, overview prose, and one fenced `gherkin` block per scenario with exactly one `When`. Cover: validation disabled leaves the body untouched; enabled and conforming returns 200; enabled and non-conforming returns the declared `internal` 500; and a public-disclosure failure exposes no schema field paths.
+7. Write `specs/server-output-validation.spec.md` following the convention in `specs/README.md`: frontmatter (`title`, `domain: server`, `status: draft`), a job-story callout, overview prose, and one fenced `gherkin` block per scenario with exactly one `When`. Cover: validation disabled leaves the body untouched; enabled and conforming returns 200; enabled and non-conforming returns the declared `internal` 500; and a public-disclosure failure exposes no schema field paths.
 8. Add the corresponding rows to the two tables in `specs/README.md` (the `Files` capability table and the test-mapping table pointing at `src/server/serve.test.ts`).
 9. Add tests in `src/server/serve.test.ts` named after those scenario titles, reusing `createHandler` and `call`. Include one case where the schema would strip or coerce a passing value, asserting the response body still matches the handler's exact return. To assert that disabled validation does no schema work, wrap the fixture schema's `~standard.validate` in a spy and assert it is not called.
 10. Update `docs/api.md`: add the field to the `ServeOptions` block, and add a behaviour note covering default-off, success-only, gate-not-rewrite semantics, and the `internal` failure mapping with detail under `cause`.

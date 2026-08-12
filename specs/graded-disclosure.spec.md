@@ -120,3 +120,14 @@ Scenario: Applying disclosure when respond renders an error
   And the response body has no cause property
   And the serialised body contains no substring "secret token mismatch"
 ```
+
+## Serve defaults omitted disclosure to public
+
+```gherkin
+Scenario: Redacting cause when serve disclosure is omitted
+  Given serve configured without a disclosure option
+  And a handler that returns an undeclared error code with a nested cause
+  When the route is invoked
+  Then the response body has no cause property
+  And the serialised body matches the response with explicit public disclosure
+```

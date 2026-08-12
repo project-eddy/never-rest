@@ -33,6 +33,7 @@
     }
   },
   "scripts": {
+    "prepare": "husky",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -40,6 +41,7 @@
     "build": "tsc -p tsconfig.build.json",
     "perf:check": "node scripts/typeperf.mjs",
     "specs:extract": "node scripts/extract-gherkin.mjs specs/",
+    "specs:lint": "node scripts/lint-gherkin.mjs specs/",
     "docs:dev": "pnpm --filter website dev",
     "docs:build": "pnpm --filter website build",
     "examples:typecheck": "pnpm -r --filter \"./examples/**\" typecheck",
@@ -72,6 +74,7 @@
     "@vitest/coverage-v8": "^3.2.7",
     "arktype": "^2.2.3",
     "eslint": "^9.28.0",
+    "husky": "^9.1.7",
     "neverthrow": "^8.2.0",
     "publint": "^0.3.12",
     "typescript": "^5.8.3",

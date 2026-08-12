@@ -30,7 +30,7 @@ Size budget: 6 library/docs files plus the gateway example (`examples/gateway/sr
 | Verify outgoing fetch options | `src/client/create.test.ts` — fetch stubs | extend | Existing assertions already inspect the `RequestInit` passed to the stub. |
 | Public API documentation | `docs/api.md` — `ClientOptions` | extend | This is the canonical options reference. |
 | Release notes | `CHANGELOG.md` — `## [Unreleased]` | extend | `AGENTS.md` requires an entry for any consumer-visible change; this adds a public option. |
-| Behaviour specification | `specs/client-results.md` | no change | That spec's capability is response-to-`Result` mapping, not request construction, and this change adds no new outcome to map. Recorded as a decision rather than an omission. |
+| Behaviour specification | `specs/client-results.spec.md` | no change | That spec's capability is response-to-`Result` mapping, not request construction, and this change adds no new outcome to map. Recorded as a decision rather than an omission. |
 
 ## What stays the same
 
@@ -44,7 +44,7 @@ Size budget: 6 library/docs files plus the gateway example (`examples/gateway/sr
 Both resolved; none left open.
 
 - **Omission injects nothing**, rather than an explicit `'same-origin'`, so custom `fetch` implementations keep their own defaults.
-- **No new spec scenario**, because request construction sits outside the capability `specs/client-results.md` covers.
+- **No new spec scenario**, because request construction sits outside the capability `specs/client-results.spec.md` covers.
 
 ## Coordination brief
 

@@ -41,6 +41,18 @@ Scenario: Degrading an undeclared mapped status to 500
   But the response status is not 409
 ```
 
+## Unmatched route uses route_not_found
+
+```gherkin
+Scenario: Mapping an unmatched method or path to route_not_found
+  Given a status map where "route_not_found" maps to 404
+  And an incoming request that does not match any declared route
+  When serve handles the request
+  Then the response status is 404
+  And the response body has code "route_not_found"
+  But the response body does not have code "not_found"
+```
+
 ## Custom status map
 
 ```gherkin

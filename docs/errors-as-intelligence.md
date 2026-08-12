@@ -76,7 +76,7 @@ The downstream error's `cause` chain and `origin` survive serialisation. `serve`
 - Internal agent with `disclosure: 'full'` sees the full chain and both `nextStep` values.
 - Public caller with `disclosure: 'public'` sees only the gateway's safe code/message and advisory `nextStep` — not inventory's internal paths.
 
-See [specs/cause-chaining.md](https://github.com/project-eddy/never-rest/blob/main/specs/cause-chaining.md) (`src/error.test.ts`, `src/server/serve.test.ts`) and [specs/graded-disclosure.md](https://github.com/project-eddy/never-rest/blob/main/specs/graded-disclosure.md) (`src/disclose.test.ts`, `src/server/serve.test.ts`).
+See [specs/cause-chaining.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/cause-chaining.spec.md) (`src/error.test.ts`, `src/server/serve.test.ts`) and [specs/graded-disclosure.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/graded-disclosure.spec.md) (`src/disclose.test.ts`, `src/server/serve.test.ts`).
 
 ## Agents
 
