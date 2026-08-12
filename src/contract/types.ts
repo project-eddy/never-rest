@@ -4,7 +4,9 @@ import type { RailError } from '../error.js';
 export interface RouteDef {
   readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   readonly path: string;
-  readonly input?: StandardSchemaV1;
+  readonly params?: StandardSchemaV1;
+  readonly query?: StandardSchemaV1;
+  readonly body?: StandardSchemaV1;
   readonly output: StandardSchemaV1;
   readonly errors: readonly string[];
   readonly summary?: string;
@@ -14,18 +16,41 @@ export interface ContractDef {
   readonly [operation: string]: RouteDef;
 }
 
-export type ClientInputOf<TRoute extends RouteDef> =
-  TRoute['input'] extends StandardSchemaV1
-    ? StandardSchemaV1.InferInput<TRoute['input']>
-    : undefined;
+type SourceInput<S> = S extends StandardSchemaV1
+  ? StandardSchemaV1.InferInput<S>
+  : never;
 
-export type HandlerInputOf<TRoute extends RouteDef> =
-  TRoute['input'] extends StandardSchemaV1
-    ? StandardSchemaV1.InferOutput<TRoute['input']>
-    : undefined;
+type SourceOutput<S> = S extends StandardSchemaV1
+  ? StandardSchemaV1.InferOutput<S>
+  : never;
 
-/** @deprecated use HandlerInputOf */
-export type InputOf<TRoute extends RouteDef> = HandlerInputOf<TRoute>;
+/** Wire-shaped client args from declared params / query / body schemas. */
+export type ClientArgsOf<TRoute extends RouteDef> = (TRoute['params'] extends StandardSchemaV1
+  ? { readonly params: SourceInput<TRoute['params']> }
+  : // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- empty intersection arm
+    {}) &
+  (TRoute['query'] extends StandardSchemaV1
+    ? { readonly query: SourceInput<TRoute['query']> }
+    : // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- empty intersection arm
+      {}) &
+  (TRoute['body'] extends StandardSchemaV1
+    ? { readonly body: SourceInput<TRoute['body']> }
+    : // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- empty intersection arm
+      {});
+
+/** Handler-parsed args after each source schema runs. */
+export type HandlerArgsOf<TRoute extends RouteDef> = (TRoute['params'] extends StandardSchemaV1
+  ? { readonly params: SourceOutput<TRoute['params']> }
+  : // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- empty intersection arm
+    {}) &
+  (TRoute['query'] extends StandardSchemaV1
+    ? { readonly query: SourceOutput<TRoute['query']> }
+    : // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- empty intersection arm
+      {}) &
+  (TRoute['body'] extends StandardSchemaV1
+    ? { readonly body: SourceOutput<TRoute['body']> }
+    : // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- empty intersection arm
+      {});
 
 export type OutputOf<TRoute extends RouteDef> = StandardSchemaV1.InferOutput<
   TRoute['output']

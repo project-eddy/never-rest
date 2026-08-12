@@ -11,6 +11,7 @@ import type { ContractDef } from './types.js';
 const baseRoute = {
   method: 'GET' as const,
   path: '/users/:id',
+  params: z.object({ id: z.string() }),
   output: z.object({ id: z.string() }),
   errors: ['not_found'] as const,
 };
@@ -45,12 +46,16 @@ describe('compileContract', () => {
   it('throws ContractConfigurationError for trailing-slash collision', () => {
     const contract = {
       listUsers: {
-        ...baseRoute,
+        method: 'GET' as const,
         path: '/users',
+        output: z.object({ id: z.string() }),
+        errors: ['not_found'] as const,
       },
       listUsersSlash: {
-        ...baseRoute,
+        method: 'GET' as const,
         path: '/users/',
+        output: z.object({ id: z.string() }),
+        errors: ['not_found'] as const,
       },
     } satisfies ContractDef;
 
@@ -69,6 +74,7 @@ describe('compileContract', () => {
       getByUserId: {
         ...baseRoute,
         path: '/users/:userId',
+        params: z.object({ userId: z.string() }),
       },
     } satisfies ContractDef;
 
@@ -118,6 +124,89 @@ describe('compileContract', () => {
     expect(() => compileContract(contract)).toThrow(
       'Duplicate error code "not_found" on operation "getUser"',
     );
+  });
+
+  it('throws when path has parameters but no params schema', () => {
+    const contract = {
+      getUser: {
+        method: 'GET' as const,
+        path: '/users/:id',
+        output: z.object({ id: z.string() }),
+        errors: ['not_found'] as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Operation "getUser" path has parameters but no params schema',
+    );
+  });
+
+  it('throws when params schema is declared on a static path', () => {
+    const contract = {
+      listUsers: {
+        method: 'GET' as const,
+        path: '/users',
+        params: z.object({ id: z.string() }),
+        output: z.object({ id: z.string() }),
+        errors: [] as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Operation "listUsers" declares params schema but path has no parameters',
+    );
+  });
+
+  it('throws when GET declares a body schema', () => {
+    const contract = {
+      badGet: {
+        method: 'GET' as const,
+        path: '/users',
+        body: z.object({ name: z.string() }),
+        output: z.object({ id: z.string() }),
+        errors: [] as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Operation "badGet" cannot declare body on GET',
+    );
+  });
+
+  it('throws when DELETE declares a body schema', () => {
+    const contract = {
+      badDelete: {
+        method: 'DELETE' as const,
+        path: '/users/:id',
+        params: z.object({ id: z.string() }),
+        body: z.object({ reason: z.string() }),
+        output: z.object({ ok: z.boolean() }),
+        errors: [] as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Operation "badDelete" cannot declare body on DELETE',
+    );
+  });
+
+  it('allows query on POST', () => {
+    const contract = {
+      createUser: {
+        method: 'POST' as const,
+        path: '/users',
+        query: z.object({ force: z.boolean() }),
+        body: z.object({ name: z.string() }),
+        output: z.object({ id: z.string() }),
+        errors: ['conflict'] as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).not.toThrow();
   });
 });
 
@@ -180,13 +269,17 @@ describe('isContractPath', () => {
   const contract = {
     getUser: baseRoute,
     listUsers: {
-      ...baseRoute,
+      method: 'GET' as const,
       path: '/users',
+      output: z.object({ id: z.string() }),
+      errors: ['not_found'] as const,
     },
     createUser: {
-      ...baseRoute,
       method: 'POST' as const,
       path: '/users',
+      body: z.object({ name: z.string() }),
+      output: z.object({ id: z.string() }),
+      errors: ['not_found'] as const,
     },
   } satisfies ContractDef;
 

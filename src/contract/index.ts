@@ -1,11 +1,10 @@
 export type {
+  ClientArgsOf,
   ClientErrorOf,
-  ClientInputOf,
   ClientSystemErrorCode,
   ContractDef,
   ErrorOf,
-  HandlerInputOf,
-  InputOf,
+  HandlerArgsOf,
   OutputOf,
   RouteDef,
   ServerErrorOf,
@@ -19,6 +18,12 @@ export {
   type CompiledContract,
   type CompiledRouteEntry,
 } from './compile.js';
-export { parseInput, parseOutput, parseSchema, type SchemaFailure } from './parse.js';
+export {
+  parseOutput,
+  parseRouteSources,
+  parseSchema,
+  type RawRouteSources,
+  type SchemaFailure,
+} from './parse.js';
 export type { CompiledPath, PathMatch } from './path.js';
 export { compilePath, matchPath, normalizePath } from './path.js';

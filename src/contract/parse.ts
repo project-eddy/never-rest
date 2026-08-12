@@ -1,11 +1,18 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { errAsync, okAsync, ResultAsync } from 'neverthrow';
 import { railError, type RailError, type RailIssue } from '../error.js';
-import type { InputOf, OutputOf, RouteDef } from './types.js';
+import type { HandlerArgsOf, OutputOf, RouteDef } from './types.js';
 
 /** Failure from schema validation before error-code mapping. */
 export interface SchemaFailure {
   readonly issues: readonly RailIssue[];
+}
+
+/** Raw wire values before per-source schema parse. */
+export interface RawRouteSources {
+  readonly params?: Record<string, string>;
+  readonly query?: unknown;
+  readonly body?: unknown;
 }
 
 function toPathSegment(
@@ -69,18 +76,86 @@ export function parseSchema<Output>(
   }
 }
 
-/** Validate route input through any Standard Schema validator. */
-export function parseInput<TRoute extends RouteDef>(
-  route: TRoute,
+function prefixIssues(
+  source: 'params' | 'query' | 'body',
+  issues: readonly RailIssue[],
+): readonly RailIssue[] {
+  return issues.map((issue) => ({
+    path: [source, ...issue.path],
+    message: issue.message,
+  }));
+}
+
+function parseDeclaredSource(
+  source: 'params' | 'query' | 'body',
+  schema: StandardSchemaV1,
   value: unknown,
-): ResultAsync<InputOf<TRoute>, RailError<'validation_error'>> {
-  const schema = route.input;
-  if (schema === undefined) {
-    return okAsync(undefined as InputOf<TRoute>);
+): ResultAsync<unknown, RailError<'validation_error'>> {
+  if (value === undefined) {
+    return errAsync(
+      validationError([
+        {
+          path: [source],
+          message: `Missing required ${source} for this route`,
+        },
+      ]),
+    );
   }
+
   return parseSchema(schema, value).mapErr((failure) =>
-    validationError(failure.issues),
-  ) as ResultAsync<InputOf<TRoute>, RailError<'validation_error'>>;
+    validationError(prefixIssues(source, failure.issues)),
+  );
+}
+
+/**
+ * Parse each declared input source independently.
+ * Client and server both call this — client with InferInput-shaped values,
+ * server with wire-decoded params / query / body.
+ */
+export function parseRouteSources<TRoute extends RouteDef>(
+  route: TRoute,
+  raw: RawRouteSources,
+): ResultAsync<HandlerArgsOf<TRoute>, RailError<'validation_error'>> {
+  const checks: ResultAsync<
+    Partial<Record<'params' | 'query' | 'body', unknown>>,
+    RailError<'validation_error'>
+  >[] = [];
+
+  if (route.params !== undefined) {
+    checks.push(
+      parseDeclaredSource('params', route.params, raw.params).map((value) => ({
+        params: value,
+      })),
+    );
+  }
+
+  if (route.query !== undefined) {
+    checks.push(
+      parseDeclaredSource('query', route.query, raw.query).map((value) => ({
+        query: value,
+      })),
+    );
+  }
+
+  if (route.body !== undefined) {
+    checks.push(
+      parseDeclaredSource('body', route.body, raw.body).map((value) => ({
+        body: value,
+      })),
+    );
+  }
+
+  if (checks.length === 0) {
+    return okAsync({} as HandlerArgsOf<TRoute>);
+  }
+
+  return ResultAsync.combine(checks).map((parts) => {
+    const merged: Record<string, unknown> = {};
+    for (const part of parts) {
+      Object.assign(merged, part);
+    }
+    return merged as HandlerArgsOf<TRoute>;
+  });
 }
 
 /** Validate handler output; failures surface as internal with a nested cause. */

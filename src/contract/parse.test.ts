@@ -2,7 +2,7 @@ import { type } from 'arktype';
 import { describe, expect, it } from 'vitest';
 import * as v from 'valibot';
 import { z } from 'zod';
-import { parseInput, parseOutput } from './parse.js';
+import { parseOutput, parseRouteSources } from './parse.js';
 import type { RouteDef } from './types.js';
 
 const validValue = { name: 'alice', age: 30 };
@@ -26,7 +26,7 @@ const arktypeSchema = type({
 const zodRoute = {
   method: 'POST',
   path: '/users',
-  input: zodSchema,
+  body: zodSchema,
   output: zodSchema,
   errors: ['not_found'] as const,
 } satisfies RouteDef;
@@ -34,7 +34,7 @@ const zodRoute = {
 const valibotRoute = {
   method: 'POST',
   path: '/users',
-  input: valibotSchema,
+  body: valibotSchema,
   output: valibotSchema,
   errors: ['not_found'] as const,
 } satisfies RouteDef;
@@ -42,28 +42,38 @@ const valibotRoute = {
 const arktypeRoute = {
   method: 'POST',
   path: '/users',
-  input: arktypeSchema,
+  body: arktypeSchema,
   output: arktypeSchema,
   errors: ['not_found'] as const,
 } satisfies RouteDef;
 
-const noInputRoute = {
+const noSourcesRoute = {
   method: 'GET',
   path: '/health',
   output: zodSchema,
   errors: [] as const,
 } satisfies RouteDef;
 
-describe('parseInput', () => {
+const queryDefaultRoute = {
+  method: 'GET',
+  path: '/items',
+  query: z.object({
+    limit: z.string().default('10').transform(Number),
+  }),
+  output: z.object({ ok: z.boolean() }),
+  errors: [] as const,
+} satisfies RouteDef;
+
+describe('parseRouteSources', () => {
   it.each([
     ['zod', zodRoute],
     ['valibot', valibotRoute],
     ['arktype', arktypeRoute],
-  ] as const)('parses valid input with %s', async (_label, route) => {
-    const result = await parseInput(route, validValue);
+  ] as const)('parses valid body with %s', async (_label, route) => {
+    const result = await parseRouteSources(route, { body: validValue });
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
-      expect(result.value).toEqual(validValue);
+      expect(result.value).toEqual({ body: validValue });
     }
   });
 
@@ -71,53 +81,115 @@ describe('parseInput', () => {
     ['zod', zodRoute],
     ['valibot', valibotRoute],
     ['arktype', arktypeRoute],
-  ] as const)('returns validation_error with issues for malformed input with %s', async (_label, route) => {
-    const result = await parseInput(route, invalidValue);
+  ] as const)(
+    'returns validation_error with issues for malformed body with %s',
+    async (_label, route) => {
+      const result = await parseRouteSources(route, { body: invalidValue });
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.code).toBe('validation_error');
+        expect(result.error.message).toBe('Validation failed');
+        expect(result.error.issues).toBeDefined();
+        expect(result.error.issues!.length).toBeGreaterThan(0);
+        for (const issue of result.error.issues!) {
+          expect(issue.message.length).toBeGreaterThan(0);
+          expect(Array.isArray(issue.path)).toBe(true);
+          expect(issue.path[0]).toBe('body');
+        }
+      }
+    },
+  );
+
+  it.each([
+    ['zod', zodRoute],
+    ['valibot', valibotRoute],
+    ['arktype', arktypeRoute],
+  ] as const)('never throws for invalid body with %s', async (_label, route) => {
+    await expect(
+      parseRouteSources(route, { body: invalidValue }),
+    ).resolves.toBeDefined();
+  });
+
+  it('returns empty args for routes without input sources', async () => {
+    const result = await parseRouteSources(noSourcesRoute, {
+      query: { ignored: true },
+    });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual({});
+    }
+  });
+
+  it('returns validation_error when a declared body is missing', async () => {
+    const result = await parseRouteSources(zodRoute, {});
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
       expect(result.error.code).toBe('validation_error');
-      expect(result.error.message).toBe('Validation failed');
-      expect(result.error.issues).toBeDefined();
-      expect(result.error.issues!.length).toBeGreaterThan(0);
-      for (const issue of result.error.issues!) {
-        expect(issue.message.length).toBeGreaterThan(0);
-        expect(Array.isArray(issue.path)).toBe(true);
-      }
+      expect(result.error.issues).toEqual([
+        {
+          path: ['body'],
+          message: 'Missing required body for this route',
+        },
+      ]);
     }
   });
 
-  it.each([
-    ['zod', zodRoute],
-    ['valibot', valibotRoute],
-    ['arktype', arktypeRoute],
-  ] as const)('never throws for invalid input with %s', async (_label, route) => {
-    await expect(parseInput(route, invalidValue)).resolves.toBeDefined();
-  });
-
-  it('returns undefined for routes without input schema', async () => {
-    const result = await parseInput(noInputRoute, { ignored: true });
+  it('applies query defaults on the server side when the key is omitted', async () => {
+    const result = await parseRouteSources(queryDefaultRoute, {
+      query: {},
+    });
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
-      expect(result.value).toBeUndefined();
+      expect(result.value).toEqual({ query: { limit: 10 } });
+    }
+  });
+
+  it('parses params and body as distinct sources', async () => {
+    const route = {
+      method: 'PUT',
+      path: '/users/:id',
+      params: z.object({ id: z.string() }),
+      body: z.object({ id: z.string(), name: z.string() }),
+      output: z.object({ ok: z.boolean() }),
+      errors: [] as const,
+    } satisfies RouteDef;
+
+    const result = await parseRouteSources(route, {
+      params: { id: 'path-id' },
+      body: { id: 'body-id', name: 'Ada' },
+    });
+
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual({
+        params: { id: 'path-id' },
+        body: { id: 'body-id', name: 'Ada' },
+      });
     }
   });
 });
 
-const outputTransformSchema = z.object({
-  name: z.string(),
-  extra: z.string().optional(),
-}).transform(({ name }) => ({ name: name.toUpperCase() }));
+const outputTransformSchema = z
+  .object({
+    name: z.string(),
+    extra: z.string().optional(),
+  })
+  .transform(({ name }) => ({ name: name.toUpperCase() }));
 
 const outputRoute = {
   method: 'GET',
   path: '/users/:id',
+  params: z.object({ id: z.string() }),
   output: outputTransformSchema,
   errors: ['not_found'] as const,
 } satisfies RouteDef;
 
 describe('parseOutput', () => {
   it('returns the parsed and transformed output value', async () => {
-    const result = await parseOutput(outputRoute, { name: 'alice', extra: 'ignored' });
+    const result = await parseOutput(outputRoute, {
+      name: 'alice',
+      extra: 'ignored',
+    });
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value).toEqual({ name: 'ALICE' });

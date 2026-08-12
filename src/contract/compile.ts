@@ -127,6 +127,27 @@ export function compileContract<TContract extends ContractDef>(
       );
     }
 
+    const hasPathParams = compiledPath.paramNames.length > 0;
+    if (hasPathParams && route.params === undefined) {
+      throw new ContractConfigurationError(
+        `Operation "${operation}" path has parameters but no params schema`,
+      );
+    }
+    if (!hasPathParams && route.params !== undefined) {
+      throw new ContractConfigurationError(
+        `Operation "${operation}" declares params schema but path has no parameters`,
+      );
+    }
+
+    if (
+      route.body !== undefined &&
+      (route.method === 'GET' || route.method === 'DELETE')
+    ) {
+      throw new ContractConfigurationError(
+        `Operation "${operation}" cannot declare body on ${route.method}`,
+      );
+    }
+
     const matcherKey = `${route.method}:${compiledPath.regex.source}`;
     const matcherDuplicate = seenMatchers.get(matcherKey);
     if (matcherDuplicate !== undefined) {
