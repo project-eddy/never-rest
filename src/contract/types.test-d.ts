@@ -1,5 +1,11 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { ContractDef, ErrorOf, RouteDef } from './types.js';
+import type { RailError } from '../error.js';
+import type {
+  ClientErrorOf,
+  ContractDef,
+  ErrorOf,
+  RouteDef,
+} from './types.js';
 
 type ValidContract = {
   getUser: {
@@ -18,6 +24,40 @@ type _GetUserError = ErrorOf<ValidContract['getUser']>;
 
 /** Expect helper — assignment fails when the condition is false. */
 type Expect<T extends true> = T;
+
+type ExpectNot<T extends false> = T;
+
+type SampleRoute = ValidContract['getUser'];
+type SampleClientError = ClientErrorOf<SampleRoute>;
+type SampleDomainError = ErrorOf<SampleRoute>;
+
+type _DomainCodeInClient = Expect<
+  RailError<'not_found'> extends SampleClientError ? true : false
+>;
+
+type _ValidationInClient = Expect<
+  RailError<'validation_error'> extends SampleClientError ? true : false
+>;
+
+type _InternalInClient = Expect<
+  RailError<'internal'> extends SampleClientError ? true : false
+>;
+
+type _UnavailableInClient = Expect<
+  RailError<'unavailable'> extends SampleClientError ? true : false
+>;
+
+type _UndeclaredNotInClient = ExpectNot<
+  RailError<'database_corrupt'> extends SampleClientError ? true : false
+>;
+
+type _InternalNotInDomain = ExpectNot<
+  RailError<'internal'> extends SampleDomainError ? true : false
+>;
+
+type _ValidationNotInDomain = ExpectNot<
+  RailError<'validation_error'> extends SampleDomainError ? true : false
+>;
 
 type MissingOutputRoute = {
   method: 'GET';

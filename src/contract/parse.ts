@@ -1,7 +1,12 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { errAsync, okAsync, ResultAsync } from 'neverthrow';
 import { railError, type RailError, type RailIssue } from '../error.js';
-import type { InputOf, RouteDef } from './types.js';
+import type { InputOf, OutputOf, RouteDef } from './types.js';
+
+/** Failure from schema validation before error-code mapping. */
+export interface SchemaFailure {
+  readonly issues: readonly RailIssue[];
+}
 
 function toPathSegment(
   segment: PropertyKey | StandardSchemaV1.PathSegment,
@@ -24,37 +29,42 @@ function mapIssue(issue: StandardSchemaV1.Issue): RailIssue {
   return { path, message: issue.message };
 }
 
+function schemaFailure(issues: readonly RailIssue[]): SchemaFailure {
+  return { issues };
+}
+
 function validationError(issues: readonly RailIssue[]): RailError<'validation_error'> {
   return railError('validation_error', 'Validation failed', { issues });
 }
 
-function toResultAsync<Output>(
+function toParsedResult<Output>(
   result: StandardSchemaV1.Result<Output>,
-): ResultAsync<Output, RailError<'validation_error'>> {
+): ResultAsync<Output, SchemaFailure> {
   if (result.issues !== undefined && result.issues.length > 0) {
-    return errAsync(validationError(result.issues.map(mapIssue)));
+    return errAsync(schemaFailure(result.issues.map(mapIssue)));
   }
   if ('value' in result) {
     return okAsync(result.value);
   }
-  return errAsync(validationError([{ path: [], message: 'Validation failed' }]));
+  return errAsync(schemaFailure([{ path: [], message: 'Validation failed' }]));
 }
 
-function validateInput<Output>(
+/** Validate a value through any Standard Schema validator. */
+export function parseSchema<Output>(
   schema: StandardSchemaV1<unknown, Output>,
   value: unknown,
-): ResultAsync<Output, RailError<'validation_error'>> {
+): ResultAsync<Output, SchemaFailure> {
   try {
     const outcome = schema['~standard'].validate(value);
     if (outcome instanceof Promise) {
       return ResultAsync.fromPromise(outcome, () =>
-        validationError([{ path: [], message: 'Validation rejected' }]),
-      ).andThen(toResultAsync);
+        schemaFailure([{ path: [], message: 'Validation rejected' }]),
+      ).andThen(toParsedResult);
     }
-    return toResultAsync(outcome);
+    return toParsedResult(outcome);
   } catch {
     return errAsync(
-      validationError([{ path: [], message: 'Validation threw unexpectedly' }]),
+      schemaFailure([{ path: [], message: 'Validation threw unexpectedly' }]),
     );
   }
 }
@@ -68,8 +78,25 @@ export function parseInput<TRoute extends RouteDef>(
   if (schema === undefined) {
     return okAsync(undefined as InputOf<TRoute>);
   }
-  return validateInput(schema, value) as ResultAsync<
-    InputOf<TRoute>,
-    RailError<'validation_error'>
-  >;
+  return parseSchema(schema, value).mapErr((failure) =>
+    validationError(failure.issues),
+  ) as ResultAsync<InputOf<TRoute>, RailError<'validation_error'>>;
+}
+
+/** Validate handler output; failures surface as internal with a nested cause. */
+export function parseOutput<TRoute extends RouteDef>(
+  route: TRoute,
+  value: unknown,
+): ResultAsync<OutputOf<TRoute>, RailError<'internal'>> {
+  return parseSchema(route.output, value).mapErr((failure) =>
+    railError('internal', 'An unexpected error occurred', {
+      cause: railError(
+        'output_validation_failed',
+        'Handler output violated the route contract',
+        failure.issues.length > 0
+          ? { issues: failure.issues }
+          : undefined,
+      ),
+    }),
+  ) as ResultAsync<OutputOf<TRoute>, RailError<'internal'>>;
 }

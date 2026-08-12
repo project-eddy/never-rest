@@ -24,3 +24,19 @@ export type OutputOf<TRoute extends RouteDef> = StandardSchemaV1.InferOutput<
 >;
 
 export type ErrorOf<TRoute extends RouteDef> = RailError<TRoute['errors'][number]>;
+
+export type ServerSystemErrorCode =
+  | 'validation_error'
+  | 'internal';
+
+export type ClientSystemErrorCode =
+  | ServerSystemErrorCode
+  | 'unavailable';
+
+export type ServerErrorOf<TRoute extends RouteDef> =
+  | ErrorOf<TRoute>
+  | RailError<ServerSystemErrorCode>;
+
+export type ClientErrorOf<TRoute extends RouteDef> =
+  | ServerErrorOf<TRoute>
+  | RailError<'unavailable'>;
