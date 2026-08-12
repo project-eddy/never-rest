@@ -24,16 +24,16 @@ function createHandlers<TContract extends ContractDef>(
   ]);
 
   const handlers = {
-    getUser: ({ input }: { input: { id: string } }) => {
-      const user = users.get(input.id);
+    getUser: ({ params }: { params: { id: string } }) => {
+      const user = users.get(params.id);
       if (user === undefined) {
-        return err(railError('not_found', `User ${input.id} not found`));
+        return err(railError('not_found', `User ${params.id} not found`));
       }
       return ok(user);
     },
-    createUser: ({ input }: { input: { name: string } }) => {
-      const id = input.name.toLowerCase().replace(/\s+/g, '-');
-      const user = { id, name: input.name };
+    createUser: ({ body }: { body: { name: string } }) => {
+      const id = body.name.toLowerCase().replace(/\s+/g, '-');
+      const user = { id, name: body.name };
       users.set(id, user);
       return ok(user);
     },

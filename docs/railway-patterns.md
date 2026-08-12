@@ -45,7 +45,7 @@ A gate answers “may this continue?” It returns `Ok` with context the rest of
 ```ts
 requireAuth(request)
   .andThen((session) => requireRole(session, 'billing'))
-  .andThen((session) => loadInvoiceFor(session.userId, input.id))
+  .andThen((session) => loadInvoiceFor(session, params.id))
 ```
 
 Use a gate for auth, tenancy, blocking feature flags, idempotency-key uniqueness, and rate limits that should surface as `Err` rather than a silent drop.
@@ -109,7 +109,7 @@ neverthrow: [mapErr](https://supermacro-neverthrow-22.mintlify.app/api/result/ma
 Tees watch the train without switching tracks. `andTee` runs on `Ok` and keeps the same `Ok`; `orTee` runs on `Err` and keeps the same `Err`. Errors thrown or returned inside the tee are discarded — observation must not invent a caller-visible failure.
 
 ```ts
-loadInvoiceFor(session.userId, input.id)
+loadInvoiceFor(session, params.id)
   .andTee((invoice) => metrics.increment('invoice.read', { plan: invoice.plan }))
   .orTee((error) => log.warn('invoice.read_failed', { code: error.code }))
 ```
@@ -197,19 +197,19 @@ Validation often wants **every** problem, not the first. `combineWithAllErrors` 
 import { Result, err, ok } from 'neverthrow';
 
 const checks = [
-  validateSlug(input.slug),
-  validateName(input.name),
-  validatePlan(input.plan),
+  validateSlug(draft.slug),
+  validateName(draft.displayName),
+  validateTier(draft.tier),
 ];
 
 Result.combineWithAllErrors(checks).mapErr((issues) =>
-  railError('validation_error', 'Invalid tenant draft', {
+  railError('invalid_draft', 'Invalid tenant draft', {
     issues: issues.flatMap((e) => e.issues ?? []),
   }),
 )
 ```
 
-neverthrow: [combineWithAllErrors](https://supermacro-neverthrow-22.mintlify.app/api/result/combine). never-rest’s `parseInput` already maps Standard Schema issues onto `RailIssue[]` for request bodies — accumulate shines for multi-field domain rules beyond the schema.
+neverthrow: [combineWithAllErrors](https://supermacro-neverthrow-22.mintlify.app/api/result/combine). never-rest’s `parseRouteSources` already maps Standard Schema issues onto `RailIssue[]` per source — accumulate shines for multi-field domain rules beyond the schema.
 
 ## Lift / adapt
 
@@ -241,7 +241,7 @@ neverthrow: [Result.fromThrowable](https://supermacro-neverthrow-22.mintlify.app
 Sooner or later you leave the railway — render HTTP, update UI, exit a CLI. `match` forces both tracks to be handled. `unwrapOr` supplies a default when an empty success is acceptable.
 
 ```ts
-const result = await client.getUser({ id });
+const result = await client.getUser({ params: { id } });
 
 return result.match(
   (user) => Response.json(user, { status: 200 }),
@@ -338,11 +338,11 @@ await result.match(
 One handler, no middleware stack — gates, tees, domain, required and best-effort after-effects:
 
 ```ts
-getInvoice: ({ input, request }) =>
+getInvoice: ({ params, request }) =>
   requireAuth(request)
     .andThen((session) => requireRole(session, 'billing'))
     .andTee((session) => metrics.increment('invoice.auth_ok'))
-    .andThen((session) => loadInvoiceFor(session.userId, input.id))
+    .andThen((session) => loadInvoiceFor(session, params.id))
     .andTee((invoice) => audit.read('invoice', invoice.id))
     .andThen((invoice) => touchLastViewed(invoice.id).map(() => invoice)),
 ```
@@ -409,9 +409,8 @@ type ProvisionError = RailError<
   | 'dependency_failed'
   | 'migration_failed'
   | 'seed_failed'
-  | 'validation_error'
+  | 'invalid_draft'
   | 'dns_pending'
-  | 'internal'
 >;
 
 function requireAuth(request: Request): ResultAsync<Session, ProvisionError> { /* … */ }
@@ -568,13 +567,13 @@ function preflightSeeds(
       seedFiles.exists(seed.path)
         ? ok(seed)
         : err(
-            railError('validation_error', `Missing seed file ${seed.path}`, {
+            railError('invalid_draft', `Missing seed file ${seed.path}`, {
               issues: [{ path: [seed.id], message: 'file not found' }],
             }),
           ),
     ),
   ).mapErr((errors) =>
-    railError('validation_error', 'Seed manifest failed preflight', {
+    railError('invalid_draft', 'Seed manifest failed preflight', {
       issues: errors.flatMap((e) => e.issues ?? []),
       nextStep: 'Fix brand pack seed paths and retry',
     }),
@@ -678,14 +677,14 @@ function emitProvisioned(
 
 // Handler — commercial gates, geo router, residency/capacity gates, HA infra,
 // schemas, migrations, brand seeds, DNS, smoke gate, outbox, tees.
-provisionWhiteLabelTenant: ({ input, request }) =>
+provisionWhiteLabelTenant: ({ body, request }) =>
   requireAuth(request)
     .andThen((session) => requireRole(session, 'operator'))
     .andTee((session) =>
       metrics.increment('tenant.whitelabel_attempt', { by: session.userId }),
     )
     .andThen((session) =>
-      requireSignedMsaAndEntitlement(input) // midway gate: contract
+      requireSignedMsaAndEntitlement(body) // midway gate: contract
         .andThen((entitled) => reserveSlug(entitled))
         .andThen((reserved) => routeRegion(reserved)) // router: geo / cloud
         .andThen((routed) => requireResidencyAllows(routed)) // midway gate: residency
@@ -694,8 +693,8 @@ provisionWhiteLabelTenant: ({ input, request }) =>
         .andThen((handle) => waitUntilReady(handle))
         .andThen((ready) => deploySchemas(ready)) // fan-out
         .andThen((schematized) => applyMigrations(schematized))
-        .andThen((migrated) => preflightSeeds(migrated, input.seedManifest)) // accumulate
-        .andThen((migrated) => runSeedScripts(migrated, input.seedManifest))
+        .andThen((migrated) => preflightSeeds(migrated, body.seedManifest)) // accumulate
+        .andThen((migrated) => runSeedScripts(migrated, body.seedManifest))
         .andThen((seeded) => attachBrandPack(seeded))
         .andThen((seeded) => wireCustomDomain(seeded))
         .andThen((wired) => requireSmokeHealthy(wired)) // midway gate: go-live

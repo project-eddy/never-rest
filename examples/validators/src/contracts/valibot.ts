@@ -7,19 +7,19 @@ export const userSchema = v.object({
   name: v.string(),
 });
 
-// Every `:param` in path must also appear in `input` (needed for the typed client).
+// Path params, query, and body are declared separately for the typed client.
 export const usersContract = {
   getUser: {
     method: 'GET',
     path: '/users/:id',
-    input: v.object({ id: v.string() }),
+    params: v.object({ id: v.string() }),
     output: userSchema,
     errors: ['not_found'],
   },
   createUser: {
     method: 'POST',
     path: '/users',
-    input: v.object({
+    body: v.object({
       name: v.pipe(v.string(), v.minLength(1)),
     }),
     output: userSchema,

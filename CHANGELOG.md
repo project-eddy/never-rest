@@ -7,6 +7,30 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `params?`, `query?`, and `body?` on `RouteDef` — each optional Standard Schema; replaces the flat `input` field so path, query, and body cannot silently merge fields that share a name.
+- `ClientArgsOf` and `HandlerArgsOf` — nested `{ params?, query?, body? }` types for wire-shaped client args and handler-parsed args (`InferInput` / `InferOutput` per source).
+- `parseRouteSources(route, { params?, query?, body? })` — validates each declared source independently; replaces `parseInput`.
+
+### Changed
+
+- Client calls name the source: `client.getUser({ params: { id } })`, `client.createUser({ body: { name } })`; routes with no input sources take no args (`client.listUsers()`).
+- Handler args are `HandlerArgsOf & { request, context }` — typed `params`, `query`, and `body` from schemas instead of a merged `input` plus raw `params`.
+- `compileContract` rejects a path with `:param` segments without a `params` schema, `params` on a static path, and `body` on GET or DELETE. Query is allowed on every method, including POST alongside `body`.
+- POST may send query and body together.
+
+### Removed
+
+- `RouteDef.input` — use `params?`, `query?`, and `body?`.
+- `ClientInputOf`, `HandlerInputOf`, and `InputOf` — use `ClientArgsOf` and `HandlerArgsOf`.
+- `parseInput` — use `parseRouteSources`.
+
+### Internal
+
+- Railway × protocol invariant suite (`src/railway/`, `specs/railway-boundary.spec.md`) — catalogue and adversarial combinator handlers against `serve`.
+- Perf benches regenerated for `query` sources instead of flat `input`.
+
 ## [0.4.1] - 2026-08-12
 
 ### Added

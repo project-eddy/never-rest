@@ -13,7 +13,7 @@ A **railway** is a success/failure track: operations stay on `Ok` until somethin
 
 Handlers return `Result` or `ResultAsync` — never throw for expected failures (`not_found`, `validation_error`, domain codes). `createClient` returns `ResultAsync` for every operation; network failures, parse failures, and declared error responses become `Err(RailError)` so callers use `map`, `mapErr`, `andThen`, and `match` without `try/catch` at each hop.
 
-`parseInput` follows this rule: validation failures are `Err(validation_error)`, never throws. Thrown validators are caught and mapped to `Err`.
+`parseRouteSources` follows this rule: validation failures per source are `Err(validation_error)`, never throws. Thrown validators are caught and mapped to `Err`.
 
 `serve` catches thrown exceptions inside a handler and converts them to a 500 `RailError` (original message under `cause` for internal disclosure). Public disclosure does not leak a stack trace.
 
@@ -48,15 +48,15 @@ function requireRole(
 }
 
 // Handler body — contextual gates, then the work. No middleware registry.
-getInvoice: ({ input, request }) =>
+getInvoice: ({ params, request }) =>
   requireAuth(request)
     .andThen((session) => requireRole(session, 'billing'))
-    .andThen((session) => loadInvoiceFor(session.userId, input.id)),
+    .andThen((session) => loadInvoiceFor(session, params.id)),
 ```
 
 If `requireAuth` fails, `requireRole` and `loadInvoiceFor` never run. The `Err` travels the same path a successful value would have — out through `respond` / `serve` — with the declared code (`unauthorized`, `forbidden`) mapped by your `StatusMap`. That is the whole trick: contextual permission work is just programming on the railway, not a framework feature you bolt on around throws.
 
-It feels like flow-based composition — steps named, ordered, and short-circuiting — without leaving ordinary TypeScript functions. Same pattern on the client: `client.getUser(id).andThen(loadOrders).map(toSummary)`.
+It feels like flow-based composition — steps named, ordered, and short-circuiting — without leaving ordinary TypeScript functions. Same pattern on the client: `client.getUser({ params: { id } }).andThen(loadOrders).map(toSummary)`.
 
 Gates are only one slot. The full pattern catalogue — router, tee, through, recover, fan-out, accumulate, lift, terminate, bubble, disclose, retry, and a white-label tenant provisioning kitchen sink — lives in [railway-patterns.md](./railway-patterns.md), with links to neverthrow and Scott Wlaschin’s ROP.
 

@@ -29,7 +29,7 @@ pnpm add @eddy-works/never-rest neverthrow
 | Module | Key exports |
 | --- | --- |
 | `@eddy-works/never-rest` | `RailError`, `railError`, `chain`, `flatten`, `formatChain`, `statusFor`, `toDeclaredResponse`, `disclose`, `respond` |
-| `@eddy-works/never-rest/contract` | `RouteDef`, `ContractDef`, `ClientInputOf`, `HandlerInputOf`, `InputOf` (deprecated), `OutputOf`, `ErrorOf`, `ClientErrorOf`, `ServerErrorOf`, `parseInput`, `parseOutput`, `compileContract`, `isContractPath`, `compilePath`, `matchPath`, `normalizePath`, `assertHandlersComplete`, `ContractConfigurationError` |
+| `@eddy-works/never-rest/contract` | `RouteDef`, `ContractDef`, `ClientArgsOf`, `HandlerArgsOf`, `OutputOf`, `ErrorOf`, `ClientErrorOf`, `ServerErrorOf`, `parseRouteSources`, `parseOutput`, `compileContract`, `isContractPath`, `compilePath`, `matchPath`, `normalizePath`, `assertHandlersComplete`, `ContractConfigurationError` |
 | `@eddy-works/never-rest/server` | `serve`, `Handler`, `Handlers`, `compileRoutes`, `matchRoute` |
 | `@eddy-works/never-rest/client` | `createClient`, `Client`, `ClientOptions` |
 | `@eddy-works/never-rest/node` | `toNodeHandler`, `FetchHandler`, `NodeHttpHandler` |
@@ -44,11 +44,11 @@ Most REST libraries assume handlers throw. Middleware intercepts exceptions, typ
 When handlers return `Result`, auth, side effects, and after-effects are just functions in the chain — not a separate interceptor stack:
 
 ```ts
-getInvoice: ({ input, request }) =>
+getInvoice: ({ params, request }) =>
   requireAuth(request) // gate
     .andThen((session) => requireRole(session, 'billing'))
     .andTee((session) => metrics.increment('invoice.auth_ok')) // side effect
-    .andThen((session) => loadInvoiceFor(session.userId, input.id))
+    .andThen((session) => loadInvoiceFor(session, params.id))
     .andTee((invoice) => audit.read('invoice', invoice.id)), // after-effect (best-effort)
 ```
 
@@ -74,14 +74,14 @@ const contract = {
   getUser: {
     method: 'GET',
     path: '/users/:id',
-    input: z.object({ id: z.string() }),
+    params: z.object({ id: z.string() }),
     output: userSchema,
     errors: ['not_found'],
   },
   createUser: {
     method: 'POST',
     path: '/users',
-    input: z.object({ name: z.string().min(1) }),
+    body: z.object({ name: z.string().min(1) }),
     output: userSchema,
     errors: ['conflict'],
   },
@@ -115,11 +115,11 @@ function reserveId(name: string): Result<string, RailError<'conflict'>> {
 }
 
 const handlers: Handlers<typeof contract, undefined> = {
-  getUser: ({ input }): Result<User, RailError<'not_found'>> =>
-    findUser(input.id).map((user) => ({ ...user, name: user.name.trim() })),
-  createUser: ({ input }): Result<User, RailError<'conflict'>> =>
-    reserveId(input.name).map((id) => {
-      const user = { id, name: input.name };
+  getUser: ({ params }): Result<User, RailError<'not_found'>> =>
+    findUser(params.id).map((user) => ({ ...user, name: user.name.trim() })),
+  createUser: ({ body }): Result<User, RailError<'conflict'>> =>
+    reserveId(body.name).map((id) => {
+      const user = { id, name: body.name };
       users.set(id, user);
       return user;
     }),
@@ -136,8 +136,8 @@ export default serve(contract, handlers, {
 const client = createClient(contract, { baseUrl: 'https://api.example.com' });
 
 await client
-  .getUser({ id: 'ada' })
-  .andThen((user) => client.createUser({ name: `${user.name} Jr` }))
+  .getUser({ params: { id: 'ada' } })
+  .andThen((user) => client.createUser({ body: { name: `${user.name} Jr` } }))
   .match(
     (user) => console.log(user.id),
     (error) => console.error(error.code), // not_found | conflict | validation_error | internal | unavailable
@@ -209,5 +209,6 @@ Agent lookup index: [skills/never-rest/SKILL.md](skills/never-rest/SKILL.md).
 | [specs/server-output-validation.spec.md](specs/server-output-validation.spec.md) | `src/server/serve.test.ts` |
 | [specs/contract-compilation.spec.md](specs/contract-compilation.spec.md) | `src/contract/compile.test.ts`, `src/contract/path.test.ts`, `src/server/serve.test.ts` |
 | [specs/wire-serialization.spec.md](specs/wire-serialization.spec.md) | `src/client/create.test.ts`, `src/client/request.ts` paths |
+| [specs/input-sources.spec.md](specs/input-sources.spec.md) | `src/contract/compile.test.ts`, `src/contract/parse.test.ts` |
 
 See [specs/README.md](specs/README.md) for extraction and layout.

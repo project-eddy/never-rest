@@ -40,7 +40,7 @@ gateway prove *why this beats throw-based APIs*.
    [`validators`](validators)  
    Same users contract in Zod, Valibot, and ArkType. Framework mounts stay
    on Zod; this package is the Standard Schema swap demo.  
-   **Win:** schemas *are* the wire law — input validation and always-on
+   **Win:** schemas *are* the wire law — params/query/body validation and always-on
    parsed output.
 
 One contract, many consumers: every framework example imports

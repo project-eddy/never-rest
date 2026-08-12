@@ -39,7 +39,7 @@ const inventoryContract = {
   reserve: {
     method: 'POST',
     path: '/reserve',
-    input: z.object({ sku: z.string(), qty: z.number().int().positive() }),
+    body: z.object({ sku: z.string(), qty: z.number().int().positive() }),
     output: z.object({ reservationId: z.string() }),
     errors: ['not_found'],
   },
@@ -81,17 +81,17 @@ const ordersContract = {
   fulfil: {
     method: 'POST',
     path: '/orders/:id/fulfil',
-    input: z.object({ id: z.string(), sku: z.string(), qty: z.number() }),
+    params: z.object({ id: z.string() }),
+    body: z.object({ sku: z.string(), qty: z.number() }),
     output: z.object({ orderId: z.string(), reservationId: z.string() }),
     errors: ['fulfilment_failed', 'not_found'],
   },
 } as const satisfies ContractDef;
 
 const ordersHandlers: Handlers<typeof ordersContract, undefined> = {
-  fulfil: async ({ input }) => {
+  fulfil: async ({ params, body }) => {
     const reserved = await inventoryClient.reserve({
-      sku: input.sku,
-      qty: input.qty,
+      body: { sku: body.sku, qty: body.qty },
     });
 
     if (reserved.isErr()) {
@@ -109,7 +109,7 @@ const ordersHandlers: Handlers<typeof ordersContract, undefined> = {
     }
 
     return ok({
-      orderId: input.id,
+      orderId: params.id,
       reservationId: reserved.value.reservationId,
     });
   },
@@ -141,7 +141,7 @@ async function renderAt(
     new Request('http://orders.local/orders/ord_1/fulfil', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id: 'ord_1', sku: 'SKU-42', qty: 2 }),
+      body: JSON.stringify({ sku: 'SKU-42', qty: 2 }),
     }),
     undefined,
   );
@@ -164,8 +164,7 @@ async function renderAt(
 
 async function renderUnavailable(): Promise<void> {
   const result = await unreachableInventoryClient.reserve({
-    sku: 'SKU-42',
-    qty: 1,
+    body: { sku: 'SKU-42', qty: 1 },
   });
 
   console.log('\n=== ClientErrorOf: network failure → unavailable ===');

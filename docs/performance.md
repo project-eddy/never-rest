@@ -69,7 +69,7 @@ Research anchors used lighter fixtures (minimal literals, no Zod per route). Thi
 
 ## Which construct dominates cost?
 
-Not `Client` (+6 fixed). Not `Handlers` (+10). Per-route cost is dominated by **per-route schema inference** (`StandardSchemaV1.InferOutput` via `HandlerInputOf` / `OutputOf`) and the **Zod object schemas** in each route fixture — the same work plain object literals do, plus a small premium for `as const satisfies ContractDef` vs the plain control (~276/route marginal delta: 584 − 308).
+Not `Client` (+6 fixed). Not `Handlers` (+10). Per-route cost is dominated by **per-route schema inference** (`StandardSchemaV1.InferOutput` via `HandlerArgsOf` / `OutputOf`) and the **Zod object schemas** in each route fixture — the same work plain object literals do, plus a small premium for `as const satisfies ContractDef` vs the plain control (~276/route marginal delta: 584 − 308).
 
 ## Reproduce
 

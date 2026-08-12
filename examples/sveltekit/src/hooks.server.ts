@@ -29,11 +29,11 @@ const users = new Map<string, UserRecord>([
  * are stripped before the response leaves the process.
  */
 const usersHandlers: Handlers<typeof usersContract, undefined> = {
-  getUser: ({ input }) => {
-    const user = users.get(input.id);
+  getUser: ({ params }) => {
+    const user = users.get(params.id);
     if (user === undefined) {
       // Domain miss (resource) — distinct from host `route_not_found` on /nope.
-      return err(railError('not_found', `User ${input.id} not found`));
+      return err(railError('not_found', `User ${params.id} not found`));
     }
     const wireCandidate = {
       id: user.id,
@@ -43,15 +43,15 @@ const usersHandlers: Handlers<typeof usersContract, undefined> = {
     return ok(wireCandidate);
   },
 
-  createUser: ({ input }) => {
-    const lowerName = input.name.toLowerCase();
+  createUser: ({ body }) => {
+    const lowerName = body.name.toLowerCase();
     const id = lowerName.replace(/\s+/g, '-');
     if (users.has(id)) {
       return err(railError('conflict', `User ${id} already exists`));
     }
     const user: UserRecord = {
       id,
-      name: input.name,
+      name: body.name,
       passwordHash: `demo-hash-${id}`,
     };
     users.set(id, user);

@@ -7,19 +7,19 @@ export const userSchema = z.object({
   name: z.string(),
 });
 
-// Every `:param` in path must also appear in `input` (needed for the typed client).
+// Path params, query, and body are declared separately for the typed client.
 export const usersContract = {
   getUser: {
     method: 'GET',
     path: '/users/:id',
-    input: z.object({ id: z.string() }),
+    params: z.object({ id: z.string() }),
     output: userSchema,
     errors: ['not_found'],
   },
   createUser: {
     method: 'POST',
     path: '/users',
-    input: z.object({ name: z.string().min(1) }),
+    body: z.object({ name: z.string().min(1) }),
     output: userSchema,
     errors: ['conflict'],
   },

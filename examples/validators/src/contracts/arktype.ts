@@ -7,19 +7,19 @@ export const userSchema = type({
   name: 'string',
 });
 
-// Every `:param` in path must also appear in `input` (needed for the typed client).
+// Path params, query, and body are declared separately for the typed client.
 export const usersContract = {
   getUser: {
     method: 'GET',
     path: '/users/:id',
-    input: type({ id: 'string' }),
+    params: type({ id: 'string' }),
     output: userSchema,
     errors: ['not_found'],
   },
   createUser: {
     method: 'POST',
     path: '/users',
-    input: type({ name: 'string>0' }),
+    body: type({ name: 'string>0' }),
     output: userSchema,
     errors: ['conflict'],
   },

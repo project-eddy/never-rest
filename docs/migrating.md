@@ -5,6 +5,95 @@ description: Move from ts-rest, oRPC, or throwing handlers to never-rest Result 
 
 # Migrating
 
+## Upgrading from 0.4.x
+
+### Migration table
+
+| 0.4.x | 0.5 |
+| --- | --- |
+| `RouteDef.input` | `params?`, `query?`, `body?` (each optional Standard Schema) |
+| `ClientInputOf<Route>` | `ClientArgsOf<Route>` — nested `{ params?, query?, body? }` (`InferInput` per source) |
+| `HandlerInputOf<Route>` / `InputOf` | `HandlerArgsOf<Route>` — nested `{ params?, query?, body? }` (`InferOutput` per source) |
+| `parseInput(route, value)` | `parseRouteSources(route, { params?, query?, body? })` |
+| `client.getUser({ id })` | `client.getUser({ params: { id } })` |
+| `client.createUser({ name })` | `client.createUser({ body: { name } })` |
+| `client.listUsers()` (no input) | unchanged — routes with no sources take no args |
+| Handler `{ input, params, request, context }` | `HandlerArgsOf & { request, context }` — typed `params` / `query` / `body` from schemas |
+| Path `:id` merged into flat `input` | `params` schema required when path has `:param` segments |
+| POST body only | POST may declare `query` and `body` together |
+
+### Contract — split `input` into sources
+
+```ts
+// Before (0.4.x)
+getUser: {
+  method: 'GET',
+  path: '/users/:id',
+  input: z.object({ id: z.string() }),
+  output: userSchema,
+  errors: ['not_found'],
+},
+createUser: {
+  method: 'POST',
+  path: '/users',
+  input: z.object({ name: z.string() }),
+  output: userSchema,
+  errors: ['conflict'],
+},
+
+// After (0.5)
+getUser: {
+  method: 'GET',
+  path: '/users/:id',
+  params: z.object({ id: z.string() }),
+  output: userSchema,
+  errors: ['not_found'],
+},
+createUser: {
+  method: 'POST',
+  path: '/users',
+  body: z.object({ name: z.string() }),
+  output: userSchema,
+  errors: ['conflict'],
+},
+```
+
+Path parameters live in `params`; query fields in `query`; JSON body fields in `body`. A field named `id` in both `params` and `body` stays distinct — they are never merged.
+
+`compileContract` now rejects:
+
+- a path with `:param` segments without a `params` schema
+- `params` on a static path (no `:param` segments)
+- `body` on GET or DELETE
+
+Query is allowed on every method, including POST alongside `body`.
+
+### Handlers and clients
+
+```ts
+// Before
+getUser: ({ input }) => findUser(input.id),
+createUser: ({ input }) => reserveId(input.name),
+
+await client.getUser({ id: 'ada' });
+await client.createUser({ name: 'Ada' });
+
+// After
+getUser: ({ params }) => findUser(params.id),
+createUser: ({ body }) => reserveId(body.name),
+
+await client.getUser({ params: { id: 'ada' } });
+await client.createUser({ body: { name: 'Ada' } });
+```
+
+Replace `parseInput` with `parseRouteSources` when validating sources manually:
+
+```ts
+await parseRouteSources(route, { params: rawParams, query: rawQuery, body: rawBody });
+```
+
+---
+
 ## Upgrading from 0.4.0
 
 ### Shared-process mounting
@@ -43,16 +132,18 @@ const contract = {
 } as const satisfies ContractDef;
 ```
 
-### Input type split
+### Input type split (0.4.0)
 
-`InputOf` is deprecated — it aliases the **handler** side (`InferOutput`). Use the split types:
+`InputOf` was deprecated in 0.4.0 — it aliased the **handler** side (`InferOutput`). In 0.5 the split types are `ClientArgsOf` and `HandlerArgsOf` with nested `params` / `query` / `body` keys. See [Upgrading from 0.4.x](#upgrading-from-04x).
+
+Previously (0.4.0):
 
 | Type | Meaning |
 | --- | --- |
-| `ClientInputOf<Route>` | What callers pass to `createClient` (`InferInput` — wire-shaped) |
-| `HandlerInputOf<Route>` | What handlers receive after server parsing (`InferOutput` — coerced/transformed) |
+| `ClientInputOf<Route>` | What callers passed to `createClient` (`InferInput` — wire-shaped) |
+| `HandlerInputOf<Route>` | What handlers received after server parsing (`InferOutput` — coerced/transformed) |
 
-A route with `z.string().transform(Number)` on input types as `{ limit: string }` on the client and `{ limit: number }` in the handler. The client validates raw input; the server applies transforms after path/query merge.
+A route with `z.string().transform(Number)` on query typed as `{ limit: string }` on the client and `{ limit: number }` in the handler. The client validated raw input; the server applied transforms per source after path/query/body parse.
 
 ### Path decoding and `matchPath`
 
@@ -201,11 +292,11 @@ function getUser({ params }) {
 Drop the interceptor stack. Auth, side effects, and after-effects become ordinary composition inside the handler:
 
 ```ts
-getInvoice: ({ input, request }) =>
+getInvoice: ({ params, request }) =>
   requireAuth(request)
     .andThen((session) => requireRole(session, 'billing'))
     .andTee((session) => metrics.increment('invoice.auth_ok'))
-    .andThen((session) => loadInvoiceFor(session.userId, input.id))
+    .andThen((session) => loadInvoiceFor(session, params.id))
     .andTee((invoice) => audit.read('invoice', invoice.id)),
 ```
 
@@ -216,7 +307,7 @@ See [concepts.md — No middleware](./concepts.md#no-middleware--the-chain-is-th
 Replace ts-rest client with `createClient`. Branch on `Result` instead of try/catch:
 
 ```ts
-const result = await client.getUser({ id });
+const result = await client.getUser({ params: { id } });
 return result.match(
   (user) => render(user),
   (error) => renderError(error),
@@ -251,7 +342,7 @@ const [error, data] = await client.getUser.safe({ id });
 if (error) { /* branch */ }
 
 // After
-await client.getUser({ id }).andThen((user) => /* ... */);
+await client.getUser({ params: { id } }).andThen((user) => /* ... */);
 ```
 
 ### RPC vs REST contract
@@ -285,7 +376,7 @@ const statuses = {
 
 ### Step 3 — wire with `serve`
 
-`serve` wires validation (`parseInput`), handler `Result`, `respond`, JSON serialisation, and per-request disclosure. Handlers stay free of `Response` construction:
+`serve` wires per-source validation (`parseRouteSources`), handler `Result`, `respond`, JSON serialisation, and per-request disclosure. Handlers stay free of `Response` construction:
 
 ```ts
 import { serve, type Handlers } from '@eddy-works/never-rest/server';

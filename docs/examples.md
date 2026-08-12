@@ -50,7 +50,7 @@ import {
 } from '@never-rest-examples/shared-contract';
 
 const usersHandlers: Handlers<typeof usersContract, undefined> = {
-  getUser: ({ input }) => ok({ id: input.id, name: 'Ada' }),
+  getUser: ({ params }) => ok({ id: params.id, name: 'Ada' }),
   // …
 };
 

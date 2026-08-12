@@ -217,12 +217,16 @@ respond(ok({ id: '1' }), {
 interface RouteDef {
   readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   readonly path: string;
-  readonly input?: StandardSchemaV1;
+  readonly params?: StandardSchemaV1;
+  readonly query?: StandardSchemaV1;
+  readonly body?: StandardSchemaV1;
   readonly output: StandardSchemaV1;
   readonly errors: readonly string[];
   readonly summary?: string;
 }
 ```
+
+Each input source is optional. Declare `params` when the path has `:param` segments; declare `query` for query-string fields; declare `body` for JSON body fields on POST, PUT, and PATCH. GET and DELETE may use `params` and `query` but not `body`. POST may combine `query` and `body`. Fields that share a name across sources stay distinct — `params.id` and `body.id` never merge.
 
 ### `ContractDef`
 
@@ -239,6 +243,7 @@ export const contract = {
   getUser: {
     method: 'GET',
     path: '/users/:id',
+    params: z.object({ id: z.string() }),
     output: userSchema,
     errors: ['not_found'],
   },
@@ -255,7 +260,7 @@ function compileContract<TContract extends ContractDef>(
 ): CompiledContract<TContract>;
 ```
 
-Validates the contract once at `serve` / `createClient` construction. Rejects duplicate literal paths, trailing-slash aliases, duplicate compiled matchers (for example `/users/:id` and `/users/:userId`), duplicate path parameter names within a route, reserved domain error codes, and duplicate error codes within a route. Throws `ContractConfigurationError` naming the conflicting operations.
+Validates the contract once at `serve` / `createClient` construction. Rejects duplicate literal paths, trailing-slash aliases, duplicate compiled matchers (for example `/users/:id` and `/users/:userId`), duplicate path parameter names within a route, a path with `:param` segments without a `params` schema, `params` on a static path, `body` on GET or DELETE, reserved domain error codes, and duplicate error codes within a route. Throws `ContractConfigurationError` naming the conflicting operations.
 
 ### `isContractPath`
 
@@ -296,40 +301,36 @@ function assertHandlersComplete<TContract extends ContractDef>(
 
 Ensures every operation key in the contract maps to a function handler. Called by `serve` at construction.
 
-### `ClientInputOf`
+### `ClientArgsOf`
 
 ```ts
-type ClientInputOf<TRoute extends RouteDef> =
-  TRoute['input'] extends StandardSchemaV1
-    ? StandardSchemaV1.InferInput<TRoute['input']>
-    : undefined;
+type ClientArgsOf<TRoute extends RouteDef> = {
+  readonly params?: …; // when route declares params — InferInput
+  readonly query?: …;  // when route declares query — InferInput
+  readonly body?: …;   // when route declares body — InferInput
+};
 ```
 
-Wire-shaped input for `createClient` callers — use `InferInput` so transforms and coerces type correctly on each side. Prefer a named alias from the contract over `z.input<typeof schema>`:
+Wire-shaped client args from declared `params`, `query`, and `body` schemas. Each key appears only when the route declares that source. Use `InferInput` so transforms and coerces type correctly on the wire side. Prefer a named alias from the contract:
 
 ```ts
-export type CreateUserInput = ClientInputOf<(typeof contract)['createUser']>;
+export type CreateUserArgs = ClientArgsOf<(typeof contract)['createUser']>;
+// { body: { name: string } }
 ```
 
-### `HandlerInputOf`
+Routes with no input sources have an empty `ClientArgsOf` — the client method takes no args.
+
+### `HandlerArgsOf`
 
 ```ts
-type HandlerInputOf<TRoute extends RouteDef> =
-  TRoute['input'] extends StandardSchemaV1
-    ? StandardSchemaV1.InferOutput<TRoute['input']>
-    : undefined;
+type HandlerArgsOf<TRoute extends RouteDef> = {
+  readonly params?: …; // when route declares params — InferOutput
+  readonly query?: …;  // when route declares query — InferOutput
+  readonly body?: …;   // when route declares body — InferOutput
+};
 ```
 
-Parsed input inside handlers after server-side `parseInput`.
-
-### `InputOf`
-
-```ts
-/** @deprecated use HandlerInputOf */
-type InputOf<TRoute extends RouteDef> = HandlerInputOf<TRoute>;
-```
-
-Deprecated alias of `HandlerInputOf`. Prefer `ClientInputOf` on the client and `HandlerInputOf` in handlers.
+Parsed args inside handlers after server-side `parseRouteSources` (`InferOutput` per source — coerced/transformed).
 
 ### `OutputOf`
 
@@ -365,24 +366,35 @@ type ServerErrorOf<TRoute extends RouteDef> =
 
 Server-side error union for handlers (no client-synthesized `unavailable`).
 
-### `parseInput`
+### `parseRouteSources`
 
 ```ts
-function parseInput<TRoute extends RouteDef>(
+function parseRouteSources<TRoute extends RouteDef>(
   route: TRoute,
-  value: unknown,
-): ResultAsync<HandlerInputOf<TRoute>, RailError<'validation_error'>>;
+  sources: {
+    readonly params?: unknown;
+    readonly query?: unknown;
+    readonly body?: unknown;
+  },
+): ResultAsync<HandlerArgsOf<TRoute>, RailError<'validation_error'>>;
 ```
 
 ```ts
-await parseInput(contract.createUser, { email: 'bad' });
-// Err({ code: 'validation_error', issues: [...] })
+await parseRouteSources(contract.createUser, {
+  body: { name: 'Ada' },
+});
+// Ok({ body: { name: 'Ada' } })
 
-await parseInput(contract.getUser, undefined);
-// Ok(undefined) — routes without input skip validation
+await parseRouteSources(contract.getUser, {
+  params: { id: 'u1' },
+});
+// Ok({ params: { id: 'u1' } })
+
+await parseRouteSources(contract.listUsers, {});
+// Ok({}) — routes without input sources skip validation
 ```
 
-Works with any Standard Schema validator (Zod 4, Valibot, ArkType). Validation never throws; rejections and thrown validators become `Err(validation_error)`.
+Validates each declared source independently — `params`, `query`, and `body` never merge. Works with any Standard Schema validator (Zod 4, Valibot, ArkType). Validation never throws; rejections and thrown validators become `Err(validation_error)`.
 
 ### `parseOutput`
 
@@ -498,9 +510,7 @@ First match by method and pathname in declaration order, or `undefined`.
 
 ```ts
 type Handler<TRoute extends RouteDef, TContext> = (
-  args: {
-    input: HandlerInputOf<TRoute>;
-    params: Record<string, string>;
+  args: HandlerArgsOf<TRoute> & {
     request: Request;
     context: TContext;
   },
@@ -553,7 +563,7 @@ function serve<TContract extends ContractDef, TContext>(
 ```ts
 const handlers: Handlers<typeof contract, { requestId: string }> = {
   getUser: ({ params }) => ok({ id: params.id, name: 'Ada' }),
-  createUser: ({ input }) => ok({ id: 'new', name: input.name }),
+  createUser: ({ body }) => ok({ id: 'new', name: body.name }),
 };
 
 const handler = serve(contract, handlers, {
@@ -576,9 +586,9 @@ await handler(new Request('http://localhost/users/u1'), { requestId: 'r1' });
 
 **Routing:** exact paths and single `:param` segments, declaration order (static before dynamic when both match). Unmatched requests → `route_not_found` at `statuses.route_not_found` (not domain `not_found`). Path captures are percent-decoded; `invalid_encoding` → `validation_error`.
 
-**Input:** `GET` / `DELETE` read query params (arrays as `key[]=`, unrepresentable shapes → `validation_error` before handler); `POST` / `PUT` / `PATCH` read JSON body (invalid JSON → `validation_error`). Path `:param` values are merged into that input before `parseInput`. Empty or missing path params → `validation_error`.
+**Input:** each declared source is read from the wire independently. Path `:param` values populate `params` before `parseRouteSources`. GET and DELETE read query into `query` (arrays as `key[]=`, unrepresentable shapes → `validation_error` before handler). POST, PUT, and PATCH read JSON body into `body` when declared (invalid JSON → `validation_error`); POST may also read `query`. Empty or missing path params → `validation_error`. Sources never merge — `params.id` and `body.id` stay distinct.
 
-**Declared statuses** per route: `200`, each route error code, `validation_error` when the route has `input`, and `internal`. Undeclared mapped statuses degrade to `500`. Handler error codes not declared on the route — including forged `internal` — are normalised to wire `internal` with the original error under `cause`; `public` disclosure shows a constant top-level message.
+**Declared statuses** per route: `200`, each route error code, `validation_error` when the route declares any input source (`params`, `query`, or `body`), and `internal`. Undeclared mapped statuses degrade to `500`. Handler error codes not declared on the route — including forged `internal` — are normalised to wire `internal` with the original error under `cause`; `public` disclosure shows a constant top-level message.
 
 **Origin:** `options.origin` stamps errors when absent (recursive on `cause`). Existing `origin` on an error is preserved.
 
@@ -611,10 +621,11 @@ When `credentials` is omitted, the underlying `fetch` implementation's default a
 
 ```ts
 type Client<TContract extends ContractDef> = {
-  readonly [K in keyof TContract]: (
-    input: ClientInputOf<TContract[K]>,
-  ) => ResultAsync<OutputOf<TContract[K]>, ClientErrorOf<TContract[K]>>;
+  readonly [K in keyof TContract]: ClientMethod<TContract[K]>;
 };
+
+// Routes with input sources: (args: ClientArgsOf<Route>) => ResultAsync<…>
+// Routes without: () => ResultAsync<…>
 ```
 
 One mapped type over the contract, one level deep — no recursion. Error type is `ClientErrorOf` (domain codes plus `validation_error`, `internal`, and `unavailable`).
@@ -635,12 +646,12 @@ const client = createClient(contract, {
 });
 
 await client
-  .getUser({ id: 'u1' })
-  .andThen((user) => client.loadOrders({ userId: user.id }))
+  .getUser({ params: { id: 'u1' } })
+  .andThen((user) => client.loadOrders({ params: { userId: user.id } }))
   .map((orders) => orders.orders.length);
 ```
 
-**Behaviour:** `compileContract` runs at construction. Validates raw client input via `parseInput` (`ClientInputOf`); path params must be non-empty; query arrays use `key[]=`. 2xx → `Ok` (output schema re-parse); JSON `RailError` with a declared domain code, `validation_error`, or `internal` → `Err`; undeclared or reserved remote codes → `Err(internal)` with constant message and remote error under `cause`; non-JSON body → `Err(internal)`; network failure → `Err(unavailable, { retryable: true })`. Header/body serialization failures → `Err(internal)`. Never throws.
+**Behaviour:** `compileContract` runs at construction. Validates client args per source via `parseRouteSources` (`ClientArgsOf`); path params must be non-empty; query arrays use `key[]=`. 2xx → `Ok` (output schema re-parse); JSON `RailError` with a declared domain code, `validation_error`, or `internal` → `Err`; undeclared or reserved remote codes → `Err(internal)` with constant message and remote error under `cause`; non-JSON body → `Err(internal)`; network failure → `Err(unavailable, { retryable: true })`. Header/body serialization failures → `Err(internal)`. Never throws.
 
 **Tests:** `src/client/create.test.ts` — scenarios from [specs/client-results.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/client-results.spec.md) and [specs/wire-serialization.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/wire-serialization.spec.md).
 

@@ -81,20 +81,20 @@ function loadInvoiceFor(
 }
 
 // Legal — Session flows from the gate.
-getInvoice: ({ input, request }) =>
-  requireAuth(request).andThen((session) => loadInvoiceFor(session, input.id)),
+getInvoice: ({ params, request }) =>
+  requireAuth(request).andThen((session) => loadInvoiceFor(session, params.id)),
 ```
 
 Illegal (does not typecheck) — domain will not accept a raw string where `Session` is required:
 
 ```ts
 // @ts-expect-error — string is not Session
-getInvoiceBroken: ({ input }) => loadInvoiceFor(input.id as never, input.id),
+getInvoiceBroken: ({ params }) => loadInvoiceFor(params.id as never, params.id),
 ```
 
 Same pattern for `TenantContext`, `ResidencyCleared`, `Audited<T>`, and other mid-chain clearances. Reach for phantom “effect lists on `Result`” only when policy is polymorphic across many optional composers; for “every invoice route is authed,” capabilities win.
 
-Align handler args with the real [`Handler`](./api.md#handler) shape: `{ input, params, request, context }`.
+Align handler args with the real [`Handler`](./api.md#handler) shape: `HandlerArgsOf & { request, context }` — typed `params`, `query`, and `body` from schemas.
 
 ## Composer wrappers
 
@@ -103,14 +103,12 @@ Capabilities stop illegal *calls*. Composers make policy **central** and **manda
 ```ts
 import type { Result, ResultAsync } from 'neverthrow';
 import type { RailError } from '@eddy-works/never-rest';
-import type { ContractDef, InputOf, OutputOf, RouteDef } from '@eddy-works/never-rest/contract';
+import type { ContractDef, HandlerArgsOf, OutputOf, RouteDef } from '@eddy-works/never-rest/contract';
 import type { Handler } from '@eddy-works/never-rest/server';
 
 type Session = { userId: string; roles: readonly string[] };
 
-type AuthedArgs<TRoute extends RouteDef, TContext> = {
-  input: InputOf<TRoute>;
-  params: Record<string, string>;
+type AuthedArgs<TRoute extends RouteDef, TContext> = HandlerArgsOf<TRoute> & {
   request: Request;
   context: TContext;
   session: Session;
@@ -157,8 +155,8 @@ Register composed handlers (and only those) on your contract:
 import { serve, type Handlers } from '@eddy-works/never-rest/server';
 
 const handlers = {
-  getInvoice: withRole('billing', ({ input, session }) =>
-    loadInvoiceFor(session, input.id)
+  getInvoice: withRole('billing', ({ params, session }) =>
+    loadInvoiceFor(session, params.id)
       .andTee((invoice) => audit.read('invoice', invoice.id))
       .andThen((invoice) => touchLastViewed(invoice.id).map(() => invoice)),
   ),
@@ -230,8 +228,8 @@ import { okAsync } from 'neverthrow';
 import type { Handlers } from '@eddy-works/never-rest/server';
 
 const handlers = {
-  getInvoice: withRole('billing', ({ input, session }) =>
-    loadInvoiceFor(session, input.id)
+  getInvoice: withRole('billing', ({ params, session }) =>
+    loadInvoiceFor(session, params.id)
       .andTee((invoice) => metrics.increment('invoice.read', { plan: invoice.plan }))
       .orTee((error) => log.warn('invoice.read_failed', { code: error.code }))
       .andTee((invoice) => audit.read('invoice', invoice.id))
@@ -249,9 +247,9 @@ Illegal registration — domain cannot be called without a session, and authenti
 ```ts
 const broken = {
   // Missing withAuth / withRole — team convention + CI should reject this shape.
-  getInvoice: ({ input, request }) =>
+  getInvoice: ({ params, request }) =>
     // @ts-expect-error — loadInvoiceFor expects Session, not a string user id
-    loadInvoiceFor(request.headers.get('x-user-id') ?? '', input.id),
+    loadInvoiceFor(request.headers.get('x-user-id') ?? '', params.id),
 } satisfies Handlers<typeof contract, AppContext>;
 ```
 
