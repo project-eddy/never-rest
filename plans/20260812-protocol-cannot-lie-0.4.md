@@ -14,11 +14,11 @@ Validation:
 
 ```bash
 pnpm lint && pnpm typecheck && pnpm test && pnpm test:coverage && pnpm perf:check && pnpm build \
-  && pnpm specs:lint && pnpm docs:build && pnpm examples:typecheck && pnpm examples:smoke \
+  && pnpm specs:lint && pnpm docs:build && pnpm examples:typecheck && pnpm examples:conformance \
   && pnpm exec publint && pnpm exec attw --pack --profile esm-only
 ```
 
-Size budget: 48–58 files touched (6 new: `src/testing/index.ts`, `src/testing/transport.ts`, `src/testing/transport.test.ts`, `src/round-trip.test.ts`, `specs/contract-compilation.spec.md`, `specs/wire-serialization.spec.md`); roughly +1,600/−400 lines. Exceeding ~60 files triggers re-scoping — the likeliest overrun is docs, so cut slice 05 scope before cutting protocol work. **6 slices; slices 01–04 are release-blocking, 05–06 can ship as 0.4.1 if time is short.**
+Size budget: 56–66 files touched (6 new: `src/testing/index.ts`, `src/testing/transport.ts`, `src/testing/transport.test.ts`, `src/round-trip.test.ts`, `specs/contract-compilation.spec.md`, `specs/wire-serialization.spec.md`; plus 8 moved or renamed by the smoke relocation and 7 READMEs relinked); roughly +1,600/−400 lines excluding the moves. Exceeding ~60 files triggers re-scoping — the likeliest overrun is docs, so cut slice 05 scope before cutting protocol work. **6 slices; slices 01–04 are release-blocking, 05–06 can ship as 0.4.1 if time is short.**
 
 Baseline before any change (measured 2026-08-12, dirty tree): `lint`, `typecheck`, `test` (88 tests / 11 files), `perf:check` (584/route against an 1,800 budget), `build`, `docs:build`, `examples:typecheck`, `examples:smoke`, `specs:lint`, `publint`, `attw` — **all pass**. Coverage is 87.96% statements / 81.66% branches and is not gated.
 
@@ -169,7 +169,7 @@ None of these should be settled silently in code.
 - **D2 — Empty arrays in GET queries.** No standard wire representation exists. Explicit `validation_error` telling the author to use POST or mark the field optional (consistent with the thesis, mildly annoying) versus omitting the key (`[]` and absent become indistinguishable — a silent lie of exactly the kind this release removes).
 - **D3 — `as const satisfies` and the type budget.** The published 584/route figure is measured on the *non*-`as const` form. If `as const satisfies` becomes the documented style, either the benches change (and the headline number moves) or the budget stops describing the recommended style. Related: whether `defineContract()` is worth a measured bench for 0.5.
 - **D4 — `matchPath` return type.** Making decode failure honest changes a public export's return type from `Record<string, string> | undefined` to a discriminated union. Acceptable breaking change at 0.x, or keep a compatibility overload?
-- **D5 — Coverage gate.** What thresholds, and does CI run `test:coverage` on every PR or nightly? Raising coverage on `client/response.ts` (67%) means asserting some internal messages that are currently free to change.
+- **D5 — Coverage gate.** What thresholds, and does CI run `test:coverage` on every PR or nightly? Raising coverage on `client/response.ts` (67%) means asserting some internal messages that are currently free to change. Note the baseline moves before any threshold is picked: relocating the smoke protocol tests into `src/` raises the measured figure on its own, because those assertions currently run outside the coverage report entirely.
 - **D6 — Semver posture.** 0.4 is breaking for anyone using transforming input schemas, arrays in GET queries, percent-encoded path values, or a status map that only compiled because of literal widening. Ombo (ADR 0015) is the known consumer. Ship as a clean break with migration notes, or add compatibility shims?
 - **D7 — The documented `internal` pattern.** `docs/railway-patterns.md:629` shows `mapErr(() => railError('internal', …))` inside handler pipelines. Removing the `internal` exemption means those messages get wrapped and hidden at `public` — which is the point of the fix, but it invalidates published guidance that people may have copied.
 
@@ -190,7 +190,7 @@ Contested files and their single owner:
 - `src/server/router.ts` → slice 01 (it is pure matching), even though it lives under `server/`. Slice 03 consumes it.
 - `docs/examples.md` → slice 06 only. Slice 05 owns the README examples table instead.
 - `CHANGELOG.md` → slice 05. Every other slice writes its bullet into its final report; slice 05 merges them. The CI gate only needs the file touched once per PR.
-- `package.json`, `pnpm-lock.yaml`, `perf/baseline.json`, `perf/benches/**` → **lead reserved**. Slices request changes; nobody edits. One such request is already known: when slice 01 lands, the lead adds the `./testing` subpath to `exports` and `typesVersions`, then re-runs `publint` and `attw`, which gate the export map.
+- `package.json`, `pnpm-lock.yaml`, `perf/baseline.json`, `perf/benches/**` → **lead reserved**. Slices request changes; nobody edits. Two such requests are already known: when slice 01 lands, the lead adds the `./testing` subpath to `exports` and `typesVersions`, then re-runs `publint` and `attw`, which gate the export map; and when slice 04 lands, the lead renames the `examples:smoke` script to `examples:conformance` and repoints it at the new config path.
 - `src/respond.ts`, `src/status.ts`, `src/index.ts` → **lead reserved** (no planned change; if slice 03 needs one, it asks).
 - `examples/**` beyond the `as const` sweep → the in-flight examples agent. Slice 06 starts only after that work merges.
 
@@ -320,7 +320,7 @@ Steps:
 Acceptance checks:
 
 - `pnpm docs:build`, then grep the built HTML for `href="../examples` — zero matches.
-- `pnpm examples:typecheck` and `pnpm examples:smoke` pass with `as const` applied.
+- `pnpm examples:typecheck` and the conformance suite pass with `as const` applied.
 - Post-merge, every example link on the deployed site returns 200.
 
 ## Simplicity gate
