@@ -10,6 +10,14 @@ result on Express with `toNodeHandler`.
 1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` + `statuses`
 2. [`src/server.ts`](src/server.ts) — handlers, `serve`, Express mount
 
+## Protocol win
+
+Handlers return `Result` — no throw middleware. Each mount returns a user
+object that still includes `passwordHash`; `serve` serialises the **parsed**
+output schema and strips it. Unmatched routes are `route_not_found` (not domain
+`not_found`). Omitted `disclosure` defaults to `public`. See
+[`../smoke/README.md`](../smoke/README.md).
+
 ## What this stack does differently
 
 Express speaks Node's `IncomingMessage` / `ServerResponse`. never-rest speaks

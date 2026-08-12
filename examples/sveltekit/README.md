@@ -10,6 +10,14 @@ How to import a shared contract, write handlers, call `serve`, and forward
 1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` + `statuses`
 2. [`src/hooks.server.ts`](src/hooks.server.ts) — handlers, `serve`, SvelteKit mount
 
+## Protocol win
+
+Handlers return `Result` — no throw middleware. Each mount returns a user
+object that still includes `passwordHash`; `serve` serialises the **parsed**
+output schema and strips it. Unmatched routes are `route_not_found` (not domain
+`not_found`). Omitted `disclosure` defaults to `public`. See
+[`../smoke/README.md`](../smoke/README.md).
+
 ## What this stack does differently
 
 API traffic is handled in `hooks.server.ts`, not a `+server.ts` file. The hook

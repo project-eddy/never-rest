@@ -10,14 +10,18 @@ Hono's Web `Request` straight into never-rest.
 1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` + `statuses`
 2. [`src/server.ts`](src/server.ts) — handlers, `serve`, Hono mount
 
+## Protocol win
+
+Handlers return `Result` — no throw middleware. Each mount returns a user
+object that still includes `passwordHash`; `serve` serialises the **parsed**
+output schema and strips it. Unmatched routes are `route_not_found` (not domain
+`not_found`). Omitted `disclosure` defaults to `public`. See
+[`../smoke/README.md`](../smoke/README.md).
+
 ## What this stack does differently
 
 Hono is Fetch-native. `c.req.raw` is already a Web `Request`, so there is no
 `toNodeHandler` step.
-
-`serve` always validates handler return values against each route's output
-schema and serialises the **parsed** schema value. Mismatches become
-`internal` errors.
 
 ## Run
 

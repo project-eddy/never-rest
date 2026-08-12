@@ -5,12 +5,23 @@ description: Mini projects — shared contract across Express, Next, SvelteKit, 
 
 # Examples
 
-Runnable mini projects live under [`examples/`](../examples/). Read them as four lessons:
+Runnable mini projects live under [`examples/`](../examples/).
 
-1. **Shared contract** — [`packages/shared-contract`](../examples/packages/shared-contract): `usersContract` + `statuses` only
-2. **One framework mount** — each stack imports that contract, writes handlers, calls `serve`, then mounts
-3. **Gateway** — [`gateway`](../examples/gateway): `chain` + graded disclosure
-4. **Validators** — [`validators`](../examples/validators): same contract in Zod, Valibot, and ArkType
+**Thesis:** the contract is law at every HTTP boundary. Handlers return
+`Result`; wire shapes are schema-parsed; host failures are distinct from
+domain failures; clients get an honest `ClientErrorOf` union; disclosure
+defaults to fail-closed (`public`).
+
+Read them as four lessons:
+
+1. **Shared contract** — [`packages/shared-contract`](../examples/packages/shared-contract): `usersContract` + `statuses` only.  
+   **Win:** complete status map = protocol surface (`validation_error` / `internal` / `route_not_found` + domain codes); `unavailable` is client-only.
+2. **One framework mount** — each stack imports that contract, writes handlers, calls `serve`, then mounts.  
+   **Win:** same law mounts anywhere; unmatched path ≠ resource missing; omitted `disclosure` → `public`.
+3. **Gateway** — [`gateway`](../examples/gateway): `chain`, graded disclosure, `ClientErrorOf` / `unavailable`.  
+   **Win:** cross-service honesty without throw middleware.
+4. **Validators** — [`validators`](../examples/validators): same contract in Zod, Valibot, and ArkType.  
+   **Win:** schemas are the wire law (input + always-on parsed output).
 
 | Example | What it shows |
 | --- | --- |
@@ -19,7 +30,7 @@ Runnable mini projects live under [`examples/`](../examples/). Read them as four
 | [Next App Router](../examples/next-app-router) | Catch-all route handlers |
 | [SvelteKit](../examples/sveltekit) | `hooks.server.ts` |
 | [Cloudflare Workers](../examples/cloudflare-workers) | Worker `fetch` handler |
-| [Gateway](../examples/gateway) | `chain` + graded disclosure |
+| [Gateway](../examples/gateway) | `chain`, disclosure, `ClientErrorOf` |
 | [Validators](../examples/validators) | Zod / Valibot / ArkType (Standard Schema) |
 
 Yup is not supported: never-rest requires [Standard Schema](https://standardschema.dev/), which Yup does not implement.

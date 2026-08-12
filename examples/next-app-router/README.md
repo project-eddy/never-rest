@@ -10,6 +10,14 @@ behind a Next catch-all `/api` route (with named `GET` / `POST` / … exports).
 1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` + `statuses`
 2. [`app/api/[...path]/route.ts`](app/api/[...path]/route.ts) — handlers, `serve`, Next mount
 
+## Protocol win
+
+Handlers return `Result` — no throw middleware. Each mount returns a user
+object that still includes `passwordHash`; `serve` serialises the **parsed**
+output schema and strips it. Unmatched routes are `route_not_found` (not domain
+`not_found`). Omitted `disclosure` defaults to `public`. See
+[`../smoke/README.md`](../smoke/README.md).
+
 ## What this stack does differently
 
 Next puts APIs under `/api/…`. The shared contract uses `/users/:id`. This

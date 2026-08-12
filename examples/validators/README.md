@@ -3,6 +3,10 @@
 Same `users` contract rewritten with three Standard Schema libraries.
 `serve` / handlers / status map stay identical — only the schemas change.
 
+**Protocol win.** Standard Schema is not only input: the same schemas define
+the wire output never-rest always parses and serialises. (Parsed-output
+stripping is asserted in `pnpm examples:smoke`.)
+
 | File | Validator |
 | --- | --- |
 | [`src/contracts/zod.ts`](src/contracts/zod.ts) | Zod 4 |
