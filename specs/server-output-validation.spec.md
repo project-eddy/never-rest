@@ -66,3 +66,14 @@ Scenario: Redacting output validation detail at public disclosure
   Then the response status is the declared internal status
   And the serialised error body contains no schema field path segments
 ```
+
+## Unserialisable success falls back to constant internal body
+
+```gherkin
+Scenario: Returning a constant internal body when success output cannot be serialised
+  Given a route with an output schema that accepts a handler value
+  And a handler that returns a value which cannot be JSON-serialised
+  When the route is invoked
+  Then the response status is the declared internal status
+  And the response body is a constant internal JSON envelope
+```

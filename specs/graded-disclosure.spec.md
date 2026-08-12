@@ -131,3 +131,26 @@ Scenario: Redacting cause when serve disclosure is omitted
   Then the response body has no cause property
   And the serialised body matches the response with explicit public disclosure
 ```
+
+## Forged internal is normalised at public disclosure
+
+```gherkin
+Scenario: Hiding handler-forged internal messages at public disclosure
+  Given serve configured without a disclosure option
+  And a handler that returns Err with code "internal" and a sensitive message
+  When the route is invoked
+  Then the response body has code "internal"
+  And the response body message is a generic unexpected-error message
+  But the serialised body contains no substring from the sensitive message
+```
+
+## Disclosure callback failure falls back to public
+
+```gherkin
+Scenario: Completing the request when a disclosure callback throws
+  Given serve configured with a disclosure callback that throws
+  And a handler that returns an undeclared error code
+  When the route is invoked
+  Then the response completes successfully
+  And the response body has no cause property
+```

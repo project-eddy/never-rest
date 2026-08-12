@@ -53,6 +53,30 @@ Scenario: Mapping an unmatched method or path to route_not_found
   But the response body does not have code "not_found"
 ```
 
+## Undecodable path capture uses validation_error
+
+```gherkin
+Scenario: Rejecting undecodable path parameter captures
+  Given a route with a path parameter
+  And an incoming request whose capture has invalid percent-encoding
+  When serve handles the request
+  Then the response status is the declared validation_error status
+  And the response body has code "validation_error"
+  But the response body does not have code "route_not_found"
+```
+
+## Forged internal is normalised like other undeclared codes
+
+```gherkin
+Scenario: Wrapping handler-forged internal errors
+  Given a route that does not declare "internal" among its domain errors
+  And a handler that returns Err with code "internal" and a custom message
+  When serve handles the request
+  Then the response body has code "internal"
+  And the response body message is a generic unexpected-error message
+  And the original handler message is preserved only under cause at full disclosure
+```
+
 ## Custom status map
 
 ```gherkin

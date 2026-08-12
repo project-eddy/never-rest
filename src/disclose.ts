@@ -1,4 +1,4 @@
-import type { RailError, RailIssue } from './error.js';
+import { MAX_CAUSE_DEPTH, type RailError, type RailIssue } from './error.js';
 
 export type Disclosure = 'full' | 'internal' | 'public';
 
@@ -13,11 +13,19 @@ const DIAGNOSTIC_NEXT_STEP_PATTERNS = [
 /** Collect nested cause messages for leakage checks. */
 function collectCauseMessages(error: RailError): string[] {
   const messages: string[] = [];
+  const seen = new WeakSet<RailError>();
   let current = error.cause;
+  let depth = 0;
 
-  while (current !== undefined) {
+  while (
+    current !== undefined &&
+    depth < MAX_CAUSE_DEPTH &&
+    !seen.has(current)
+  ) {
+    seen.add(current);
     messages.push(current.message);
     current = current.cause;
+    depth += 1;
   }
 
   return messages;

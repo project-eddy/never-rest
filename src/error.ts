@@ -1,3 +1,6 @@
+/** Maximum cause-chain depth when walking nested `cause` links. */
+export const MAX_CAUSE_DEPTH = 16;
+
 /** Validation issue mapped from Standard Schema. */
 export interface RailIssue {
   readonly path: readonly (string | number)[];
@@ -39,11 +42,19 @@ export function chain<TCode extends string>(
 /** List each hop in a cause chain, root-first. */
 export function flatten(error: RailError): readonly RailError[] {
   const hops: RailError[] = [];
+  const seen = new WeakSet<RailError>();
   let current: RailError | undefined = error;
+  let depth = 0;
 
-  while (current !== undefined) {
+  while (
+    current !== undefined &&
+    depth <= MAX_CAUSE_DEPTH &&
+    !seen.has(current)
+  ) {
+    seen.add(current);
     hops.push(current);
     current = current.cause;
+    depth += 1;
   }
 
   return hops;

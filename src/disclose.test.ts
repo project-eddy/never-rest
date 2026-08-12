@@ -61,4 +61,24 @@ describe('disclose', () => {
     expect(disclosed.nextStep).toBe('Wait a few minutes and try again');
     expect(JSON.stringify(disclosed)).not.toContain('HIDDEN_DOWNSTREAM_DETAIL');
   });
+
+  it('does not loop on cyclic cause chains when checking leakage', () => {
+    const inner: { cause?: ReturnType<typeof railError> } = railError(
+      'internal',
+      'SECRET_CYCLE_DETAIL',
+    );
+    const outer = chain(
+      {
+        code: 'internal',
+        message: 'Request failed',
+        nextStep: 'SECRET_CYCLE_DETAIL — check logs',
+      },
+      inner as ReturnType<typeof railError>,
+    );
+    inner.cause = outer;
+
+    const disclosed = disclose(outer, 'public');
+    expect(JSON.stringify(disclosed)).not.toContain('SECRET_CYCLE_DETAIL');
+    expect(disclosed.cause).toBeUndefined();
+  });
 });

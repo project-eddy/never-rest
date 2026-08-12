@@ -118,6 +118,20 @@ describe('serve construction', () => {
       ),
     ).toThrow(ContractConfigurationError);
   });
+
+  it('throws ContractConfigurationError when a handler is missing', () => {
+    const { listUsers: _listUsers, ...partialHandlers } = handlers;
+    expect(() =>
+      serve(contract, partialHandlers as Handlers<typeof contract, TestContext>, {
+        statuses,
+      }),
+    ).toThrow(ContractConfigurationError);
+    expect(() =>
+      serve(contract, partialHandlers as Handlers<typeof contract, TestContext>, {
+        statuses,
+      }),
+    ).toThrow('Missing handler for operation "listUsers"');
+  });
 });
 
 describe('serve', () => {
@@ -433,6 +447,230 @@ describe('serve', () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: 'u1', name: 'Ada' });
+  });
+
+  it('wraps forged internal errors with a generic public message', async () => {
+    const secret = 'postgres://admin:secret@db.internal';
+    const handler = createHandler({
+      getUser: () => err(railError('internal', secret) as never),
+    });
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      code: 'internal',
+      message: 'An unexpected error occurred',
+    });
+    expect(JSON.stringify(body)).not.toContain('postgres://');
+  });
+
+  it('preserves forged internal detail at full disclosure', async () => {
+    const secret = 'postgres://admin:secret@db.internal';
+    const handler = createHandler(
+      {
+        getUser: () => err(railError('internal', secret) as never),
+      },
+      { statuses, origin: 'users-api', disclosure: 'full' },
+    );
+    const { body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+    expect(body.code).toBe('internal');
+    expect(body.message).toBe('An unexpected error occurred');
+    expect(body.cause).toMatchObject({
+      code: 'undeclared_handler_error',
+      cause: { code: 'internal', message: secret },
+    });
+  });
+
+  it('still wraps forged validation_error and route_not_found', async () => {
+    const validationHandler = createHandler({
+      getUser: () => err(railError('validation_error', 'forged') as never),
+    });
+    const validation = await call(
+      validationHandler,
+      new Request('http://localhost/users/u1'),
+    );
+    expect(validation.body).toEqual({
+      code: 'internal',
+      message: 'An unexpected error occurred',
+    });
+
+    const routeHandler = createHandler({
+      getUser: () => err(railError('route_not_found', 'forged') as never),
+    });
+    const route = await call(
+      routeHandler,
+      new Request('http://localhost/users/u1'),
+    );
+    expect(route.body).toEqual({
+      code: 'internal',
+      message: 'An unexpected error occurred',
+    });
+  });
+
+  it('returns validation_error when request.text() rejects', async () => {
+    const handler = createHandler();
+    const request = new Request('http://localhost/users', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    });
+    vi.spyOn(request, 'text').mockRejectedValue(new Error('stream aborted'));
+
+    const { response, body } = await call(handler, request);
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('validation_error');
+  });
+
+  it('falls back to public disclosure when the disclosure callback throws', async () => {
+    const handler = createHandler(
+      {
+        getUser: () =>
+          err(railError('conflict', 'Unexpected clash') as never),
+      },
+      {
+        statuses,
+        origin: 'users-api',
+        disclosure: () => {
+          throw new Error('disclosure exploded');
+        },
+      },
+    );
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+    expect(response.status).toBe(500);
+    expect(body.cause).toBeUndefined();
+    expect(body.message).toBe('An unexpected error occurred');
+  });
+
+  it('returns a constant internal body when success output cannot be serialised', async () => {
+    const circularContract = {
+      getCircular: {
+        method: 'GET' as const,
+        path: '/circular',
+        output: z.custom<Record<string, unknown>>(
+          (value) => typeof value === 'object' && value !== null,
+        ),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const circular: Record<string, unknown> = { id: 'u1' };
+    circular.self = circular;
+
+    const handler = serve(
+      circularContract,
+      {
+        getCircular: () => ok(circular),
+      },
+      { statuses, origin: 'users-api' },
+    );
+
+    const response = await handler(
+      new Request('http://localhost/circular'),
+      { requestId: 'req-1' },
+    );
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(response.status).toBe(500);
+    expect(body).toEqual({
+      code: 'internal',
+      message: 'An unexpected error occurred',
+    });
+  });
+
+  it('returns a bounded response for cyclic handler error causes', async () => {
+    const inner: { cause?: ReturnType<typeof railError> } = railError(
+      'internal',
+      'leaf',
+    );
+    const middle = railError('internal', 'middle', {
+      cause: inner as ReturnType<typeof railError>,
+    });
+    inner.cause = middle;
+
+    const handler = createHandler(
+      {
+        getUser: () => err(railError('not_found', 'Missing', { cause: middle })),
+      },
+      { statuses, origin: 'users-api', disclosure: 'full' },
+    );
+
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+    expect(response.status).toBe(404);
+    expect(body.code).toBe('not_found');
+    expect(body.cause).toBeDefined();
+  });
+
+  it('returns validation_error for undecodable path captures', async () => {
+    const handler = createHandler();
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/%zz'),
+    );
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('validation_error');
+  });
+
+  it('reads repeated k[] query keys back into arrays', async () => {
+    const tagsContract = {
+      listTags: {
+        method: 'GET' as const,
+        path: '/tags',
+        input: z.object({ tags: z.array(z.string()) }),
+        output: z.object({ tags: z.array(z.string()) }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const handler = serve(
+      tagsContract,
+      {
+        listTags: ({ input }) => ok({ tags: input.tags }),
+      },
+      { statuses, origin: 'users-api' },
+    );
+
+    const response = await handler(
+      new Request('http://localhost/tags?tags[]=a&tags[]=b'),
+      { requestId: 'req-1' },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ tags: ['a', 'b'] });
+  });
+
+  it('reads a single k[] query key as a one-element array', async () => {
+    const tagsContract = {
+      listTags: {
+        method: 'GET' as const,
+        path: '/tags',
+        input: z.object({ tags: z.array(z.string()) }),
+        output: z.object({ tags: z.array(z.string()) }),
+        errors: [],
+      },
+    } satisfies ContractDef;
+
+    const handler = serve(
+      tagsContract,
+      {
+        listTags: ({ input }) => ok({ tags: input.tags }),
+      },
+      { statuses, origin: 'users-api' },
+    );
+
+    const response = await handler(
+      new Request('http://localhost/tags?tags[]=a'),
+      { requestId: 'req-1' },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ tags: ['a'] });
   });
 });
 

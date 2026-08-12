@@ -68,6 +68,16 @@ Scenario: Preserving a three-deep chain through JSON serialisation
   And the leaf message is still "bottom"
 ```
 
+## Cyclic cause chains are bounded
+
+```gherkin
+Scenario: Flattening a cyclic cause chain without looping
+  Given a RailError whose cause chain eventually points back to an ancestor
+  When flatten is called on the root error
+  Then the result is a non-empty bounded list of hops
+  And the call completes without hanging
+```
+
 ## Origin stamping on serve
 
 ```gherkin

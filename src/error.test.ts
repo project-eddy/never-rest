@@ -57,6 +57,21 @@ describe('flatten', () => {
     const error = railError('not_found', 'missing');
     expect(flatten(error)).toEqual([error]);
   });
+
+  it('stops at cyclic cause chains', () => {
+    const inner: { cause?: ReturnType<typeof railError> } = railError(
+      'internal',
+      'inner',
+    );
+    const outer = railError('internal', 'outer', {
+      cause: inner as ReturnType<typeof railError>,
+    });
+    inner.cause = outer;
+
+    const hops = flatten(outer);
+    expect(hops.length).toBeGreaterThan(0);
+    expect(hops.length).toBeLessThanOrEqual(17);
+  });
 });
 
 describe('formatChain', () => {
