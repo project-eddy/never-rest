@@ -7,6 +7,15 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `isContractPath` on `@eddy-works/never-rest/contract` — membership check from compiled matchers so shared-process hosts (SvelteKit hooks, Workers) dispatch without hand-copying paths.
+- `checkContractOutputs` on `@eddy-works/never-rest/testing` — transport-stability check for every contract output; omitting an operation is a type error.
+
+### Internal
+
+- Type-test files (`*.test-d.ts`) are excluded from the published build.
+
 ## [0.4.0] - 2026-08-12
 
 ### Added

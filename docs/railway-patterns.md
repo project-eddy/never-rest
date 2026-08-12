@@ -90,6 +90,8 @@ neverthrow: [map](https://supermacro-neverthrow-22.mintlify.app/api/result/map).
 
 Do not `mapErr` into `internal` (or other reserved wire codes) inside handler pipelines expecting that message on the public wire — reserved codes are host-owned and normalised at disclosure. Use a domain code on the route's `errors` array; put downstream detail under `cause` for `full` disclosure.
 
+Unexpected faults with no declared domain code should **throw**. `serve()` catches them and returns wire `internal`. Do not export a helper that returns `railError('internal', message)` — that message never reaches a `public` caller.
+
 ```ts
 billing.createCustomer(input).mapErr((e) =>
   e.code === 'card_declined'
@@ -248,6 +250,33 @@ return result.match(
 ```
 
 Inside never-rest, `respond` / `serve` are the framework’s terminate step: `Result` in, status + body out. Handlers should stay on the railway until that edge.
+
+UI libraries that insist on thrown errors (TanStack Query, Svelte Query) are a terminate step too. Unwrap at that boundary and honour `retryable` so `unavailable` can retry:
+
+```ts
+async function unwrapResult<T>(
+  result: ResultAsync<T, RailError>,
+): Promise<T> {
+  return result.match(
+    (value) => value,
+    (error) => {
+      throw Object.assign(new Error(error.message), {
+        code: error.code,
+        retryable: error.retryable === true,
+      });
+    },
+  );
+}
+
+// Query: retry when the client marked the failure retryable.
+retry: (count, error) =>
+  error instanceof Error &&
+  'retryable' in error &&
+  error.retryable === true &&
+  count < 3,
+```
+
+The library does not ship a Query adapter. `unavailable` already sets `retryable: true` on network failure.
 
 neverthrow: [match](https://supermacro-neverthrow-22.mintlify.app/api/result/match), [unwrapOr](https://supermacro-neverthrow-22.mintlify.app/api/result/unwrap-or). ROP: [dead-end functions](https://fsharpforfunandprofit.com/posts/recipe-part2/).
 

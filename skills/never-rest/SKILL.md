@@ -34,20 +34,24 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | When is an error `retryable`? | [errors-as-intelligence.md — Retryable](docs/errors-as-intelligence.md#retryable) |
 | How do I define a contract? | [api.md — ContractDef](docs/api.md#contractdef) · [api.md — RouteDef](docs/api.md#routedef) |
 | How do I type input/output/errors for a route? | [api.md — ClientInputOf](docs/api.md#clientinputof) · [HandlerInputOf](docs/api.md#handlerinputof) · [OutputOf](docs/api.md#outputof) · [ErrorOf](docs/api.md#errorof) · [ClientErrorOf](docs/api.md#clienterrorof) |
-| How do I prove an output schema is transport-stable? | [api.md — checkTransportStability](docs/api.md#checktransportstability) · [migrating.md — Output schemas](docs/migrating.md#output-schemas--transport-stability) |
+| How do I name a client input type from the contract? | [api.md — ClientInputOf](docs/api.md#clientinputof) |
+| How do I prove an output schema is transport-stable? | [api.md — checkTransportStability](docs/api.md#checktransportstability) · [api.md — checkContractOutputs](docs/api.md#checkcontractoutputs) · [migrating.md — Output schemas](docs/migrating.md#output-schemas--transport-stability) |
 | What error codes can the client return? | [api.md — ClientErrorOf](docs/api.md#clienterrorof) · [specs/client-results.spec.md](specs/client-results.spec.md) |
 | What must a server status map include? | [api.md — ServeStatusMap](docs/api.md#servestatusmap) · [migrating.md — Server status map](docs/migrating.md#server-status-map) |
 | What happens on unmatched routes? | [api.md — serve](docs/api.md#serve) · [specs/status-mapping.spec.md](specs/status-mapping.spec.md) (`route_not_found`) |
 | How does output validation work on the server? | [api.md — serve](docs/api.md#serve) · [specs/server-output-validation.spec.md](specs/server-output-validation.spec.md) |
 | How does validation work? | [api.md — parseInput](docs/api.md#parseinput) · [concepts.md — Errors as data](docs/concepts.md#errors-as-data) |
-| How do I compile or match route paths? | [api.md — compileContract](docs/api.md#compilecontract) · [compilePath](docs/api.md#compilepath) · [matchPath](docs/api.md#matchpath) · [normalizePath](docs/api.md#normalizepath) · [compileRoutes](docs/api.md#compileroutes) · [matchRoute](docs/api.md#matchroute) |
+| How do I compile or match route paths? | [api.md — compileContract](docs/api.md#compilecontract) · [isContractPath](docs/api.md#iscontractpath) · [compilePath](docs/api.md#compilepath) · [matchPath](docs/api.md#matchpath) · [normalizePath](docs/api.md#normalizepath) · [compileRoutes](docs/api.md#compileroutes) · [matchRoute](docs/api.md#matchroute) |
 | What path patterns are supported? | [api.md — compilePath](docs/api.md#compilepath) (exact segments, single `:param`; static before dynamic) |
+| Migrate from 0.4.0? | [migrating.md — Upgrading from 0.4.0](docs/migrating.md#upgrading-from-040) |
 | Migrate from 0.3.0? | [migrating.md — Upgrading from 0.3.0](docs/migrating.md#upgrading-from-030) |
 | How do I implement a handler? | [api.md — Handler](docs/api.md#handler) · [api.md — Handlers](docs/api.md#handlers) |
 | How do I expose the server on fetch? | [api.md — serve](docs/api.md#serve) |
+| How do I mount next to pages or another router? | [api.md — isContractPath](docs/api.md#iscontractpath) · [migrating.md — Shared-process mounting](docs/migrating.md#shared-process-mounting) · [examples/sveltekit](examples/sveltekit) |
 | How do I mount on Node http / Express? | [api.md — toNodeHandler](docs/api.md#tonodehandler) · [examples/express](examples/express) |
 | Where are runnable framework examples? | [examples/README.md](examples/README.md) · [docs/examples.md](docs/examples.md) |
 | How do I create a typed client? | [api.md — createClient](docs/api.md#createclient) |
+| How do I use the client with TanStack Query? | [railway-patterns.md — Terminate](docs/railway-patterns.md#terminate--dead-end) · [errors-as-intelligence.md — Retryable](docs/errors-as-intelligence.md#retryable) |
 | How do I chain client calls with neverthrow? | [api.md — Client](docs/api.md#client) · [specs/client-results.spec.md](specs/client-results.spec.md) → `src/client/create.test.ts` |
 | What does the client do on network failure? | [api.md — createClient](docs/api.md#createclient) · [specs/client-results.spec.md](specs/client-results.spec.md) |
 | Type instantiation budget and ts-rest comparison? | [README.md — Type budget](README.md#type-budget) · [docs/performance.md](docs/performance.md) · [comparison.md](docs/comparison.md) |
@@ -79,6 +83,7 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | `RouteDef` | `./contract` | [api.md#routedef](docs/api.md#routedef) |
 | `ContractDef` | `./contract` | [api.md#contractdef](docs/api.md#contractdef) |
 | `compileContract` | `./contract` | [api.md#compilecontract](docs/api.md#compilecontract) |
+| `isContractPath` | `./contract` | [api.md#iscontractpath](docs/api.md#iscontractpath) |
 | `ContractConfigurationError` | `./contract` | [api.md#contractconfigurationerror](docs/api.md#contractconfigurationerror) |
 | `assertHandlersComplete` | `./contract` | [api.md#asserthandlerscomplete](docs/api.md#asserthandlerscomplete) |
 | `ClientInputOf` | `./contract` | [api.md#clientinputof](docs/api.md#clientinputof) |
@@ -108,6 +113,8 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | `Client` | `./client` | [api.md#client](docs/api.md#client) |
 | `createClient` | `./client` | [api.md#createclient](docs/api.md#createclient) |
 | `checkTransportStability` | `./testing` | [api.md#checktransportstability](docs/api.md#checktransportstability) |
+| `checkContractOutputs` | `./testing` | [api.md#checkcontractoutputs](docs/api.md#checkcontractoutputs) |
+| `ContractOutputSamples` | `./testing` | [api.md#checkcontractoutputs](docs/api.md#checkcontractoutputs) |
 | `toNodeHandler` | `./node` | [api.md#tonodehandler](docs/api.md#tonodehandler) |
 | `FetchHandler` | `./node` | [api.md#fetchhandler](docs/api.md#fetchhandler) |
 | `NodeHttpHandler` | `./node` | [api.md#nodehttphandler](docs/api.md#nodehttphandler) |
@@ -121,6 +128,6 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | [specs/cause-chaining.spec.md](specs/cause-chaining.spec.md) | Downstream bubble, `origin`, serialisation | `src/error.test.ts`, `src/server/serve.test.ts` |
 | [specs/client-results.spec.md](specs/client-results.spec.md) | `Ok` / `Err` mapping, `ClientErrorOf`, retryable network | `src/client/create.test.ts` |
 | [specs/server-output-validation.spec.md](specs/server-output-validation.spec.md) | Always-on parsed output serialisation | `src/server/serve.test.ts` |
-| [specs/contract-compilation.spec.md](specs/contract-compilation.spec.md) | `compileContract`, path decode, handler completeness | `src/contract/compile.test.ts`, `src/contract/path.test.ts`, `src/server/serve.test.ts` |
+| [specs/contract-compilation.spec.md](specs/contract-compilation.spec.md) | `compileContract`, path decode, handler completeness, `isContractPath` | `src/contract/compile.test.ts`, `src/contract/path.test.ts`, `src/server/serve.test.ts` |
 | [specs/wire-serialization.spec.md](specs/wire-serialization.spec.md) | Client path/query wire encoding | `src/client/create.test.ts` |
 | [specs/README.md](specs/README.md) | `pnpm specs:extract` | — |

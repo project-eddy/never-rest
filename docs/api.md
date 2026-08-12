@@ -257,6 +257,30 @@ function compileContract<TContract extends ContractDef>(
 
 Validates the contract once at `serve` / `createClient` construction. Rejects duplicate literal paths, trailing-slash aliases, duplicate compiled matchers (for example `/users/:id` and `/users/:userId`), duplicate path parameter names within a route, reserved domain error codes, and duplicate error codes within a route. Throws `ContractConfigurationError` naming the conflicting operations.
 
+### `isContractPath`
+
+```ts
+function isContractPath(
+  compiled: CompiledContract<ContractDef>,
+  pathname: string,
+): boolean;
+```
+
+True when `pathname` matches any compiled route, regardless of method. Uses compiled `matchPath` matchers — not a `Set` of template strings — so `/users/:id` matches `/users/ada`. Malformed percent-encoding (`invalid_encoding`) still counts as a match so the host dispatches to `serve`, which returns `validation_error`.
+
+Use this in shared-process hosts (SvelteKit `hooks.server.ts`, Workers) that must decide “ours vs a page / another router” before calling `serve`. `serve` always returns a `Response`, including JSON `route_not_found` for unmatched paths, so calling it for every request would steal non-contract traffic.
+
+```ts
+import { compileContract, isContractPath } from '@eddy-works/never-rest/contract';
+
+const compiled = compileContract(contract);
+const handler = serve(contract, handlers, { statuses });
+
+if (isContractPath(compiled, url.pathname)) {
+  return handler(request, context);
+}
+```
+
 ### `ContractConfigurationError`
 
 Thrown when `compileContract` finds an invalid contract. Fix the contract or status map before construction proceeds.
@@ -281,7 +305,11 @@ type ClientInputOf<TRoute extends RouteDef> =
     : undefined;
 ```
 
-Wire-shaped input for `createClient` callers — use `InferInput` so transforms and coerces type correctly on each side.
+Wire-shaped input for `createClient` callers — use `InferInput` so transforms and coerces type correctly on each side. Prefer a named alias from the contract over `z.input<typeof schema>`:
+
+```ts
+export type CreateUserInput = ClientInputOf<(typeof contract)['createUser']>;
+```
 
 ### `HandlerInputOf`
 
@@ -367,7 +395,7 @@ function parseOutput<TRoute extends RouteDef>(
 
 Parse a handler success value through the route output schema. `serve` serialises the **parsed** value — not the handler's raw return.
 
-**Transport stability:** the client re-parses the JSON body with the same schema. Output schemas must survive parse → `JSON.stringify` → `JSON.parse` → parse with equal values. Type-changing transforms (for example `z.number().transform(String)`) break the client. Prove compliance in tests with [`checkTransportStability`](#checktransportstability) from `./testing`.
+**Transport stability:** the client re-parses the JSON body with the same schema. Output schemas must survive parse → `JSON.stringify` → `JSON.parse` → parse with equal values. Type-changing transforms (for example `z.number().transform(String)`) break the client. Prove compliance in tests with [`checkContractOutputs`](#checkcontractoutputs) (every operation) or [`checkTransportStability`](#checktransportstability) from `./testing`.
 
 ### `CompiledPath`
 
@@ -641,6 +669,26 @@ result.isOk(); // true when transport-stable
 ```
 
 Fails for schemas whose transforms change the wire shape — for example `z.number().transform(String)`.
+
+### `checkContractOutputs`
+
+```ts
+function checkContractOutputs<TContract extends ContractDef>(
+  contract: TContract,
+  samples: ContractOutputSamples<TContract>,
+): ResultAsync<void, RailError<'transport_unstable'>>;
+```
+
+Run `checkTransportStability` on every contract output. The `samples` object must include one value per operation — omitting a key is a type error.
+
+```ts
+import { checkContractOutputs } from '@eddy-works/never-rest/testing';
+
+const result = await checkContractOutputs(contract, {
+  getUser: { id: 'u1', name: 'Ada' },
+  listUsers: [{ id: 'u1', name: 'Ada' }],
+});
+```
 
 ---
 

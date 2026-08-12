@@ -88,6 +88,8 @@ HTTP status is not embedded in the error. Consumers supply a `StatusMap` and `st
 
 Route matching uses `compileRoutes` / `matchRoute` (via `./server`), built on `compileContract`, `compilePath`, and `matchPath`: exact segments and single `:param` placeholders, **declaration order**. Static segments win over dynamic ones in the same position — declare `GET /users/me` before `GET /users/:id` so `me` is not captured as an id. That overlap is intentional; `compileContract` does not reject it. It does reject duplicate compiled matchers (for example `/users/:id` and `/users/:userId` on the same method), trailing-slash aliases, and duplicate parameter names within one path. Unmatched method or path → host code `route_not_found` (not domain `not_found`). Path captures are percent-decoded; malformed encoding → `validation_error`.
 
+Shared-process hosts (SvelteKit hooks, Workers) that must not send every request to `serve` should call [`isContractPath`](./api.md#iscontractpath) on the compiled contract instead of a prefix heuristic or a hand-copied path list.
+
 ### Trust boundary at the edge
 
 Reserved wire codes (`internal`, `validation_error`, `route_not_found`, `unavailable`) are host-owned. A handler cannot put an attacker-visible string on the public wire by returning a forged reserved code — undeclared and reserved codes are normalised to wire `internal` with diagnostics under `cause`, and `public` disclosure shows a constant top-level message. Put actionable detail in declared domain codes and `nextStep`; reserve `cause` for trusted callers at `full` disclosure.

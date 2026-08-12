@@ -2,6 +2,7 @@ import type { Handle } from '@sveltejs/kit';
 import { err, ok } from 'neverthrow';
 
 import { railError } from '@eddy-works/never-rest';
+import { compileContract, isContractPath } from '@eddy-works/never-rest/contract';
 import { serve, type Handlers } from '@eddy-works/never-rest/server';
 import {
   statuses,
@@ -78,13 +79,12 @@ const usersApi = serve(usersContract, usersHandlers, {
   origin: 'sveltekit-demo',
 });
 
-function isApiPath(pathname: string): boolean {
-  return pathname === '/users' || pathname.startsWith('/users/');
-}
+const compiledUsers = compileContract(usersContract);
 
-// Intercept /users* here (instead of +server.ts) so one place covers every verb/path.
+// Dispatch from compiled paths — not a `/users*` prefix, which would steal
+// unrelated routes such as `/users/export`.
 export const handle: Handle = async ({ event, resolve }) => {
-  if (isApiPath(event.url.pathname)) {
+  if (isContractPath(compiledUsers, event.url.pathname)) {
     return usersApi(event.request, undefined);
   }
   return resolve(event);

@@ -4,6 +4,7 @@ import {
   assertHandlersComplete,
   compileContract,
   ContractConfigurationError,
+  isContractPath,
 } from './compile.js';
 import type { ContractDef } from './types.js';
 
@@ -172,5 +173,39 @@ describe('assertHandlersComplete', () => {
         getUser: async () => {},
       }),
     ).not.toThrow();
+  });
+});
+
+describe('isContractPath', () => {
+  const contract = {
+    getUser: baseRoute,
+    listUsers: {
+      ...baseRoute,
+      path: '/users',
+    },
+    createUser: {
+      ...baseRoute,
+      method: 'POST' as const,
+      path: '/users',
+    },
+  } satisfies ContractDef;
+
+  const compiled = compileContract(contract);
+
+  it('matches a parameterized contract path', () => {
+    expect(isContractPath(compiled, '/users/ada')).toBe(true);
+  });
+
+  it('matches a static path shared by two methods', () => {
+    expect(isContractPath(compiled, '/users')).toBe(true);
+  });
+
+  it('rejects a path that is not on the contract', () => {
+    expect(isContractPath(compiled, '/sign-in')).toBe(false);
+    expect(isContractPath(compiled, '/users/ada/settings')).toBe(false);
+  });
+
+  it('treats invalid percent-encoding as a contract path', () => {
+    expect(isContractPath(compiled, '/users/%zz')).toBe(true);
   });
 });

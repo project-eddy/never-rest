@@ -17,6 +17,8 @@ codes within a route all throw `ContractConfigurationError` naming the
 conflicting operations. `assertHandlersComplete` ensures every operation key
 maps to a function handler. `matchPath` decodes path captures safely and returns
 `invalid_encoding` instead of throwing on malformed percent sequences.
+`isContractPath` reports whether a pathname matches any compiled route so a
+shared-process host can dispatch without duplicating the path list.
 
 ## Duplicate compiled matchers are rejected
 
@@ -80,4 +82,31 @@ Scenario: Rejecting a non-function handler value
   When assertHandlersComplete is called
   Then ContractConfigurationError is thrown
   And the error names operation "getUser"
+```
+
+## Parameterized paths belong to the contract
+
+```gherkin
+Scenario: Matching a parameterized contract path
+  Given a compiled contract with GET /users/:id
+  When isContractPath is called with pathname /users/ada
+  Then the result is true
+```
+
+## Unrelated paths do not belong to the contract
+
+```gherkin
+Scenario: Rejecting a path that is not on the contract
+  Given a compiled contract with GET /users/:id and GET /users
+  When isContractPath is called with pathname /sign-in
+  Then the result is false
+```
+
+## Invalid encoding still belongs to the contract
+
+```gherkin
+Scenario: Treating invalid percent-encoding as a contract path
+  Given a compiled contract with GET /users/:id
+  When isContractPath is called with pathname /users/%zz
+  Then the result is true
 ```

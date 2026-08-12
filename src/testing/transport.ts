@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { errAsync, okAsync, ResultAsync } from 'neverthrow';
+import type { ContractDef } from '../contract/types.js';
 import { railError, type RailError } from '../error.js';
 import { parseSchema } from '../contract/parse.js';
 
@@ -72,4 +73,31 @@ export function checkTransportStability<T extends StandardSchemaV1>(
           return okAsync(undefined);
         });
     });
+}
+
+/** One sample per contract operation, typed as that route's output input shape. */
+export type ContractOutputSamples<TContract extends ContractDef> = {
+  readonly [K in keyof TContract]: StandardSchemaV1.InferInput<
+    TContract[K]['output']
+  >;
+};
+
+/**
+ * Run `checkTransportStability` on every contract output schema.
+ * Omitting an operation is a type error.
+ */
+export function checkContractOutputs<TContract extends ContractDef>(
+  contract: TContract,
+  samples: ContractOutputSamples<TContract>,
+): ResultAsync<void, RailError<'transport_unstable'>> {
+  const operations = Object.keys(contract) as (keyof TContract & string)[];
+  const checks = operations.map((operation) =>
+    checkTransportStability(
+      contract[operation].output,
+      samples[operation],
+    ).mapErr((error) =>
+      transportUnstable(`Operation "${operation}": ${error.message}`, error),
+    ),
+  );
+  return ResultAsync.combine(checks).map(() => undefined);
 }

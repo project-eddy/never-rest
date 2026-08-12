@@ -1,1 +1,5 @@
-export { checkTransportStability } from './transport.js';
+export {
+  checkContractOutputs,
+  checkTransportStability,
+  type ContractOutputSamples,
+} from './transport.js';

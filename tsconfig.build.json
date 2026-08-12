@@ -3,5 +3,10 @@
   "compilerOptions": {
     "noEmit": false
   },
-  "exclude": ["**/*.test.ts", "specs/**", "perf/**"]
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.test-d.ts",
+    "specs/**",
+    "perf/**"
+  ]
 }

@@ -2,8 +2,8 @@
 
 ## What you will learn
 
-How to import a shared contract, write handlers, call `serve`, and forward
-`/users*` from `hooks.server.ts`.
+How to import a shared contract, write handlers, call `serve`, and dispatch
+from compiled contract paths in `hooks.server.ts` (`isContractPath`).
 
 ## Read in this order
 
@@ -21,8 +21,9 @@ output schema and strips it. Unmatched routes are `route_not_found` (not domain
 ## What this stack does differently
 
 API traffic is handled in `hooks.server.ts`, not a `+server.ts` file. The hook
-forwards `/users` and `/users/…` to never-rest and lets other paths render as
-normal pages. `event.request` is already a Web `Request`.
+uses `isContractPath` on the compiled contract so only those pathnames reach
+never-rest; other paths render as normal pages. A `/users*` prefix would steal
+unrelated routes. `event.request` is already a Web `Request`.
 
 ## Run
 

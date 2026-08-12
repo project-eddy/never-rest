@@ -5,6 +5,32 @@ description: Move from ts-rest, oRPC, or throwing handlers to never-rest Result 
 
 # Migrating
 
+## Upgrading from 0.4.0
+
+### Shared-process mounting
+
+`serve()` always returns a `Response`, including JSON `route_not_found` for unmatched paths. Hosts that share a fetch pipeline with pages or another router (SvelteKit hooks, Workers) should gate on `isContractPath` from `compileContract` rather than a hand-copied path list or a prefix heuristic:
+
+```ts
+import { compileContract, isContractPath } from '@eddy-works/never-rest/contract';
+
+const compiled = compileContract(contract);
+
+if (isContractPath(compiled, url.pathname)) {
+  return handler(request, context);
+}
+```
+
+### Contract-wide transport checks
+
+Prefer `checkContractOutputs(contract, samples)` over calling `checkTransportStability` per schema. Omitting an operation is a type error.
+
+### Unexpected handler faults
+
+Do not return `railError('internal', …)` from a handler — that message is stripped at `public` disclosure. Throw, or map to a **declared** domain code. `serve()` catches throws and returns wire `internal`.
+
+---
+
 ## Upgrading from 0.3.0
 
 ### Contract style — `as const`
@@ -48,18 +74,21 @@ The server reads `k[]` keys back into arrays.
 
 Handler `Err` values whose `code` is not on the route's `errors` array — including forged `internal`, `validation_error`, and `route_not_found` — are normalised to wire `internal` with the original error under `cause`. At default `public` disclosure the top-level message is a constant; diagnostics are visible at `full` disclosure only.
 
-Do not `mapErr` into `internal` inside handler pipelines expecting that message on the public wire — use a **declared domain code** instead (see [railway-patterns.md — Translate](./railway-patterns.md#translate-maperr)). The client mirrors this: unknown remote codes become `internal` with a constant message and the remote error preserved as `cause`.
+Do not `mapErr` into `internal` inside handler pipelines expecting that message on the public wire — use a **declared domain code** instead (see [railway-patterns.md — Translate](./railway-patterns.md#translate-maperr)). Unexpected faults with no domain code should throw; `serve()` catches them. The client mirrors this: unknown remote codes become `internal` with a constant message and the remote error preserved as `cause`.
 
 ### Output schemas — transport stability
 
 Output validation parses handler output, serialises the parsed value, and the client re-parses the JSON with the same schema. Schemas whose transforms change the wire shape (for example `z.number().transform(String)`) fail on the client after a successful server response. Output schemas must be **transport-stable**: parse → `JSON.stringify` → `JSON.parse` → parse again must yield an equal value.
 
-Prove compliance in tests with `checkTransportStability` from `@eddy-works/never-rest/testing`:
+Prove compliance in tests with `checkContractOutputs` (every operation) or `checkTransportStability` (one schema) from `@eddy-works/never-rest/testing`:
 
 ```ts
-import { checkTransportStability } from '@eddy-works/never-rest/testing';
+import { checkContractOutputs } from '@eddy-works/never-rest/testing';
 
-await checkTransportStability(userSchema, { id: 'u1', name: 'Ada' });
+await checkContractOutputs(contract, {
+  getUser: { id: 'u1', name: 'Ada' },
+  listUsers: [{ id: 'u1', name: 'Ada' }],
+});
 ```
 
 ### Construction-time validation

@@ -44,6 +44,8 @@ if (result.isErr() && result.error.retryable) {
 }
 ```
 
+TanStack Query (and similar) throw at the UI boundary. Map `error.retryable` onto the Query `retry` option rather than retrying every failure — see [railway-patterns.md — Terminate](./railway-patterns.md#terminate--dead-end).
+
 ## Gateway composition
 
 A gateway handler calls a downstream never-rest service, receives a JSON `RailError`, and wraps it with `chain`:

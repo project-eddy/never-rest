@@ -1,4 +1,4 @@
-import { compilePath, normalizePath, type CompiledPath } from './path.js';
+import { compilePath, matchPath, normalizePath, type CompiledPath } from './path.js';
 import type { ContractDef, RouteDef } from './types.js';
 
 export const RESERVED_ERROR_CODES = [
@@ -37,6 +37,23 @@ export interface CompiledContract<TContract extends ContractDef> {
   readonly routes: {
     readonly [K in keyof TContract]: CompiledRouteEntry<TContract[K]>;
   };
+}
+
+/**
+ * True when `pathname` matches any compiled route, regardless of method.
+ * `invalid_encoding` counts as a match so the host still dispatches to `serve`.
+ */
+export function isContractPath(
+  compiled: CompiledContract<ContractDef>,
+  pathname: string,
+): boolean {
+  for (const entry of Object.values(compiled.routes)) {
+    const pathMatch = matchPath(entry.compiledPath, pathname);
+    if (pathMatch.kind !== 'miss') {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Ensure every compiled operation key maps to a handler function. */

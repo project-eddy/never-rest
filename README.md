@@ -29,11 +29,11 @@ pnpm add @eddy-works/never-rest neverthrow
 | Module | Key exports |
 | --- | --- |
 | `@eddy-works/never-rest` | `RailError`, `railError`, `chain`, `flatten`, `formatChain`, `statusFor`, `toDeclaredResponse`, `disclose`, `respond` |
-| `@eddy-works/never-rest/contract` | `RouteDef`, `ContractDef`, `ClientInputOf`, `HandlerInputOf`, `InputOf` (deprecated), `OutputOf`, `ErrorOf`, `ClientErrorOf`, `ServerErrorOf`, `parseInput`, `parseOutput`, `compileContract`, `compilePath`, `matchPath`, `normalizePath`, `assertHandlersComplete`, `ContractConfigurationError` |
+| `@eddy-works/never-rest/contract` | `RouteDef`, `ContractDef`, `ClientInputOf`, `HandlerInputOf`, `InputOf` (deprecated), `OutputOf`, `ErrorOf`, `ClientErrorOf`, `ServerErrorOf`, `parseInput`, `parseOutput`, `compileContract`, `isContractPath`, `compilePath`, `matchPath`, `normalizePath`, `assertHandlersComplete`, `ContractConfigurationError` |
 | `@eddy-works/never-rest/server` | `serve`, `Handler`, `Handlers`, `compileRoutes`, `matchRoute` |
 | `@eddy-works/never-rest/client` | `createClient`, `Client`, `ClientOptions` |
 | `@eddy-works/never-rest/node` | `toNodeHandler`, `FetchHandler`, `NodeHttpHandler` |
-| `@eddy-works/never-rest/testing` | `checkTransportStability` |
+| `@eddy-works/never-rest/testing` | `checkTransportStability`, `checkContractOutputs` |
 
 ## The problem
 

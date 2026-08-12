@@ -15,6 +15,7 @@ export {
   assertHandlersComplete,
   compileContract,
   ContractConfigurationError,
+  isContractPath,
   type CompiledContract,
   type CompiledRouteEntry,
 } from './compile.js';

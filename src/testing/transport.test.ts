@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { checkTransportStability } from './transport.js';
+import type { ContractDef } from '../contract/types.js';
+import { checkContractOutputs, checkTransportStability } from './transport.js';
 
 describe('checkTransportStability', () => {
   it('passes for an ISO-string-to-Date schema', async () => {
@@ -23,6 +24,65 @@ describe('checkTransportStability', () => {
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
       expect(result.error.code).toBe('transport_unstable');
+    }
+  });
+});
+
+const userSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
+const stableContract = {
+  getUser: {
+    method: 'GET' as const,
+    path: '/users/:id',
+    output: userSchema,
+    errors: ['not_found'] as const,
+  },
+  listUsers: {
+    method: 'GET' as const,
+    path: '/users',
+    output: z.array(userSchema),
+    errors: [] as const,
+  },
+} as const satisfies ContractDef;
+
+describe('checkContractOutputs', () => {
+  it('passes when every operation sample is transport-stable', async () => {
+    const result = await checkContractOutputs(stableContract, {
+      getUser: { id: 'u1', name: 'Ada' },
+      listUsers: [{ id: 'u1', name: 'Ada' }],
+    });
+
+    expect(result.isOk()).toBe(true);
+  });
+
+  it('fails naming the unstable operation', async () => {
+    const unstableContract = {
+      getUser: {
+        method: 'GET' as const,
+        path: '/users/:id',
+        output: userSchema,
+        errors: ['not_found'] as const,
+      },
+      getScore: {
+        method: 'GET' as const,
+        path: '/score',
+        output: z.number().transform(String),
+        errors: [] as const,
+      },
+    } as const satisfies ContractDef;
+
+    const result = await checkContractOutputs(unstableContract, {
+      getUser: { id: 'u1', name: 'Ada' },
+      getScore: 42,
+    });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('transport_unstable');
+      expect(result.error.message).toContain('getScore');
     }
   });
 });
