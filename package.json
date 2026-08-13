@@ -34,6 +34,14 @@
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js"
+    },
+    "./openapi": {
+      "types": "./dist/openapi/index.d.ts",
+      "import": "./dist/openapi/index.js"
+    },
+    "./query": {
+      "types": "./dist/query/index.d.ts",
+      "import": "./dist/query/index.js"
     }
   },
   "scripts": {
@@ -107,6 +115,12 @@
       ],
       "testing": [
         "./dist/testing/index.d.ts"
+      ],
+      "openapi": [
+        "./dist/openapi/index.d.ts"
+      ],
+      "query": [
+        "./dist/query/index.d.ts"
       ]
     }
   }
