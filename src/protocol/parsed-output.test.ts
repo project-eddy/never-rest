@@ -10,7 +10,6 @@ import { serve, type Handlers } from '../server/serve.js';
 import {
   isRecord,
   protocolContract,
-  protocolStatuses,
 } from './fixture.js';
 
 describe('protocol: parsed output', () => {
@@ -24,7 +23,6 @@ describe('protocol: parsed output', () => {
         }),
     };
     const api = serve(protocolContract, handlers, {
-      statuses: protocolStatuses,
       origin: 'protocol-smoke',
     });
 

@@ -12,7 +12,6 @@ import { serve, type Handlers } from '../server/serve.js';
 import {
   isRecord,
   protocolContract,
-  protocolStatuses,
 } from './fixture.js';
 
 describe('protocol: undeclared handler error', () => {
@@ -22,7 +21,6 @@ describe('protocol: undeclared handler error', () => {
 
   it('omitted disclosure → public: internal without cause', async () => {
     const api = serve(protocolContract, handlers, {
-      statuses: protocolStatuses,
       origin: 'protocol-smoke',
       // no disclosure option → public
     });
@@ -40,7 +38,6 @@ describe('protocol: undeclared handler error', () => {
 
   it('disclosure full: internal with nested cause', async () => {
     const api = serve(protocolContract, handlers, {
-      statuses: protocolStatuses,
       origin: 'protocol-smoke',
       disclosure: 'full',
     });

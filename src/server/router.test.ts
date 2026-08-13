@@ -6,8 +6,8 @@ import { compileRoutes, matchRoute } from './router.js';
 describe('compileRoutes', () => {
   it('preserves declaration order', () => {
     const routes = compileRoutes({
-      first: { method: 'GET', path: '/a', output: {} as never, errors: [] },
-      second: { method: 'GET', path: '/b', output: {} as never, errors: [] },
+      first: { method: 'GET', path: '/a', output: {} as never, errors: {} },
+      second: { method: 'GET', path: '/b', output: {} as never, errors: {} },
     });
     expect(routes.map((route) => route.key)).toEqual(['first', 'second']);
   });
@@ -19,7 +19,7 @@ describe('compileRoutes', () => {
         path: '/users/:id',
         params: z.object({ id: z.string() }),
         output: {} as never,
-        errors: [],
+        errors: {},
       },
     });
     expect(routes[0].compiledPath.paramNames).toEqual(['id']);
@@ -33,20 +33,20 @@ describe('matchRoute', () => {
         method: 'GET',
         path: '/users',
         output: {} as never,
-        errors: [],
+        errors: {},
       },
       getUser: {
         method: 'GET',
         path: '/users/:id',
         params: z.object({ id: z.string() }),
         output: {} as never,
-        errors: [],
+        errors: {},
       },
       createUser: {
         method: 'POST',
         path: '/users',
         output: {} as never,
-        errors: [],
+        errors: {},
       },
     });
 
@@ -65,7 +65,7 @@ describe('matchRoute', () => {
           method: 'GET' as const,
           path: '/users/:id',
           output: {} as never,
-          errors: [] as const,
+          errors: {},
         },
         compiledPath: compiled,
       },

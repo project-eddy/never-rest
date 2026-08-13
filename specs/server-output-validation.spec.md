@@ -20,6 +20,29 @@ generic top-level message and diagnostic detail nested under `cause` (code
 `output_validation_failed`), so graded disclosure can redact them for untrusted
 callers.
 
+## Declared success status
+
+```gherkin
+Scenario: Returning the route-declared success status
+  Given a route with success 201 and an output schema
+  And a handler that returns a conforming value
+  When the route is invoked successfully
+  Then the response status is 201
+  And the response body equals the parsed schema output
+```
+
+## Bodyless 204 success
+
+```gherkin
+Scenario: Returning an empty body for success 204
+  Given a route with success 204 and no output schema
+  And a handler that returns void
+  When the route is invoked successfully
+  Then the response status is 204
+  And the response has no Content-Type header
+  And the response body is empty
+```
+
 ## Output schema is always consulted
 
 ```gherkin

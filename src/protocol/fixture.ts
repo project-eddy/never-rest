@@ -16,16 +16,9 @@ export const protocolContract = {
     path: '/items/:id',
     params: z.object({ id: z.string() }),
     output: itemSchema,
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
 } as const satisfies ContractDef;
-
-export const protocolStatuses = {
-  validation_error: 400,
-  not_found: 404,
-  route_not_found: 404,
-  internal: 500,
-} as const;
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';

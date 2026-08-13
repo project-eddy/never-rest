@@ -3,10 +3,10 @@ import { err, ok, type Result, ResultAsync } from 'neverthrow';
 import {
   assertHandlersComplete,
   compileContract,
-  ContractConfigurationError,
+  isContractPath,
   type CompiledContract,
 } from '../contract/compile.js';
-import { matchPath } from '../contract/path.js';
+import { matchPath, normalizePath } from '../contract/path.js';
 import { parseOutput, parseRouteSources } from '../contract/parse.js';
 import type {
   ContractDef,
@@ -17,8 +17,13 @@ import type {
 import type { Disclosure } from '../disclose.js';
 import { MAX_CAUSE_DEPTH, railError, type RailError } from '../error.js';
 import { respond } from '../respond.js';
+import {
+  HOST_STATUSES,
+  type HostStatuses,
+  type StatusMap,
+} from '../status.js';
 import type { CompiledRoute } from './router.js';
-import type { ServeStatusMap } from './types.js';
+import type { ServeHandler, ServeOptions } from './types.js';
 
 export type Handler<TRoute extends RouteDef, TContext> = (
   args: HandlerArgsOf<TRoute> & {
@@ -26,28 +31,24 @@ export type Handler<TRoute extends RouteDef, TContext> = (
     context: TContext;
   },
 ) =>
-  | Result<OutputOf<TRoute>, RailError<TRoute['errors'][number]>>
-  | ResultAsync<OutputOf<TRoute>, RailError<TRoute['errors'][number]>>
-  | Promise<Result<OutputOf<TRoute>, RailError<TRoute['errors'][number]>>>;
+  | Result<OutputOf<TRoute>, RailError<keyof TRoute['errors'] & string>>
+  | ResultAsync<OutputOf<TRoute>, RailError<keyof TRoute['errors'] & string>>
+  | Promise<
+      Result<OutputOf<TRoute>, RailError<keyof TRoute['errors'] & string>>
+    >;
 
 export type Handlers<TContract extends ContractDef, TContext> = {
   readonly [K in keyof TContract]: Handler<TContract[K], TContext>;
 };
 
-export interface ServeOptions<TContract extends ContractDef> {
-  readonly statuses: ServeStatusMap<TContract>;
-  readonly disclosure?: Disclosure | ((request: Request) => Disclosure);
-  readonly origin?: string;
-}
-
-const SERVER_HOST_ERROR_CODES = [
-  'validation_error',
-  'internal',
-  'route_not_found',
-] as const;
-
 const FAILSAFE_INTERNAL_BODY =
   '{"code":"internal","message":"An unexpected error occurred"}';
+
+const HOST_ONLY_ROUTE: RouteDef = {
+  method: 'GET',
+  path: '/',
+  errors: {},
+};
 
 type RouteRequestMatch =
   | {
@@ -59,48 +60,44 @@ type RouteRequestMatch =
   | { readonly kind: 'route_not_found' }
   | { readonly kind: 'invalid_encoding'; readonly param: string };
 
-function collectDomainErrorCodes<TContract extends ContractDef>(
-  contract: TContract,
-): string[] {
-  const codes = new Set<string>();
-  for (const route of Object.values(contract)) {
-    for (const code of route.errors) {
-      codes.add(code);
-    }
-  }
-  return [...codes];
+type PathScope =
+  | { readonly kind: 'outside_base' }
+  | { readonly kind: 'scoped'; readonly pathname: string };
+
+type ProcessResult =
+  | { readonly kind: 'unmatched' }
+  | { readonly response: Response };
+
+function mergeHostStatuses(
+  overrides: Partial<HostStatuses> | undefined,
+): HostStatuses {
+  return { ...HOST_STATUSES, ...overrides };
 }
 
-function assertStatusMap(
-  requiredCodes: readonly string[],
-  statuses: Record<string, number>,
-): void {
-  for (const code of requiredCodes) {
-    const status = statuses[code];
-    if (!Number.isInteger(status) || status < 400 || status > 599) {
-      throw new ContractConfigurationError(
-        `Missing or invalid HTTP status for "${code}"`,
-      );
-    }
-  }
-}
-
-function declaredStatusesForRoute<TContract extends ContractDef>(
+function statusMapForRoute(
   route: RouteDef,
-  statuses: ServeStatusMap<TContract>,
+  hostStatuses: HostStatuses,
+): StatusMap<string> {
+  return { ...route.errors, ...hostStatuses };
+}
+
+function declaredStatusesForRoute(
+  route: RouteDef,
+  hostStatuses: HostStatuses,
 ): number[] {
-  const declared = new Set<number>([200]);
-  for (const code of route.errors) {
-    declared.add(statuses[code as keyof ServeStatusMap<TContract>]);
+  const declared = new Set<number>([route.success ?? 200]);
+  for (const status of Object.values(route.errors)) {
+    declared.add(status);
   }
   if (
     route.params !== undefined ||
     route.query !== undefined ||
-    route.body !== undefined
+    route.body !== undefined ||
+    route.headers !== undefined
   ) {
-    declared.add(statuses.validation_error);
+    declared.add(hostStatuses.validation_error);
   }
-  declared.add(statuses.internal);
+  declared.add(hostStatuses.internal);
   return [...declared];
 }
 
@@ -144,6 +141,14 @@ function stampOrigin(
     };
   }
   return stamped;
+}
+
+function headersToRecord(headers: Headers): Record<string, string> {
+  const record: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    record[key] = value;
+  });
+  return record;
 }
 
 function searchParamsToObject(url: URL): Record<string, unknown> {
@@ -237,6 +242,10 @@ function failsafeInternalResponse(status: number): Response {
   });
 }
 
+function emptyResponse(status: number): Response {
+  return new Response(null, { status });
+}
+
 function jsonResponse(
   status: number,
   body: unknown,
@@ -252,23 +261,56 @@ function jsonResponse(
   }
 }
 
-function respondWithError<TContract extends ContractDef>(
+function successResponse(
+  status: number,
+  body: unknown,
+  fallbackStatus: number,
+): Response {
+  if (status === 204) {
+    return emptyResponse(status);
+  }
+  return jsonResponse(status, body, fallbackStatus);
+}
+
+function respondWithError(
   error: RailError<string>,
-  options: ServeOptions<TContract>,
+  options: ServeOptions,
+  route: RouteDef,
+  hostStatuses: HostStatuses,
   declared: readonly number[],
   disclosure: Disclosure,
 ): Response {
   const stamped = stampOrigin(error, options.origin);
+  const statuses = statusMapForRoute(route, hostStatuses);
   const response = respond(err(stamped), {
-    success: 200,
-    statuses: options.statuses,
+    success: route.success ?? 200,
+    statuses,
     declared,
     disclosure,
   });
   return jsonResponse(
     response.status,
     response.body,
-    options.statuses.internal,
+    hostStatuses.internal,
+  );
+}
+
+function routeNotFoundResponse(
+  options: ServeOptions,
+  hostStatuses: HostStatuses,
+  disclosure: Disclosure,
+): Response {
+  const statuses = statusMapForRoute(HOST_ONLY_ROUTE, hostStatuses);
+  const response = respond(err(railError('route_not_found', 'Not found')), {
+    success: 200,
+    statuses,
+    declared: [hostStatuses.route_not_found],
+    disclosure,
+  });
+  return jsonResponse(
+    response.status,
+    response.body,
+    hostStatuses.internal,
   );
 }
 
@@ -321,70 +363,117 @@ function routesFromCompiled<TContract extends ContractDef>(
   }));
 }
 
+function scopePath(pathname: string, basePath: `/${string}` | undefined): PathScope {
+  if (basePath === undefined) {
+    return { kind: 'scoped', pathname: normalizePath(pathname) };
+  }
+
+  const normalized = normalizePath(pathname);
+  const normalizedBase = normalizePath(basePath);
+
+  if (normalized === normalizedBase) {
+    return { kind: 'scoped', pathname: '/' };
+  }
+
+  const prefix = `${normalizedBase}/`;
+  if (normalized.startsWith(prefix)) {
+    const remainder = normalized.slice(normalizedBase.length);
+    return {
+      kind: 'scoped',
+      pathname: remainder.length === 0 ? '/' : remainder,
+    };
+  }
+
+  return { kind: 'outside_base' };
+}
+
 /** Web-standard fetch handler wired to a contract and handler map. */
 export function serve<TContract extends ContractDef, TContext>(
   contract: TContract,
   handlers: Handlers<TContract, TContext>,
-  options: ServeOptions<TContract>,
-): (request: Request, context: TContext) => Promise<Response> {
+  options: ServeOptions = {},
+): ServeHandler<TContext> {
   const compiled = compileContract(contract);
   assertHandlersComplete(
     compiled as unknown as CompiledContract<never>,
     handlers,
   );
-  const requiredCodes = [
-    ...collectDomainErrorCodes(contract),
-    ...SERVER_HOST_ERROR_CODES,
-  ];
-  assertStatusMap(requiredCodes, options.statuses);
 
   const routes = routesFromCompiled(compiled);
-  const internalStatus = options.statuses.internal;
+  const hostStatuses = mergeHostStatuses(options.hostStatuses);
+  const internalStatus = hostStatuses.internal;
+  const basePath = options.basePath;
 
-  return async (request: Request, context: TContext): Promise<Response> => {
+  async function processRequest(
+    request: Request,
+    context: TContext,
+    cooperative: boolean,
+  ): Promise<ProcessResult> {
     try {
       const url = new URL(request.url);
-      const match = matchRequest(routes, request.method, url.pathname);
+      const scoped = scopePath(url.pathname, basePath);
+
+      if (scoped.kind === 'outside_base') {
+        if (cooperative) {
+          return { kind: 'unmatched' };
+        }
+        const disclosure = resolveDisclosure(options.disclosure, request);
+        return {
+          response: routeNotFoundResponse(options, hostStatuses, disclosure),
+        };
+      }
+
+      if (cooperative && !isContractPath(compiled, scoped.pathname)) {
+        return { kind: 'unmatched' };
+      }
+
+      const match = matchRequest(routes, request.method, scoped.pathname);
       const disclosure = resolveDisclosure(options.disclosure, request);
 
       if (match.kind === 'route_not_found') {
-        return respondWithError(
-          railError('route_not_found', 'Not found'),
-          options,
-          [options.statuses.route_not_found],
-          disclosure,
-        );
+        return {
+          response: routeNotFoundResponse(options, hostStatuses, disclosure),
+        };
       }
 
       if (match.kind === 'invalid_encoding') {
-        return respondWithError(
-          railError('validation_error', 'Validation failed', {
-            issues: [
-              {
-                path: ['params', match.param],
-                message: 'Path parameter has invalid percent-encoding',
-              },
-            ],
-          }),
-          options,
-          [options.statuses.validation_error],
-          disclosure,
-        );
+        return {
+          response: respondWithError(
+            railError('validation_error', 'Validation failed', {
+              issues: [
+                {
+                  path: ['params', match.param],
+                  message: 'Path parameter has invalid percent-encoding',
+                },
+              ],
+            }),
+            options,
+            HOST_ONLY_ROUTE,
+            hostStatuses,
+            [hostStatuses.validation_error],
+            disclosure,
+          ),
+        };
       }
 
       const route = match.route;
-      const declared = declaredStatusesForRoute(route, options.statuses);
+      const declared = declaredStatusesForRoute(route, hostStatuses);
+      const successStatus = route.success ?? 200;
 
       let rawBody: unknown;
       if (route.body !== undefined) {
         const bodyResult = await readRequestBody(request);
         if (bodyResult.isErr()) {
-          return respondWithError(
-            bodyResult.error,
-            options,
-            declared,
-            disclosure,
-          );
+          return {
+            response: respondWithError(
+              bodyResult.error,
+              options,
+              route,
+              hostStatuses,
+              declared,
+              disclosure,
+            ),
+          };
         }
         rawBody = bodyResult.value;
       }
@@ -395,15 +484,22 @@ export function serve<TContract extends ContractDef, TContext>(
           ? { query: searchParamsToObject(url) }
           : {}),
         ...(route.body !== undefined ? { body: rawBody } : {}),
+        ...(route.headers !== undefined
+          ? { headers: headersToRecord(request.headers) }
+          : {}),
       });
 
       if (sourcesResult.isErr()) {
-        return respondWithError(
-          sourcesResult.error,
-          options,
-          declared,
-          disclosure,
-        );
+        return {
+          response: respondWithError(
+            sourcesResult.error,
+            options,
+            route,
+            hostStatuses,
+            declared,
+            disclosure,
+          ),
+        };
       }
 
       const handler = handlers[match.key as keyof TContract] as Handler<
@@ -416,41 +512,97 @@ export function serve<TContract extends ContractDef, TContext>(
         context,
       });
 
+      const declaredCodes = Object.keys(route.errors);
       if (handlerResult.isErr()) {
         const normalized = isThrownInternal(handlerResult.error)
           ? handlerResult.error
-          : normalizeHandlerError(handlerResult.error, route.errors);
-        return respondWithError(
-          stampOrigin(normalized, options.origin),
-          options,
-          declared,
-          disclosure,
-        );
+          : normalizeHandlerError(handlerResult.error, declaredCodes);
+        return {
+          response: respondWithError(
+            stampOrigin(normalized, options.origin),
+            options,
+            route,
+            hostStatuses,
+            declared,
+            disclosure,
+          ),
+        };
       }
 
-      const outputResult = await parseOutput(route, handlerResult.value);
-      if (outputResult.isErr()) {
-        return respondWithError(
-          stampOrigin(outputResult.error, options.origin),
-          options,
+      if (successStatus !== 204) {
+        const outputResult = await parseOutput(route, handlerResult.value);
+        if (outputResult.isErr()) {
+          return {
+            response: respondWithError(
+              stampOrigin(outputResult.error, options.origin),
+              options,
+              route,
+              hostStatuses,
+              declared,
+              disclosure,
+            ),
+          };
+        }
+
+        const statuses = statusMapForRoute(route, hostStatuses);
+        const response = respond(ok(outputResult.value), {
+          success: successStatus,
+          statuses,
           declared,
           disclosure,
-        );
+        });
+        return {
+          response: successResponse(
+            response.status,
+            response.body,
+            hostStatuses.internal,
+          ),
+        };
       }
 
-      const response = respond(ok(outputResult.value), {
-        success: 200,
-        statuses: options.statuses,
+      const statuses = statusMapForRoute(route, hostStatuses);
+      const response = respond(ok(undefined), {
+        success: successStatus,
+        statuses,
         declared,
         disclosure,
       });
-      return jsonResponse(
-        response.status,
-        response.body,
-        options.statuses.internal,
-      );
+      return {
+        response: successResponse(
+          response.status,
+          response.body,
+          hostStatuses.internal,
+        ),
+      };
     } catch {
-      return failsafeInternalResponse(internalStatus);
+      return {
+        response: failsafeInternalResponse(internalStatus),
+      };
     }
+  }
+
+  const serveHandler = async (
+    request: Request,
+    context: TContext,
+  ): Promise<Response> => {
+    const result = await processRequest(request, context, false);
+    return 'response' in result
+      ? result.response
+      : failsafeInternalResponse(internalStatus);
   };
+
+  serveHandler.handle = async (
+    request: Request,
+    context: TContext,
+  ): Promise<
+    { matched: false } | { matched: true; response: Response }
+  > => {
+    const result = await processRequest(request, context, true);
+    if (!('response' in result)) {
+      return { matched: false };
+    }
+    return { matched: true, response: result.response };
+  };
+
+  return serveHandler;
 }

@@ -21,16 +21,9 @@ const adversarialContract = {
     path: '/items/:id',
     params: z.object({ id: z.string() }),
     output,
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
 } as const satisfies ContractDef;
-
-const statuses = {
-  validation_error: 400,
-  not_found: 404,
-  route_not_found: 404,
-  internal: 500,
-} as const;
 
 const CONSTANT_INTERNAL_BODY =
   '{"code":"internal","message":"An unexpected error occurred"}';
@@ -45,7 +38,7 @@ describe('railway adversarial combinators', () => {
         ),
     };
 
-    const api = serve(adversarialContract, handlers, { statuses });
+    const api = serve(adversarialContract, handlers, {});
     const response = await api(
       new Request('http://example.test/items/i1'),
       undefined,
@@ -72,7 +65,7 @@ describe('railway adversarial combinators', () => {
         ),
     };
 
-    const api = serve(adversarialContract, handlers, { statuses });
+    const api = serve(adversarialContract, handlers, {});
     const response = await api(
       new Request('http://example.test/items/i1'),
       undefined,
@@ -94,7 +87,7 @@ describe('railway adversarial combinators', () => {
         ]) as never,
     };
 
-    const api = serve(adversarialContract, handlers, { statuses });
+    const api = serve(adversarialContract, handlers, {});
     const response = await api(
       new Request('http://example.test/items/i1'),
       undefined,
@@ -116,7 +109,7 @@ describe('railway adversarial combinators', () => {
         }),
     };
 
-    const api = serve(adversarialContract, handlers, { statuses });
+    const api = serve(adversarialContract, handlers, {});
     const response = await api(
       new Request('http://example.test/items/i1'),
       undefined,
@@ -138,7 +131,7 @@ describe('railway adversarial combinators', () => {
         }),
     };
 
-    const api = serve(adversarialContract, handlers, { statuses });
+    const api = serve(adversarialContract, handlers, {});
     const response = await api(
       new Request('http://example.test/items/i1'),
       undefined,
@@ -159,7 +152,7 @@ describe('railway adversarial combinators', () => {
         ) as never,
     };
 
-    const api = serve(adversarialContract, handlers, { statuses });
+    const api = serve(adversarialContract, handlers, {});
     const response = await api(
       new Request('http://example.test/items/i1'),
       undefined,
@@ -180,7 +173,7 @@ describe('railway adversarial combinators', () => {
         output: z.custom<Record<string, unknown>>(
           (value) => typeof value === 'object' && value !== null,
         ),
-        errors: ['not_found'],
+        errors: { not_found: 404 },
       },
     } as const satisfies ContractDef;
 
@@ -193,7 +186,7 @@ describe('railway adversarial combinators', () => {
         }),
     };
 
-    const api = serve(circularContract, handlers, { statuses });
+    const api = serve(circularContract, handlers, {});
     const response = await api(
       new Request('http://example.test/items/i1'),
       undefined,
@@ -212,7 +205,7 @@ describe('railway adversarial combinators', () => {
         ),
     };
 
-    const api = serve(adversarialContract, handlers, { statuses });
+    const api = serve(adversarialContract, handlers, {});
     const response = await api(
       new Request('http://example.test/items/i1'),
       undefined,
@@ -248,7 +241,6 @@ describe('railway adversarial combinators', () => {
     };
 
     const api = serve(adversarialContract, handlers, {
-      statuses,
       disclosure: 'full',
     });
     const response = await api(

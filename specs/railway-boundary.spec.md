@@ -16,6 +16,27 @@ produce a JSON response whose wire code is either a declared domain code or a
 host reserved code. At default `public` disclosure the top-level message never
 leaks handler-supplied reserved-code text.
 
+## Cooperative handle mount
+
+```gherkin
+Scenario: Declining paths outside basePath
+  Given serve with basePath /api
+  When handle is called for a path outside /api
+  Then matched is false
+
+Scenario: Declining paths outside the contract
+  Given serve without basePath
+  When handle is called for a path that matches no contract route pattern
+  Then matched is false
+
+Scenario: Answering wrong method on a known contract path
+  Given a GET route on /users/:id
+  When handle is called with DELETE on /users/u1
+  Then matched is true
+  And the response status is the declared route_not_found status
+  And the body code is route_not_found
+```
+
 ## Gate short-circuits before domain work
 
 ```gherkin

@@ -25,60 +25,51 @@ const catalogueContract = {
     path: '/gate/:id',
     params: z.object({ id: z.string() }),
     output,
-    errors: ['unauthorized', 'not_found'],
+    errors: { unauthorized: 401, not_found: 404 },
   },
   translate: {
     method: 'GET',
     path: '/translate/:id',
     params: z.object({ id: z.string() }),
     output,
-    errors: ['dependency_failed'],
+    errors: { dependency_failed: 502 },
   },
   transform: {
     method: 'GET',
     path: '/transform/:id',
     params: z.object({ id: z.string() }),
     output,
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
   recover: {
     method: 'GET',
     path: '/recover/:id',
     params: z.object({ id: z.string() }),
     output,
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
   fanOut: {
     method: 'GET',
     path: '/fan-out/:id',
     params: z.object({ id: z.string() }),
     output,
-    errors: ['dependency_failed'],
+    errors: { dependency_failed: 502 },
   },
   lift: {
     method: 'GET',
     path: '/lift/:id',
     params: z.object({ id: z.string() }),
     output,
-    errors: ['dependency_failed'],
+    errors: { dependency_failed: 502 },
   },
   bubble: {
     method: 'GET',
     path: '/bubble/:id',
     params: z.object({ id: z.string() }),
     output,
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
 } as const satisfies ContractDef;
-
-const statuses = {
-  validation_error: 400,
-  unauthorized: 401,
-  not_found: 404,
-  dependency_failed: 502,
-  route_not_found: 404,
-  internal: 500,
-} as const;
 
 describe('railway catalogue (declared codes)', () => {
   it('short-circuits a gate on the Err track', async () => {
@@ -100,7 +91,7 @@ describe('railway catalogue (declared codes)', () => {
       bubble: () => ok({ id: 'x', name: 'x' }),
     };
 
-    const api = serve(catalogueContract, handlers, { statuses });
+    const api = serve(catalogueContract, handlers, {});
     const response = await api(
       new Request('http://example.test/gate/deny'),
       undefined,
@@ -131,7 +122,7 @@ describe('railway catalogue (declared codes)', () => {
       bubble: () => ok({ id: 'x', name: 'x' }),
     };
 
-    const api = serve(catalogueContract, handlers, { statuses });
+    const api = serve(catalogueContract, handlers, {});
     const response = await api(
       new Request('http://example.test/translate/u1'),
       undefined,
@@ -159,7 +150,7 @@ describe('railway catalogue (declared codes)', () => {
       bubble: () => ok({ id: 'x', name: 'x' }),
     };
 
-    const api = serve(catalogueContract, handlers, { statuses });
+    const api = serve(catalogueContract, handlers, {});
     const response = await api(
       new Request('http://example.test/transform/u1'),
       undefined,
@@ -187,7 +178,7 @@ describe('railway catalogue (declared codes)', () => {
       bubble: () => ok({ id: 'x', name: 'x' }),
     };
 
-    const api = serve(catalogueContract, handlers, { statuses });
+    const api = serve(catalogueContract, handlers, {});
     const response = await api(
       new Request('http://example.test/recover/u1'),
       undefined,
@@ -219,7 +210,7 @@ describe('railway catalogue (declared codes)', () => {
       bubble: () => ok({ id: 'x', name: 'x' }),
     };
 
-    const api = serve(catalogueContract, handlers, { statuses });
+    const api = serve(catalogueContract, handlers, {});
     const response = await api(
       new Request('http://example.test/fan-out/u1'),
       undefined,
@@ -248,7 +239,7 @@ describe('railway catalogue (declared codes)', () => {
       bubble: () => ok({ id: 'x', name: 'x' }),
     };
 
-    const api = serve(catalogueContract, handlers, { statuses });
+    const api = serve(catalogueContract, handlers, {});
     const response = await api(
       new Request('http://example.test/lift/u1'),
       undefined,
@@ -279,7 +270,6 @@ describe('railway catalogue (declared codes)', () => {
     };
 
     const api = serve(catalogueContract, handlers, {
-      statuses,
       disclosure: 'full',
     });
     const response = await api(

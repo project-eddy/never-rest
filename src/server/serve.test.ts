@@ -7,14 +7,6 @@ import type { ContractDef } from '../contract/types.js';
 import { chain, railError } from '../error.js';
 import { serve, type Handlers } from './serve.js';
 
-const statuses = {
-  validation_error: 400,
-  not_found: 404,
-  route_not_found: 404,
-  conflict: 409,
-  internal: 500,
-} as const;
-
 const userSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -30,20 +22,20 @@ const contract = {
     path: '/users/:id',
     params: z.object({ id: z.string() }),
     output: userSchema,
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
   createUser: {
     method: 'POST',
     path: '/users',
     body: createInputSchema,
     output: userSchema,
-    errors: ['conflict'],
+    errors: { conflict: 409 },
   },
   listUsers: {
     method: 'GET',
     path: '/users',
     output: z.array(userSchema),
-    errors: [],
+    errors: {},
   },
 } satisfies ContractDef;
 
@@ -58,7 +50,6 @@ const handlers: Handlers<typeof contract, TestContext> = {
 function createHandler(
   overrides: Partial<Handlers<typeof contract, TestContext>> = {},
   serveOptions: Parameters<typeof serve<typeof contract, TestContext>>[2] = {
-    statuses,
     origin: 'users-api',
   },
 ) {
@@ -76,36 +67,11 @@ async function call(
 }
 
 describe('serve construction', () => {
-  it('throws ContractConfigurationError when a required status is missing', () => {
-    const { conflict: _conflict, ...incomplete } = statuses;
-    expect(() =>
-      serve(contract, handlers, {
-        statuses: incomplete as typeof statuses,
-        origin: 'users-api',
-      }),
-    ).toThrow(ContractConfigurationError);
-    expect(() =>
-      serve(contract, handlers, {
-        statuses: incomplete as typeof statuses,
-        origin: 'users-api',
-      }),
-    ).toThrow('Missing or invalid HTTP status for "conflict"');
-  });
-
-  it('throws ContractConfigurationError when a status is out of range', () => {
-    expect(() =>
-      serve(contract, handlers, {
-        statuses: { ...statuses, internal: 200 },
-        origin: 'users-api',
-      }),
-    ).toThrow(ContractConfigurationError);
-  });
-
   it('throws ContractConfigurationError when a route uses a reserved domain code', () => {
     const badContract = {
       getUser: {
         ...contract.getUser,
-        errors: ['route_not_found'],
+        errors: { route_not_found: 404 },
       },
     } satisfies ContractDef;
 
@@ -115,7 +81,7 @@ describe('serve construction', () => {
         {
           getUser: handlers.getUser,
         },
-        { statuses },
+        {},
       ),
     ).toThrow(ContractConfigurationError);
   });
@@ -123,14 +89,10 @@ describe('serve construction', () => {
   it('throws ContractConfigurationError when a handler is missing', () => {
     const { listUsers: _listUsers, ...partialHandlers } = handlers;
     expect(() =>
-      serve(contract, partialHandlers as Handlers<typeof contract, TestContext>, {
-        statuses,
-      }),
+      serve(contract, partialHandlers as Handlers<typeof contract, TestContext>, {}),
     ).toThrow(ContractConfigurationError);
     expect(() =>
-      serve(contract, partialHandlers as Handlers<typeof contract, TestContext>, {
-        statuses,
-      }),
+      serve(contract, partialHandlers as Handlers<typeof contract, TestContext>, {}),
     ).toThrow('Missing handler for operation "listUsers"');
   });
 });
@@ -251,11 +213,7 @@ describe('serve', () => {
         getUser: () =>
           err(railError('conflict', 'Unexpected clash') as never),
       },
-      {
-        statuses,
-        origin: 'users-api',
-        disclosure: 'full',
-      },
+        { origin: 'users-api', disclosure: 'full' },
     );
     const { body } = await call(
       handler,
@@ -284,7 +242,7 @@ describe('serve', () => {
           getUser: () =>
             err(railError('conflict', 'Unexpected clash') as never),
         },
-        { statuses, origin: 'users-api', disclosure: 'public' },
+        { origin: 'users-api', disclosure: 'public' },
       ),
       new Request('http://localhost/users/u1'),
     );
@@ -299,7 +257,7 @@ describe('serve', () => {
           throw new Error('database exploded');
         },
       },
-      { statuses, origin: 'users-api', disclosure: 'full' },
+      { origin: 'users-api', disclosure: 'full' },
     );
     const { response, body } = await call(
       handler,
@@ -320,7 +278,7 @@ describe('serve', () => {
       {
         getUser: () => err(railError('not_found', 'Missing')),
       },
-      { statuses, origin: 'users-api', disclosure: 'full' },
+      { origin: 'users-api', disclosure: 'full' },
     );
     const withOrigin = createHandler(
       {
@@ -329,7 +287,7 @@ describe('serve', () => {
             railError('not_found', 'Missing', { origin: 'orders-service' }),
           ),
       },
-      { statuses, origin: 'users-api', disclosure: 'full' },
+      { origin: 'users-api', disclosure: 'full' },
     );
 
     const missing = await call(
@@ -358,7 +316,6 @@ describe('serve', () => {
         },
       },
       {
-        statuses,
         origin: 'users-api',
         disclosure: (request) =>
           request.headers.get('x-internal') === '1' ? 'full' : 'public',
@@ -403,7 +360,7 @@ describe('serve', () => {
             ),
           ),
       },
-      { statuses, origin: 'users-api', disclosure: 'full' },
+      { origin: 'users-api', disclosure: 'full' },
     );
 
     const { body } = await call(
@@ -430,7 +387,7 @@ describe('serve', () => {
         path: '/users/:id',
         params: z.object({ id: z.string() }),
         output: userSchema,
-        errors: ['not_found'],
+        errors: { not_found: 404 },
       },
     } satisfies ContractDef;
 
@@ -439,7 +396,7 @@ describe('serve', () => {
       {
         getUser: ({ params }) => ok({ id: params.id, name: 'Ada' }),
       },
-      { statuses, origin: 'users-api' },
+      { origin: 'users-api' },
     );
 
     const response = await handler(
@@ -462,7 +419,7 @@ describe('serve', () => {
           bodyId: z.string(),
           name: z.string(),
         }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -472,7 +429,7 @@ describe('serve', () => {
         updateUser: ({ params, body }) =>
           ok({ pathId: params.id, bodyId: body.id, name: body.name }),
       },
-      { statuses, origin: 'users-api' },
+      { origin: 'users-api' },
     );
 
     const response = await handler(
@@ -514,7 +471,7 @@ describe('serve', () => {
       {
         getUser: () => err(railError('internal', secret) as never),
       },
-      { statuses, origin: 'users-api', disclosure: 'full' },
+      { origin: 'users-api', disclosure: 'full' },
     );
     const { body } = await call(
       handler,
@@ -574,7 +531,6 @@ describe('serve', () => {
           err(railError('conflict', 'Unexpected clash') as never),
       },
       {
-        statuses,
         origin: 'users-api',
         disclosure: () => {
           throw new Error('disclosure exploded');
@@ -598,7 +554,7 @@ describe('serve', () => {
         output: z.custom<Record<string, unknown>>(
           (value) => typeof value === 'object' && value !== null,
         ),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -610,7 +566,7 @@ describe('serve', () => {
       {
         getCircular: () => ok(circular),
       },
-      { statuses, origin: 'users-api' },
+      { origin: 'users-api' },
     );
 
     const response = await handler(
@@ -639,7 +595,7 @@ describe('serve', () => {
       {
         getUser: () => err(railError('not_found', 'Missing', { cause: middle })),
       },
-      { statuses, origin: 'users-api', disclosure: 'full' },
+      { origin: 'users-api', disclosure: 'full' },
     );
 
     const { response, body } = await call(
@@ -668,7 +624,7 @@ describe('serve', () => {
         path: '/tags',
         query: z.object({ tags: z.array(z.string()) }),
         output: z.object({ tags: z.array(z.string()) }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -677,7 +633,7 @@ describe('serve', () => {
       {
         listTags: ({ query }) => ok({ tags: query.tags }),
       },
-      { statuses, origin: 'users-api' },
+      { origin: 'users-api' },
     );
 
     const response = await handler(
@@ -695,7 +651,7 @@ describe('serve', () => {
         path: '/tags',
         query: z.object({ tags: z.array(z.string()) }),
         output: z.object({ tags: z.array(z.string()) }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -704,7 +660,7 @@ describe('serve', () => {
       {
         listTags: ({ query }) => ok({ tags: query.tags }),
       },
-      { statuses, origin: 'users-api' },
+      { origin: 'users-api' },
     );
 
     const response = await handler(
@@ -757,7 +713,7 @@ describe('server output validation', () => {
       {
         getUser: () => ok({ id: 'u1', name: 42 } as never),
       },
-      { statuses, origin: 'users-api', disclosure: 'full' },
+      { origin: 'users-api', disclosure: 'full' },
     );
 
     const { response, body } = await call(
@@ -785,7 +741,6 @@ describe('server output validation', () => {
         getUser: () => ok({ id: 123, name: 'Ada' } as never),
       },
       {
-        statuses,
         origin: 'users-api',
         disclosure: 'public',
       },
@@ -801,5 +756,184 @@ describe('server output validation', () => {
     expect(body.cause).toBeUndefined();
     expect(body.issues).toBeUndefined();
     expect(JSON.stringify(body)).not.toMatch(/"id"/);
+  });
+});
+
+describe('serve success statuses', () => {
+  it('returns 201 when the route declares success 201', async () => {
+    const createdContract = {
+      createUser: {
+        method: 'POST' as const,
+        path: '/users',
+        body: createInputSchema,
+        output: userSchema,
+        success: 201,
+        errors: { conflict: 409 },
+      },
+    } satisfies ContractDef;
+
+    const handler = serve(
+      createdContract,
+      {
+        createUser: ({ body }) => ok({ id: 'new', name: body.name }),
+      },
+      { origin: 'users-api' },
+    );
+
+    const response = await handler(
+      new Request('http://localhost/users', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Grace' }),
+      }),
+      { requestId: 'req-1' },
+    );
+
+    expect(response.status).toBe(201);
+    expect(response.headers.get('content-type')).toBe('application/json');
+    expect(await response.json()).toEqual({ id: 'new', name: 'Grace' });
+  });
+
+  it('returns 204 with no body or content-type when success is 204', async () => {
+    const deleteContract = {
+      deleteUser: {
+        method: 'DELETE' as const,
+        path: '/users/:id',
+        params: z.object({ id: z.string() }),
+        success: 204,
+        errors: { not_found: 404 },
+      },
+    } satisfies ContractDef;
+
+    const handler = serve(
+      deleteContract,
+      {
+        deleteUser: () => ok(undefined),
+      },
+      { origin: 'users-api' },
+    );
+
+    const response = await handler(
+      new Request('http://localhost/users/u1', { method: 'DELETE' }),
+      { requestId: 'req-1' },
+    );
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('content-type')).toBeNull();
+    expect(await response.text()).toBe('');
+  });
+});
+
+describe('serve basePath', () => {
+  it('strips basePath before matching and normalises trailing slashes', async () => {
+    const handler = createHandler({}, { origin: 'users-api', basePath: '/api' });
+
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/api/users/u1/'),
+    );
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ id: 'u1', name: 'Ada' });
+  });
+
+  it('returns route_not_found for paths outside basePath on exclusive mount', async () => {
+    const handler = createHandler({}, { origin: 'users-api', basePath: '/api' });
+
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+    expect(response.status).toBe(404);
+    expect(body).toEqual({
+      code: 'route_not_found',
+      message: 'Not found',
+    });
+  });
+});
+
+describe('serve handle()', () => {
+  it('returns matched false for paths outside basePath', async () => {
+    const handler = createHandler({}, { origin: 'users-api', basePath: '/api' });
+
+    const result = await handler.handle(
+      new Request('http://localhost/users/u1'),
+      { requestId: 'req-1' },
+    );
+    expect(result).toEqual({ matched: false });
+  });
+
+  it('returns matched false for paths outside the contract', async () => {
+    const handler = createHandler({}, { origin: 'users-api' });
+
+    const result = await handler.handle(
+      new Request('http://localhost/missing'),
+      { requestId: 'req-1' },
+    );
+    expect(result).toEqual({ matched: false });
+  });
+
+  it('returns matched true with route_not_found for wrong method on a known path', async () => {
+    const handler = createHandler({}, { origin: 'users-api' });
+
+    const result = await handler.handle(
+      new Request('http://localhost/users/u1', { method: 'DELETE' }),
+      { requestId: 'req-1' },
+    );
+
+    expect(result.matched).toBe(true);
+    if (result.matched) {
+      expect(result.response.status).toBe(404);
+      expect(await result.response.json()).toEqual({
+        code: 'route_not_found',
+        message: 'Not found',
+      });
+    }
+  });
+
+  it('returns matched true with the success response for a contract hit', async () => {
+    const handler = createHandler({}, { origin: 'users-api' });
+
+    const result = await handler.handle(
+      new Request('http://localhost/users/u1'),
+      { requestId: 'req-1' },
+    );
+
+    expect(result.matched).toBe(true);
+    if (result.matched) {
+      expect(result.response.status).toBe(200);
+      expect(await result.response.json()).toEqual({ id: 'u1', name: 'Ada' });
+    }
+  });
+});
+
+describe('serve request headers', () => {
+  it('parses declared request headers into handler args', async () => {
+    const headerContract = {
+      ping: {
+        method: 'GET' as const,
+        path: '/ping',
+        headers: z.object({ 'x-request-id': z.string().min(1) }),
+        output: z.object({ ok: z.boolean(), requestId: z.string() }),
+        errors: {},
+      },
+    } satisfies ContractDef;
+
+    const handler = serve(
+      headerContract,
+      {
+        ping: ({ headers }) => ok({ ok: true, requestId: headers['x-request-id'] }),
+      },
+      { origin: 'users-api' },
+    );
+
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/ping', {
+        headers: { 'x-request-id': 'req-7' },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ ok: true, requestId: 'req-7' });
   });
 });
