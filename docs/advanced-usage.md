@@ -164,7 +164,7 @@ const handlers = {
   health: publicHandler(() => okAsync({ ok: true as const })),
 } satisfies Handlers<typeof contract, AppContext>;
 
-const fetchHandler = serve(contract, handlers, { statuses });
+const fetchHandler = serve(contract, handlers, { origin: 'my-api' });
 ```
 
 **Ordered** lives in the wrapper body. **Evidential** becomes “show the type of `handlers`” and the single composer module — stronger than reconstructing `app.use` order.
@@ -185,7 +185,7 @@ Host chrome and ingress policy are not `Result` concerns. They must run regardle
 Thin wrap around `serve` for process-local HTTP chrome (request id, timing). Keep product gates on the railway.
 
 ```ts
-const inner = serve(contract, handlers, { statuses, origin: 'billing' });
+const inner = serve(contract, handlers, { origin: 'billing' });
 
 export function fetchHandler(request: Request): Promise<Response> {
   const requestId = request.headers.get('x-request-id') ?? crypto.randomUUID();

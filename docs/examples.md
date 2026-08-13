@@ -14,10 +14,10 @@ defaults to fail-closed (`public`).
 
 Read them as four lessons:
 
-1. **Shared contract** — [`packages/shared-contract`](../examples/packages/shared-contract): `usersContract` + `statuses` only.  
-   **Win:** complete status map = protocol surface (`validation_error` / `internal` / `route_not_found` + domain codes); `unavailable` is client-only.
+1. **Shared contract** — [`packages/shared-contract`](../examples/packages/shared-contract): `usersContract` only (domain statuses on each route).  
+   **Win:** the contract is self-contained HTTP truth; host codes (`validation_error` / `internal` / `route_not_found`) are serve defaults; `unavailable` is client-only.
 2. **One framework mount** — each stack imports that contract, writes handlers, calls `serve`, then mounts.  
-   **Win:** same law mounts anywhere; unmatched path ≠ resource missing; omitted `disclosure` → `public`.
+   **Win:** same law mounts anywhere; `basePath` and `handle()` for shared pipelines; unmatched path ≠ resource missing; omitted `disclosure` → `public`.
 3. **Gateway** — [`gateway`](../examples/gateway): `chain`, graded disclosure, `ClientErrorOf` / `unavailable`.  
    **Win:** cross-service honesty without throw middleware.
 4. **Validators** — [`validators`](../examples/validators): same contract in Zod, Valibot, and ArkType.  
@@ -27,8 +27,8 @@ Read them as four lessons:
 | --- | --- |
 | [Express](../examples/express) | Node via `@eddy-works/never-rest/node` (`toNodeHandler`) |
 | [Hono](../examples/hono) | Fetch-native mount |
-| [Next App Router](../examples/next-app-router) | Catch-all route handlers |
-| [SvelteKit](../examples/sveltekit) | `hooks.server.ts` + `isContractPath` |
+| [Next App Router](../examples/next-app-router) | Catch-all route handlers + `basePath: '/api'` |
+| [SvelteKit](../examples/sveltekit) | `hooks.server.ts` + cooperative `handle()` |
 | [Cloudflare Workers](../examples/cloudflare-workers) | Worker `fetch` handler |
 | [Gateway](../examples/gateway) | `chain`, disclosure, `ClientErrorOf` |
 | [Validators](../examples/validators) | Zod / Valibot / ArkType (Standard Schema) |
@@ -44,10 +44,7 @@ import { err, ok } from 'neverthrow';
 import { railError } from '@eddy-works/never-rest';
 import { toNodeHandler } from '@eddy-works/never-rest/node';
 import { serve, type Handlers } from '@eddy-works/never-rest/server';
-import {
-  statuses,
-  usersContract,
-} from '@never-rest-examples/shared-contract';
+import { usersContract } from '@never-rest-examples/shared-contract';
 
 const usersHandlers: Handlers<typeof usersContract, undefined> = {
   getUser: ({ params }) => ok({ id: params.id, name: 'Ada' }),
@@ -55,7 +52,6 @@ const usersHandlers: Handlers<typeof usersContract, undefined> = {
 };
 
 const usersApi = serve(usersContract, usersHandlers, {
-  statuses,
   origin: 'express-demo',
 });
 

@@ -245,7 +245,10 @@ const result = await client.getUser({ params: { id } });
 
 return result.match(
   (user) => Response.json(user, { status: 200 }),
-  (error) => Response.json(error, { status: statusFor(statuses, error) }),
+  (error) =>
+    Response.json(error, {
+      status: statusFor({ ...route.errors, ...HOST_STATUSES }, error),
+    }),
 )
 ```
 

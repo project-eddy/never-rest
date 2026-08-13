@@ -28,12 +28,14 @@ pnpm add @eddy-works/never-rest neverthrow
 
 | Module | Key exports |
 | --- | --- |
-| `@eddy-works/never-rest` | `RailError`, `railError`, `chain`, `flatten`, `formatChain`, `statusFor`, `toDeclaredResponse`, `disclose`, `respond` |
+| `@eddy-works/never-rest` | `RailError`, `railError`, `chain`, `flatten`, `formatChain`, `statusFor`, `toDeclaredResponse`, `HOST_STATUSES`, `disclose`, `respond` |
 | `@eddy-works/never-rest/contract` | `RouteDef`, `ContractDef`, `ClientArgsOf`, `HandlerArgsOf`, `OutputOf`, `ErrorOf`, `ClientErrorOf`, `ServerErrorOf`, `parseRouteSources`, `parseOutput`, `compileContract`, `isContractPath`, `compilePath`, `matchPath`, `normalizePath`, `assertHandlersComplete`, `ContractConfigurationError` |
-| `@eddy-works/never-rest/server` | `serve`, `Handler`, `Handlers`, `compileRoutes`, `matchRoute` |
-| `@eddy-works/never-rest/client` | `createClient`, `Client`, `ClientOptions` |
+| `@eddy-works/never-rest/server` | `serve`, `Handler`, `Handlers`, `ServeHandler`, `compileRoutes`, `matchRoute`, `assertProtocolResponse` |
+| `@eddy-works/never-rest/client` | `createClient`, `Client`, `ClientOptions`, `buildRequest` |
 | `@eddy-works/never-rest/node` | `toNodeHandler`, `FetchHandler`, `NodeHttpHandler` |
-| `@eddy-works/never-rest/testing` | `checkTransportStability`, `checkContractOutputs` |
+| `@eddy-works/never-rest/testing` | `createTestClient`, `assertProtocolResponse`, `checkTransportStability`, `checkContractOutputs` |
+| `@eddy-works/never-rest/openapi` | `toOpenAPI`, `OpenApiExportError` |
+| `@eddy-works/never-rest/query` | `createQueryOptions`, `createMutationOptions`, `isRetryable` |
 
 ## The problem
 
@@ -76,24 +78,17 @@ const contract = {
     path: '/users/:id',
     params: z.object({ id: z.string() }),
     output: userSchema,
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
   createUser: {
     method: 'POST',
     path: '/users',
     body: z.object({ name: z.string().min(1) }),
     output: userSchema,
-    errors: ['conflict'],
+    success: 201,
+    errors: { conflict: 409 },
   },
 } as const satisfies ContractDef;
-
-const statuses = {
-  validation_error: 400,
-  not_found: 404,
-  conflict: 409,
-  route_not_found: 404,
-  internal: 500,
-} as const;
 
 // Business logic — compose with `map` / `andThen` the same way as the client.
 const users = new Map<string, User>([['ada', { id: 'ada', name: 'Ada' }]]);
@@ -127,7 +122,6 @@ const handlers: Handlers<typeof contract, undefined> = {
 
 // Plumbing — mount the contract; disclosure grades what callers see.
 export default serve(contract, handlers, {
-  statuses,
   origin: 'users-api',
   disclosure: (req) =>
     req.headers.get('x-internal') === '1' ? 'full' : 'public',
@@ -144,7 +138,7 @@ await client
   );
 ```
 
-Bring any Standard Schema validator (Zod 4, Valibot, ArkType). Use `as const satisfies ContractDef` on every contract — without `as const`, `errors` widens to `string` and `ServeStatusMap` stops checking that your status map covers every domain code. `serve` returns `(request, context) => Promise<Response>` on Workers, Deno, Bun, Node 18+, SvelteKit, Next. For classic Node/`http` or Express, use [`toNodeHandler`](docs/api.md#tonodehandler) from `@eddy-works/never-rest/node`.
+Bring any Standard Schema validator (Zod 4, Valibot, ArkType). Use `as const satisfies ContractDef` on every contract — without `as const`, `errors` widens and domain codes stop being literal. `serve` returns a callable fetch handler (always answers, including `route_not_found`) plus cooperative `handle()` on Workers, Deno, Bun, Node 18+, SvelteKit, Next. For classic Node/`http` or Express, use [`toNodeHandler`](docs/api.md#tonodehandler) from `@eddy-works/never-rest/node`.
 
 ## Examples
 

@@ -54,7 +54,7 @@ getInvoice: ({ params, request }) =>
     .andThen((session) => loadInvoiceFor(session, params.id)),
 ```
 
-If `requireAuth` fails, `requireRole` and `loadInvoiceFor` never run. The `Err` travels the same path a successful value would have — out through `respond` / `serve` — with the declared code (`unauthorized`, `forbidden`) mapped by your `StatusMap`. That is the whole trick: contextual permission work is just programming on the railway, not a framework feature you bolt on around throws.
+If `requireAuth` fails, `requireRole` and `loadInvoiceFor` never run. The `Err` travels the same path a successful value would have — out through `respond` / `serve` — with the declared code (`unauthorized`, `forbidden`) mapped from the route's `errors` entry. That is the whole trick: contextual permission work is just programming on the railway, not a framework feature you bolt on around throws.
 
 It feels like flow-based composition — steps named, ordered, and short-circuiting — without leaving ordinary TypeScript functions. Same pattern on the client: `client.getUser({ params: { id } }).andThen(loadOrders).map(toSummary)`.
 
@@ -68,7 +68,7 @@ For enterprise policy that must be non-omittable — capability types, `withAuth
 
 Validation issues from any Standard Schema validator map onto `RailIssue` (`path`, `message`). The library does not own error codes for validators — it owns `RailError` above them.
 
-HTTP status is not embedded in the error. Consumers supply a `StatusMap` and `statusFor` / `toDeclaredResponse` / `respond` map codes to declared statuses. An error whose code is missing from the map, or whose mapped status is not declared on the route, degrades to **500** rather than leaking an undeclared response shape.
+HTTP status is not embedded in the error object. Domain codes map to statuses via each route's `errors` map; host codes use `HOST_STATUSES` (overridable with `hostStatuses` on `serve`). `statusFor` / `toDeclaredResponse` / `respond` combine both. An error whose code is missing from the route's declared map, or whose mapped status is not declared on the route, degrades to **500** rather than leaking an undeclared response shape.
 
 ## Trust circles and graded disclosure
 
@@ -88,7 +88,7 @@ HTTP status is not embedded in the error. Consumers supply a `StatusMap` and `st
 
 Route matching uses `compileRoutes` / `matchRoute` (via `./server`), built on `compileContract`, `compilePath`, and `matchPath`: exact segments and single `:param` placeholders, **declaration order**. Static segments win over dynamic ones in the same position — declare `GET /users/me` before `GET /users/:id` so `me` is not captured as an id. That overlap is intentional; `compileContract` does not reject it. It does reject duplicate compiled matchers (for example `/users/:id` and `/users/:userId` on the same method), trailing-slash aliases, and duplicate parameter names within one path. Unmatched method or path → host code `route_not_found` (not domain `not_found`). Path captures are percent-decoded; malformed encoding → `validation_error`.
 
-Shared-process hosts (SvelteKit hooks, Workers) that must not send every request to `serve` should call [`isContractPath`](./api.md#iscontractpath) on the compiled contract instead of a prefix heuristic or a hand-copied path list.
+Shared-process hosts (SvelteKit hooks, Workers) that must not send every request to callable `serve()` should use cooperative [`handle()`](./api.md#servehandler) — `matched: false` only outside `basePath` or the contract path set. Prefer that over a prefix heuristic, a hand-copied path list, or an [`isContractPath`](./api.md#iscontractpath) pre-gate.
 
 ### Trust boundary at the edge
 

@@ -40,7 +40,7 @@ Instantiation numbers for never-rest and ts-rest are measured in CI via `@ark/at
 - **Graded disclosure** as a function, not documentation warnings alone.
 - **Cause chains** across services as serialisable data.
 
-**When to stay on ts-rest:** you need OpenAPI generation today, existing ts-rest adapters, or the team will not adopt `Result` handlers.
+**When to stay on ts-rest:** you need ts-rest's adapter ecosystem today, or the team will not adopt `Result` handlers. never-rest now exports OpenAPI from the contract via `toOpenAPI` — compare feature parity before choosing.
 
 ## oRPC
 
@@ -111,4 +111,6 @@ oRPC's own docs warn repeatedly not to put sensitive data in `ORPCError.data`; n
 
 **Not in scope today**
 
-OpenAPI codegen, middleware, TanStack Query integrations, streaming, multipart, CLI/codegen, wildcards/nested routers. A thin Node bridge (`./node` → `toNodeHandler`) ships for Express/`http`; full framework adapter suites are out of scope.
+Middleware, streaming, multipart, CLI/codegen, wildcards/nested routers. A thin Node bridge (`./node` → `toNodeHandler`) ships for Express/`http`; full framework adapter suites are out of scope.
+
+**In scope (0.5):** OpenAPI 3.1 export via `toOpenAPI(contract, { info })` from the contract alone; a Result-preserving `./query` adapter (`createQueryOptions`, `createMutationOptions`, `isRetryable`) for TanStack Query-shaped caches — errors stay as data, never thrown across the cache boundary.

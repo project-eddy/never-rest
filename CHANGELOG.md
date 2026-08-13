@@ -9,27 +9,38 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- `params?`, `query?`, and `body?` on `RouteDef` — each optional Standard Schema; replaces the flat `input` field so path, query, and body cannot silently merge fields that share a name.
-- `ClientArgsOf` and `HandlerArgsOf` — nested `{ params?, query?, body? }` types for wire-shaped client args and handler-parsed args (`InferInput` / `InferOutput` per source).
-- `parseRouteSources(route, { params?, query?, body? })` — validates each declared source independently; replaces `parseInput`.
+- `params?`, `query?`, `body?`, and `headers?` on `RouteDef` — each optional Standard Schema; replaces the flat `input` field so path, query, body, and headers cannot silently merge fields that share a name.
+- `ClientArgsOf` and `HandlerArgsOf` — nested `{ params?, query?, body?, headers? }` types for wire-shaped client args and handler-parsed args (`InferInput` / `InferOutput` per source).
+- `parseRouteSources(route, { params?, query?, body?, headers? })` — validates each declared source independently; replaces `parseInput`.
+- `success?` on `RouteDef` (`200`, `201`, `202`, or `204`; default `200`). `output` is omitted only when success is `204`.
+- `HostStatuses` and `HOST_STATUSES` — host defaults `validation_error: 400`, `internal: 500`, `route_not_found: 404`, overridable via `serve(..., { hostStatuses })`.
+- `ServeOptions.basePath` and cooperative `serve().handle()` — `matched: false` only outside `basePath` or the contract path set; wrong method on a known path stays `matched: true` with `route_not_found`.
+- `toOpenAPI(contract, { info })` on `@eddy-works/never-rest/openapi` — OpenAPI 3.1 from the contract alone; throws `OpenApiExportError` when a validator cannot convert to JSON Schema.
+- `createQueryOptions`, `createMutationOptions`, and `isRetryable` on `@eddy-works/never-rest/query` — Result-preserving cache-layer adapters (TanStack Query-shaped, no React/TanStack dependency). `queryFn` / `mutationFn` resolve with `Result` and never reject.
+- `createTestClient` on `@eddy-works/never-rest/testing` — typed in-process client through the real `serve` path. `assertProtocolResponse` is re-exported from `./testing` and `./server`.
+- `buildRequest` exported from `@eddy-works/never-rest/client`.
 
 ### Changed
 
+- `RouteDef.errors` is a code→HTTP-status map (`{ not_found: 404 }`) instead of a string array. Domain statuses live on the contract; host codes stay on `HOST_STATUSES`.
 - Client calls name the source: `client.getUser({ params: { id } })`, `client.createUser({ body: { name } })`; routes with no input sources take no args (`client.listUsers()`).
-- Handler args are `HandlerArgsOf & { request, context }` — typed `params`, `query`, and `body` from schemas instead of a merged `input` plus raw `params`.
-- `compileContract` rejects a path with `:param` segments without a `params` schema, `params` on a static path, and `body` on GET or DELETE. Query is allowed on every method, including POST alongside `body`.
+- Handler args are `HandlerArgsOf & { request, context }` — typed `params`, `query`, `body`, and `headers` from schemas instead of a merged `input` plus raw `params`.
+- `compileContract` rejects a path with `:param` segments without a `params` schema, `params` on a static path, `body` on GET or DELETE, error statuses outside 400–599, success codes other than 200/201/202/204, `output` on 204 routes, and missing `output` on other success codes. Query is allowed on every method, including POST alongside `body`.
 - POST may send query and body together.
+- The client treats only `route.success ?? 200` as Ok; any other 2xx is `validation_error` before the body is trusted. `success: 204` resolves `Ok(undefined)` without reading a body.
 
 ### Removed
 
 - `RouteDef.input` — use `params?`, `query?`, and `body?`.
 - `ClientInputOf`, `HandlerInputOf`, and `InputOf` — use `ClientArgsOf` and `HandlerArgsOf`.
 - `parseInput` — use `parseRouteSources`.
+- `ServeStatusMap` and `ServeOptions.statuses` — put domain statuses on `RouteDef.errors`.
 
 ### Internal
 
 - Railway × protocol invariant suite (`src/railway/`, `specs/railway-boundary.spec.md`) — catalogue and adversarial combinator handlers against `serve`.
-- Perf benches regenerated for `query` sources instead of flat `input`.
+- Perf benches regenerated for the errors-map contract shape; combined slope remains 584 instantiations per route (budget 1,800).
+- Streaming and multipart feasibility verdict: keep them off the railway (`research/20260813-streaming-multipart-feasibility.md`).
 
 ## [0.4.1] - 2026-08-12
 
