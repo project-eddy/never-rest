@@ -111,6 +111,25 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
+  examples/files-and-streams:
+    dependencies:
+      '@eddy-works/never-rest':
+        specifier: workspace:*
+        version: link:../..
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      tsx:
+        specifier: ^4.20.3
+        version: 4.23.11
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+
   examples/gateway:
     dependencies:
       '@eddy-works/never-rest':
@@ -197,6 +216,9 @@ importers:
       '@eddy-works/never-rest':
         specifier: workspace:*
         version: link:../../..
+      neverthrow:
+        specifier: ^8.2.0
+        version: 8.2.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
