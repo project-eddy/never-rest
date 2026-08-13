@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./src/index.ts"
+    },
+    "./db": {
+      "types": "./src/db.ts",
+      "import": "./src/db.ts"
     }
   },
   "scripts": {
@@ -14,6 +18,7 @@
   },
   "dependencies": {
     "@eddy-works/never-rest": "workspace:*",
+    "neverthrow": "^8.2.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
