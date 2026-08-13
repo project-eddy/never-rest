@@ -49,6 +49,7 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | How do I implement a handler? | [api.md — Handler](docs/api.md#handler) · [api.md — Handlers](docs/api.md#handlers) |
 | How do I expose the server on fetch? | [api.md — serve](docs/api.md#serve) |
 | How do I mount next to pages or another router? | [api.md — ServeHandler](docs/api.md#servehandler) · [migrating.md — Shared-process mounting](docs/migrating.md#shared-process-mounting) · [examples/sveltekit](examples/sveltekit) |
+| How do I upload files or run SSE? | [files-and-streams.md](docs/files-and-streams.md) · [examples/files-and-streams](examples/files-and-streams) |
 | How do I mount on Node http / Express? | [api.md — toNodeHandler](docs/api.md#tonodehandler) · [examples/express](examples/express) |
 | Where are runnable framework examples? | [examples/README.md](examples/README.md) · [docs/examples.md](docs/examples.md) |
 | How do I create a typed client? | [api.md — createClient](docs/api.md#createclient) |

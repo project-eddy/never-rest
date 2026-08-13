@@ -297,7 +297,7 @@ function isContractPath(
 
 True when `pathname` matches any compiled route, regardless of method. Uses compiled `matchPath` matchers — not a `Set` of template strings — so `/users/:id` matches `/users/ada`. Malformed percent-encoding (`invalid_encoding`) still counts as a match so the host dispatches to `serve`, which returns `validation_error`.
 
-Prefer cooperative [`handle()`](#servehandler) for shared-process mounts (SvelteKit `hooks.server.ts`, Workers). Callable `serve()` always returns a `Response`, including JSON `route_not_found` for unmatched paths, so calling it for every request would steal non-contract traffic. `handle()` returns `{ matched: false }` only outside `basePath` or the contract path set — wrong method on a known path stays `{ matched: true }` with `route_not_found`.
+Prefer cooperative [`handle()`](#servehandler) for shared-process mounts (SvelteKit `hooks.server.ts`, Workers). Callable `serve()` always returns a `Response`, including JSON `route_not_found` for unmatched paths, so calling it for every request would steal non-contract traffic. `handle()` returns `{ matched: false }` only outside `basePath` or the contract path set — wrong method on a known path stays `{ matched: true }` with `route_not_found`. Sibling uploads and SSE belong on that unmatched path — [files and streams](./files-and-streams.md).
 
 `isContractPath` remains for hosts that must decide membership without invoking `serve`.
 
@@ -587,7 +587,7 @@ interface ServeHandler<TContext> {
 }
 ```
 
-Callable `serve()` always answers. `handle()` is the cooperative mount: `matched: false` only outside `basePath` or the contract path set. Wrong method on a known path is `matched: true` with `route_not_found`.
+Callable `serve()` always answers. `handle()` is the cooperative mount: `matched: false` only outside `basePath` or the contract path set. Wrong method on a known path is `matched: true` with `route_not_found`. Use the unmatched branch for sibling non-JSON handlers (uploads, SSE) — [files and streams](./files-and-streams.md). Do not put those paths on the served contract.
 
 ### `serve`
 
@@ -825,6 +825,8 @@ app.use(toNodeHandler((request) => handler(request, undefined)));
 ```
 
 Close over `serve` context when needed: `toNodeHandler((req) => handler(req, ctx))`.
+
+Incoming POST/PUT/PATCH/DELETE bodies are fully buffered in `toWebRequest` before the fetch handler runs. Register Express upload routes *before* this bridge if you need the live stream. Outgoing SSE/downloads can still pipe via `writeWebResponse`. See [files and streams](./files-and-streams.md).
 
 **Tests:** `src/node/to-node-handler.test.ts`.
 

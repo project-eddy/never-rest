@@ -181,6 +181,7 @@ Host chrome and ingress policy are not `Result` concerns. They must run regardle
 | Multi-language or multi-repo fleets | Types do not travel across services |
 | Policy owned by a different team / deployable | Platform ships gateway or mesh; app ships handlers |
 | CORS, max body, TLS, WAF | Host / edge, not domain |
+| File bytes, SSE, NDJSON pipes | [Files and streams](./files-and-streams.md) — not a contract route |
 
 Thin wrap around `serve` for process-local HTTP chrome (request id, timing). Keep product gates on the railway.
 

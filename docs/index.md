@@ -15,7 +15,8 @@ HTTP contracts where handlers return `Result` instead of throwing. Errors carry 
 | [Railway patterns](./railway-patterns.md) | Full railway/neverthrow pattern catalogue + white-label tenant kitchen sink |
 | [Advanced usage](./advanced-usage.md) | Policy without middleware — capabilities, composers, host wraps, agents |
 | [API reference](./api.md) | Every public export, signature, example |
-| [Examples](./examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway |
+| [Examples](./examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway, files-and-streams |
+| [Files and streams](./files-and-streams.md) | JSON on the railway; multipart and SSE on the host |
 | [Errors as intelligence](./errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |
 | [Comparison](./comparison.md) | vs ts-rest, oRPC, tRPC, and Hono RPC |
 | [Migrating](./migrating.md) | From ts-rest, oRPC, throwing handlers |

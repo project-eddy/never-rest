@@ -1,6 +1,6 @@
 ---
 title: Examples
-description: Mini projects — shared contract across Express, Next, SvelteKit, Hono, Workers, plus Zod/Valibot/ArkType.
+description: Mini projects — shared contract across Express, Next, SvelteKit, Hono, Workers, plus validators and files-and-streams.
 ---
 
 # Examples
@@ -12,16 +12,18 @@ Runnable mini projects live under [`examples/`](../examples/).
 domain failures; clients get an honest `ClientErrorOf` union; disclosure
 defaults to fail-closed (`public`).
 
-Read them as four lessons:
+Read them as five lessons:
 
 1. **Shared contract** — [`packages/shared-contract`](../examples/packages/shared-contract): `usersContract` only (domain statuses on each route).  
    **Win:** the contract is self-contained HTTP truth; host codes (`validation_error` / `internal` / `route_not_found`) are serve defaults; `unavailable` is client-only.
-2. **One framework mount** — each stack imports that contract, writes handlers, calls `serve`, then mounts.  
+2. **One framework mount** — each stack imports that contract, writes handlers against the shared in-memory users database (`ResultAsync` / `railError`), calls `serve`, then mounts.  
    **Win:** same law mounts anywhere; `basePath` and `handle()` for shared pipelines; unmatched path ≠ resource missing; omitted `disclosure` → `public`.
 3. **Gateway** — [`gateway`](../examples/gateway): `chain`, graded disclosure, `ClientErrorOf` / `unavailable`.  
    **Win:** cross-service honesty without throw middleware.
 4. **Validators** — [`validators`](../examples/validators): same contract in Zod, Valibot, and ArkType.  
    **Win:** schemas are the wire law (input + always-on parsed output).
+5. **Files and streams** — [`files-and-streams`](../examples/files-and-streams): JSON on `serve`; multipart and SSE on sibling host handlers.  
+   **Win:** the contract validates JSON shapes; the host owns the bytes. Guide: [files and streams](./files-and-streams.md).
 
 | Example | What it shows |
 | --- | --- |
@@ -32,6 +34,7 @@ Read them as four lessons:
 | [Cloudflare Workers](../examples/cloudflare-workers) | Worker `fetch` handler |
 | [Gateway](../examples/gateway) | `chain`, disclosure, `ClientErrorOf` |
 | [Validators](../examples/validators) | Zod / Valibot / ArkType (Standard Schema) |
+| [Files and streams](../examples/files-and-streams) | Sibling multipart + SSE; shadow `RouteDef` |
 
 Yup is not supported: never-rest requires [Standard Schema](https://standardschema.dev/), which Yup does not implement.
 
@@ -40,14 +43,15 @@ See [examples/README.md](https://github.com/project-eddy/never-rest/blob/main/ex
 Express mount (same idea in every stack — contract in, handlers + `serve` local):
 
 ```ts
-import { err, ok } from 'neverthrow';
-import { railError } from '@eddy-works/never-rest';
 import { toNodeHandler } from '@eddy-works/never-rest/node';
 import { serve, type Handlers } from '@eddy-works/never-rest/server';
 import { usersContract } from '@never-rest-examples/shared-contract';
+import { createUsersDb } from '@never-rest-examples/shared-contract/db';
+
+const db = createUsersDb();
 
 const usersHandlers: Handlers<typeof usersContract, undefined> = {
-  getUser: ({ params }) => ok({ id: params.id, name: 'Ada' }),
+  getUser: ({ params }) => db.getUser(params.id),
   // …
 };
 

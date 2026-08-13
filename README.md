@@ -153,6 +153,7 @@ Mini projects share one contract and mount it on different runtimes — see [exa
 | [cloudflare-workers](examples/cloudflare-workers) | Cloudflare Workers |
 | [gateway](examples/gateway) | Cause chains + disclosure |
 | [validators](examples/validators) | Zod / Valibot / ArkType |
+| [files-and-streams](examples/files-and-streams) | Sibling multipart + SSE |
 
 ```bash
 pnpm build
@@ -182,7 +183,8 @@ Browsable site: [project-eddy.github.io/never-rest](https://project-eddy.github.
 | [docs/railway-patterns.md](docs/railway-patterns.md) | Full railway/neverthrow pattern catalogue + white-label tenant kitchen sink |
 | [docs/advanced-usage.md](docs/advanced-usage.md) | Policy without middleware — capabilities, composers, host wraps, agents |
 | [docs/api.md](docs/api.md) | Every public export, signature, example |
-| [docs/examples.md](docs/examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway |
+| [docs/examples.md](docs/examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway, files-and-streams |
+| [docs/files-and-streams.md](docs/files-and-streams.md) | JSON on the railway; multipart and SSE on the host |
 | [docs/errors-as-intelligence.md](docs/errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |
 | [docs/comparison.md](docs/comparison.md) | vs ts-rest, oRPC, tRPC, and Hono RPC |
 | [docs/migrating.md](docs/migrating.md) | From ts-rest, oRPC, throwing handlers |

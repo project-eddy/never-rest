@@ -111,6 +111,6 @@ oRPC's own docs warn repeatedly not to put sensitive data in `ORPCError.data`; n
 
 **Not in scope today**
 
-Middleware, streaming, multipart, CLI/codegen, wildcards/nested routers. A thin Node bridge (`./node` → `toNodeHandler`) ships for Express/`http`; full framework adapter suites are out of scope.
+Middleware, streaming, multipart, CLI/codegen, wildcards/nested routers. A thin Node bridge (`./node` → `toNodeHandler`) ships for Express/`http`; full framework adapter suites are out of scope. File uploads and SSE in *your* app: [files and streams](./files-and-streams.md) — JSON on the railway, bytes on a host handler.
 
 **In scope (0.5):** OpenAPI 3.1 export via `toOpenAPI(contract, { info })` from the contract alone; a Result-preserving `./query` adapter (`createQueryOptions`, `createMutationOptions`, `isRetryable`) for TanStack Query-shaped caches — errors stay as data, never thrown across the cache boundary.

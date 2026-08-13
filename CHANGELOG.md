@@ -7,9 +7,15 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Guide for file uploads and SSE: JSON stays on the railway; multipart and streams use sibling host handlers with `parseRouteSources` / `parseSchema` ([docs/files-and-streams.md](docs/files-and-streams.md)).
+- In-process [`examples/files-and-streams`](examples/files-and-streams) — served JSON catalog, shadow `uploadMeta` `RouteDef`, `handle()` fallthrough for `POST /uploads` and `GET /jobs/:id/events`.
+
 ### Internal
 
 - Framework examples persist users through `createUsersDb()`, which returns `ResultAsync` with contract `railError` codes so handlers stay on the railway.
+- Implementation plan for the files-and-streams 0.6 follow-through (`plans/20260813-files-and-streams-0.6.md`).
 
 
 ## [0.5.0] - 2026-08-13

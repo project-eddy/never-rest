@@ -88,7 +88,7 @@ HTTP status is not embedded in the error object. Domain codes map to statuses vi
 
 Route matching uses `compileRoutes` / `matchRoute` (via `./server`), built on `compileContract`, `compilePath`, and `matchPath`: exact segments and single `:param` placeholders, **declaration order**. Static segments win over dynamic ones in the same position — declare `GET /users/me` before `GET /users/:id` so `me` is not captured as an id. That overlap is intentional; `compileContract` does not reject it. It does reject duplicate compiled matchers (for example `/users/:id` and `/users/:userId` on the same method), trailing-slash aliases, and duplicate parameter names within one path. Unmatched method or path → host code `route_not_found` (not domain `not_found`). Path captures are percent-decoded; malformed encoding → `validation_error`.
 
-Shared-process hosts (SvelteKit hooks, Workers) that must not send every request to callable `serve()` should use cooperative [`handle()`](./api.md#servehandler) — `matched: false` only outside `basePath` or the contract path set. Prefer that over a prefix heuristic, a hand-copied path list, or an [`isContractPath`](./api.md#iscontractpath) pre-gate.
+Shared-process hosts (SvelteKit hooks, Workers) that must not send every request to callable `serve()` should use cooperative [`handle()`](./api.md#servehandler) — `matched: false` only outside `basePath` or the contract path set. Prefer that over a prefix heuristic, a hand-copied path list, or an [`isContractPath`](./api.md#iscontractpath) pre-gate. Multipart and SSE use that same unmatched path: [files and streams](./files-and-streams.md).
 
 ### Trust boundary at the edge
 

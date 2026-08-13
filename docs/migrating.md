@@ -150,7 +150,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 };
 ```
 
-`handle()` returns `{ matched: false }` only when the path is outside `basePath` or outside the compiled contract paths. A known path with an unknown method stays `matched: true` with a `route_not_found` response.
+`handle()` returns `{ matched: false }` only when the path is outside `basePath` or outside the compiled contract paths. A known path with an unknown method stays `matched: true` with a `route_not_found` response. That unmatched branch is where SSE, multipart uploads, and other non-JSON handlers belong — not a prefix heuristic. See [files and streams](./files-and-streams.md).
 
 Replace `parseInput` with `parseRouteSources` when validating sources manually:
 

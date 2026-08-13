@@ -1,6 +1,6 @@
 # Examples
 
-Runnable mini projects that teach never-rest in four lessons.
+Runnable mini projects that teach never-rest in five lessons.
 
 **Thesis:** the contract is law at every HTTP boundary. Handlers return
 `Result`; wire shapes are schema-parsed; host failures are distinct from
@@ -21,8 +21,9 @@ gateway prove *why this beats throw-based APIs*.
 
 2. **Lesson 2 — Pick one stack**  
    Open that folder’s mount file. Each example imports the contract, writes
-   its own handlers, calls `serve(...)`, then shows only what that runtime
-   needs to mount the Fetch handler.  
+   its own handlers against the shared in-memory users database
+   (`createUsersDb()` returns `ResultAsync`), calls `serve(...)`, then shows
+   only what that runtime needs to mount the Fetch handler.  
    **Win:** the same law mounts anywhere; unmatched paths are
    `route_not_found` (not domain `not_found`); omitted `disclosure` →
    `public`. Smoke asserts these invariants in-process.
@@ -42,6 +43,14 @@ gateway prove *why this beats throw-based APIs*.
    **Win:** schemas *are* the wire law — params/query/body validation and always-on
    parsed output.
 
+5. **Lesson 5 — Files and streams**  
+   [`files-and-streams`](files-and-streams)  
+   Served JSON contract for assets and jobs; sibling `POST /uploads` (multipart)
+   and `GET /jobs/:id/events` (SSE). A shadow `RouteDef` validates form fields;
+   `File` never enters the contract.  
+   **Win:** JSON is law on `serve`; bytes are host plumbing.
+   Guide: [docs/files-and-streams.md](../docs/files-and-streams.md).
+
 One contract, many consumers: every framework example imports
 `usersContract` from `@never-rest-examples/shared-contract` so you can
 compare mounts without rewriting the route table.
@@ -57,6 +66,7 @@ compare mounts without rewriting the route table.
 | [`cloudflare-workers`](cloudflare-workers) | Cloudflare Workers | 3005 | Worker `fetch` calls `serve()` |
 | [`gateway`](gateway) | In-process | — | Cause chains, disclosure, `ClientErrorOf` |
 | [`validators`](validators) | In-process | — | Zod / Valibot / ArkType via Standard Schema |
+| [`files-and-streams`](files-and-streams) | In-process | — | Sibling multipart + SSE; shadow `RouteDef` |
 
 ## Run
 
@@ -66,7 +76,7 @@ From the repo root:
 pnpm install
 pnpm build
 pnpm --filter @never-rest-examples/express start
-# or hono / next-app-router / sveltekit / cloudflare-workers / gateway
+# or hono / next-app-router / sveltekit / cloudflare-workers / gateway / files-and-streams
 ```
 
 Typecheck all examples:
@@ -75,7 +85,7 @@ Typecheck all examples:
 pnpm examples:typecheck
 ```
 
-Example conformance (users contract against Express, Hono, Next, and SvelteKit mounts):
+Example conformance (users mounts plus files-and-streams host dispatch):
 
 ```bash
 pnpm exec vitest run --config examples/conformance/vitest.config.ts
