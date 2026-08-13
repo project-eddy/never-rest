@@ -14,36 +14,36 @@ bench("handlers-5", () => {
       path: "/items/0",
       query: zodSchema(z.object({ id: z.string() })),
       output: zodSchema(z.object({ id: z.string(), value: z.number() })),
-      errors: ["not_found", "forbidden"] as const,
+      errors: { not_found: 404, forbidden: 403 } as const,
     },
     getRoute1: {
       method: "GET" as const,
       path: "/items/1",
       query: zodSchema(z.object({ id: z.string() })),
       output: zodSchema(z.object({ id: z.string(), value: z.number() })),
-      errors: ["not_found", "forbidden"] as const,
+      errors: { not_found: 404, forbidden: 403 } as const,
     },
     getRoute2: {
       method: "GET" as const,
       path: "/items/2",
       query: zodSchema(z.object({ id: z.string() })),
       output: zodSchema(z.object({ id: z.string(), value: z.number() })),
-      errors: ["not_found", "forbidden"] as const,
+      errors: { not_found: 404, forbidden: 403 } as const,
     },
     getRoute3: {
       method: "GET" as const,
       path: "/items/3",
       query: zodSchema(z.object({ id: z.string() })),
       output: zodSchema(z.object({ id: z.string(), value: z.number() })),
-      errors: ["not_found", "forbidden"] as const,
+      errors: { not_found: 404, forbidden: 403 } as const,
     },
     getRoute4: {
       method: "GET" as const,
       path: "/items/4",
       query: zodSchema(z.object({ id: z.string() })),
       output: zodSchema(z.object({ id: z.string(), value: z.number() })),
-      errors: ["not_found", "forbidden"] as const,
+      errors: { not_found: 404, forbidden: 403 } as const,
     },
   } satisfies ContractDef;
   return {} as Handlers<typeof contract, unknown>;
-}).types([77845, "instantiations"]);
+}).types([77834, "instantiations"]);

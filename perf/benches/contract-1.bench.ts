@@ -12,8 +12,8 @@ bench("contract-satisfies-1", () => {
       path: "/items/0",
       query: zodSchema(z.object({ id: z.string() })),
       output: zodSchema(z.object({ id: z.string(), value: z.number() })),
-      errors: ["not_found", "forbidden"] as const,
+      errors: { not_found: 404, forbidden: 403 } as const,
     },
   } satisfies ContractDef;
   return contract;
-}).types([75499, "instantiations"]);
+}).types([75488, "instantiations"]);

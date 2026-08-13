@@ -21,7 +21,7 @@ function routeEntries(n) {
     path: '/items/${i}',
     query: zodSchema(z.object({ id: z.string() })),
     output: zodSchema(z.object({ id: z.string(), value: z.number() })),
-    errors: ['not_found', 'forbidden'] as const,
+    errors: { not_found: 404, forbidden: 403 } as const,
   },`;
   }).join("\n");
 }
