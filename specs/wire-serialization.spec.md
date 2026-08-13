@@ -12,11 +12,13 @@ status: draft
 
 `buildRequest` uses the precompiled path from `compileContract`, interpolates
 `args.params`, serializes `args.query` for any method, and JSON-stringifies
-`args.body` when present. Primitives and dates become scalar keys; arrays of
-primitives or dates use a `key[]` suffix even for a single element. `undefined`
-and `null` are omitted. Empty arrays, nested objects, bigint, and nested arrays
-return `validation_error` before fetch. POST bodies and headers are built inside
-a railway boundary: invalid headers, circular JSON, and bigint bodies return
+`args.body` when present. Declared request headers merge global client headers
+with per-call `args.headers`, with per-call values winning, before validation and
+wire encoding. Primitives and dates become scalar keys; arrays of primitives or
+dates use a `key[]` suffix even for a single element. `undefined` and `null`
+are omitted. Empty arrays, nested objects, bigint, and nested arrays return
+`validation_error` before fetch. POST bodies and headers are built inside a
+railway boundary: invalid headers, circular JSON, and bigint bodies return
 `internal` without throwing.
 
 ## Array query params use bracket suffix

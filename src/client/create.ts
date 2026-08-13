@@ -1,4 +1,4 @@
-import { errAsync, ResultAsync } from 'neverthrow';
+import { errAsync, okAsync, ResultAsync } from 'neverthrow';
 
 import { compileContract } from '../contract/compile.js';
 import { parseRouteSources } from '../contract/parse.js';
@@ -62,7 +62,36 @@ function invokeFetch(
   });
 }
 
-function toRawSources(args: ClientArgsOf<RouteDef>) {
+function headersInitToRecord(headers: HeadersInit): Record<string, string> {
+  const merged = new Headers(headers);
+  const record: Record<string, string> = {};
+  merged.forEach((value, key) => {
+    record[key] = value;
+  });
+  return record;
+}
+
+function mergeHeadersInit(
+  globalHeaders: HeadersInit | undefined,
+  perCallHeaders: Record<string, string> | undefined,
+): ResultAsync<HeadersInit, ClientErrorOf<RouteDef>> {
+  try {
+    const merged = new Headers(globalHeaders);
+    if (perCallHeaders !== undefined) {
+      for (const [key, value] of Object.entries(perCallHeaders)) {
+        merged.set(key, value);
+      }
+    }
+    return okAsync(merged);
+  } catch {
+    return errAsync(internalError('Request headers are invalid'));
+  }
+}
+
+function toRawSources(
+  args: ClientArgsOf<RouteDef>,
+  headersForValidation?: unknown,
+) {
   const record = args as {
     readonly params?: Record<string, string>;
     readonly query?: unknown;
@@ -72,7 +101,28 @@ function toRawSources(args: ClientArgsOf<RouteDef>) {
     ...(record.params !== undefined ? { params: record.params } : {}),
     ...(record.query !== undefined ? { query: record.query } : {}),
     ...(record.body !== undefined ? { body: record.body } : {}),
+    ...(headersForValidation !== undefined ? { headers: headersForValidation } : {}),
   };
+}
+
+function headersForValidation(
+  route: RouteDef,
+  globalHeaders: HeadersInit | undefined,
+  args: ClientArgsOf<RouteDef>,
+): ResultAsync<unknown, ClientErrorOf<RouteDef>> {
+  if (route.headers === undefined) {
+    return okAsync(undefined);
+  }
+
+  try {
+    const perCallHeaders = (args as { readonly headers?: Record<string, string> })
+      .headers;
+    const globalRecord =
+      globalHeaders !== undefined ? headersInitToRecord(globalHeaders) : {};
+    return okAsync({ ...globalRecord, ...perCallHeaders });
+  } catch {
+    return errAsync(internalError('Request headers are invalid'));
+  }
 }
 
 function callRoute<TRoute extends RouteDef>(
@@ -82,25 +132,35 @@ function callRoute<TRoute extends RouteDef>(
   fetchFn: typeof fetch,
   args: ClientArgsOf<TRoute>,
 ): ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>> {
-  return parseRouteSources(route, toRawSources(args)).andThen(() =>
-    resolveHeaders(options.headers).andThen((headers) => {
-      const built = buildRequest(
-        route,
-        compiledPath,
-        options.baseUrl,
-        args,
-        headers,
-        options.credentials,
-      );
-      if (built.isErr()) {
-        return errAsync(built.error as ClientErrorOf<TRoute>);
-      }
-      const { url, init } = built.value;
-      return ResultAsync.fromPromise(
-        invokeFetch(fetchFn, url, init),
-        () => unavailableError(),
-      ).andThen((response) => mapResponse(route, response));
-    }),
+  return resolveHeaders(options.headers).andThen((globalHeaders) =>
+    mergeHeadersInit(
+      globalHeaders,
+      (args as { readonly headers?: Record<string, string> }).headers,
+    ).andThen((wireHeaders) =>
+      headersForValidation(route, globalHeaders, args).andThen(
+        (headersForParse) =>
+          parseRouteSources(route, toRawSources(args, headersForParse)).andThen(
+            () => {
+              const built = buildRequest(
+                route,
+                compiledPath,
+                options.baseUrl,
+                args,
+                wireHeaders,
+                options.credentials,
+              );
+              if (built.isErr()) {
+                return errAsync(built.error as ClientErrorOf<TRoute>);
+              }
+              const { url, init } = built.value;
+              return ResultAsync.fromPromise(
+                invokeFetch(fetchFn, url, init),
+                () => unavailableError(),
+              ).andThen((response) => mapResponse(route, response));
+            },
+          ),
+      ),
+    ),
   );
 }
 

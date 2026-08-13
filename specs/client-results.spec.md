@@ -11,25 +11,64 @@ status: draft
 # Mapping HTTP responses to client Results
 
 `createClient` builds one function per contract operation. Network failures,
-parse failures, and error responses all become `Err(RailError)`; successful
-2xx bodies parse into `Ok`. Declared domain codes, `validation_error`, and
-`internal` pass through when the wire envelope is well-formed. An error whose
-code is not declared on the route becomes `Err` with code `internal`, message
-"Unexpected error response", and the remote error nested as `cause`. Malformed
-envelopes or cause chains deeper than 16 hops become `internal` with message
-"Unexpected error response". Composed calls short-circuit: when the first call
-returns `Err`, the second is never invoked.
+parse failures, and error responses all become `Err(RailError)`; a response
+matches success only when its status equals the route's declared success
+(`route.success ?? 200`). Matching success bodies parse into `Ok`; `success: 204`
+routes resolve `Ok(undefined)` without reading a body. Any other 2xx status is
+`validation_error` before the body is trusted. Declared domain codes,
+`validation_error`, and `internal` pass through when the wire envelope is
+well-formed. An error whose code is not declared on the route becomes `Err` with
+code `internal`, message "Unexpected error response", and the remote error nested
+as `cause`. Malformed envelopes or cause chains deeper than 16 hops become
+`internal` with message "Unexpected error response". Composed calls
+short-circuit: when the first call returns `Err`, the second is never invoked.
+Per-route request headers merge over `ClientOptions.headers`, with per-call
+values winning, and validate against `route.headers` when declared.
 
 ## Success becomes Ok
 
 ```gherkin
-Scenario: Mapping a 2xx JSON body to Ok
-  Given a contract route with an output schema expecting { "id": string }
+Scenario: Mapping a declared success JSON body to Ok
+  Given a contract route with success 200 and an output schema expecting { "id": string }
   And a fetch stub returning status 200
   And a JSON body { "id": "u_42" }
   When the client operation is called
   Then the result is Ok
   And the value has id "u_42"
+```
+
+## Declared 201 success becomes Ok
+
+```gherkin
+Scenario: Mapping a declared 201 success body to Ok
+  Given a contract route with success 201 and an output schema
+  And a fetch stub returning status 201 with a matching JSON body
+  When the client operation is called
+  Then the result is Ok
+```
+
+## Wrong 2xx becomes validation_error
+
+```gherkin
+Scenario: Mapping a different 2xx status to validation_error
+  Given a contract route with success 201
+  And a fetch stub returning status 200 with a JSON body
+  When the client operation is called
+  Then the result is Err
+  And the error has code "validation_error"
+  And the error message names the expected success status
+```
+
+## 204 success becomes Ok without reading the body
+
+```gherkin
+Scenario: Resolving a 204 route to Ok without reading the response body
+  Given a contract route with success 204 and no output schema
+  And a fetch stub returning status 204 with no body
+  When the client operation is called
+  Then the result is Ok
+  And the value is undefined
+  And response.text was not called
 ```
 
 ## Declared error becomes Err
@@ -167,4 +206,28 @@ Scenario: Returning internal Err when a headers callback throws synchronously
   Then the result is Err
   And the error has code "internal"
   And fetch was not called
+```
+
+## Declared request headers round-trip on the wire
+
+```gherkin
+Scenario: Sending merged request headers on the wire
+  Given a GET route that declares headers { "x-request-id": string }
+  And client options with global header authorization Bearer global
+  And client args with headers { "x-request-id": "req-42" }
+  When the client operation is called
+  Then fetch receives a Request whose headers include x-request-id req-42
+  And fetch receives authorization Bearer global
+  And the result is Ok when the response matches the output schema
+```
+
+## Per-call headers override global headers
+
+```gherkin
+Scenario: Letting per-call headers override global headers for the same key
+  Given a GET route that declares headers { "x-request-id": string }
+  And client options with global header x-request-id global
+  And client args with headers { "x-request-id": "call-wins" }
+  When the client operation is called
+  Then fetch receives a Request whose x-request-id header is call-wins
 ```

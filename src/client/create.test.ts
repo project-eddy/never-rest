@@ -13,28 +13,28 @@ const contract = {
     path: '/users/:id',
     params: z.object({ id: z.string() }),
     output: userOutput,
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
   loadOrders: {
     method: 'GET',
     path: '/users/:userId/orders',
     params: z.object({ userId: z.string() }),
     output: orderOutput,
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
   createUser: {
     method: 'POST',
     path: '/users',
     body: z.object({ email: z.string().email() }),
     output: z.object({ id: z.string() }),
-    errors: ['conflict'],
+    errors: { conflict: 409 },
   },
   listUsers: {
     method: 'GET',
     path: '/users',
     query: z.object({ limit: z.number().optional() }),
     output: z.object({ users: z.array(userOutput) }),
-    errors: [],
+    errors: {},
   },
 } satisfies ContractDef;
 
@@ -265,7 +265,7 @@ describe('createClient', () => {
 
   it('sends POST body as JSON', async () => {
     const fetchStub = vi.fn().mockResolvedValue(
-      jsonResponse(201, { id: 'u_new' }),
+      jsonResponse(200, { id: 'u_new' }),
     );
     const client = createClient(contract, {
       baseUrl: 'https://api.example.com',
@@ -291,7 +291,7 @@ describe('createClient', () => {
         query: z.object({ force: z.boolean() }),
         body: z.object({ name: z.string() }),
         output: z.object({ id: z.string() }),
-        errors: ['conflict'],
+        errors: { conflict: 409 },
       },
     } satisfies ContractDef;
 
@@ -333,7 +333,7 @@ describe('createClient', () => {
 
   it('forwards credentials on POST requests after body branch', async () => {
     const fetchStub = vi.fn().mockResolvedValue(
-      jsonResponse(201, { id: 'u_new' }),
+      jsonResponse(200, { id: 'u_new' }),
     );
     const client = createClient(contract, {
       baseUrl: 'https://api.example.com',
@@ -434,7 +434,7 @@ describe('client wire fidelity', () => {
         params: z.object({ id: z.string() }),
         query: z.object({ limit: z.string().transform(Number) }),
         output: z.object({ score: z.number() }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -464,7 +464,7 @@ describe('client wire fidelity', () => {
         params: z.object({ id: z.string() }),
         query: z.object({ limit: z.string().transform(Number) }),
         output: z.object({ score: z.number() }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -493,7 +493,7 @@ describe('client wire fidelity', () => {
         path: '/items',
         query: z.object({ limit: z.number().default(10) }),
         output: z.object({ items: z.array(z.string()) }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -518,7 +518,7 @@ describe('client wire fidelity', () => {
         path: '/search',
         query: z.object({ tags: z.array(z.string()) }),
         output: z.object({ hits: z.number() }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -543,7 +543,7 @@ describe('client wire fidelity', () => {
         path: '/search',
         query: z.object({ tags: z.array(z.string()) }),
         output: z.object({ hits: z.number() }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -568,7 +568,7 @@ describe('client wire fidelity', () => {
         path: '/search',
         query: z.object({ tags: z.array(z.string()) }),
         output: z.object({ hits: z.number() }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -594,7 +594,7 @@ describe('client wire fidelity', () => {
         path: '/search',
         query: z.object({ filter: z.record(z.string(), z.string()) }),
         output: z.object({ hits: z.number() }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -620,7 +620,7 @@ describe('client wire fidelity', () => {
         path: '/search',
         query: z.object({ id: z.bigint() }),
         output: z.object({ hits: z.number() }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -646,7 +646,7 @@ describe('client wire fidelity', () => {
         path: '/search',
         query: z.object({ since: z.date() }),
         output: z.object({ hits: z.number() }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -762,7 +762,7 @@ describe('client wire fidelity', () => {
         path: '/records',
         body: z.object({ amount: z.bigint() }),
         output: z.object({ id: z.string() }),
-        errors: [],
+        errors: {},
       },
     } satisfies ContractDef;
 
@@ -799,5 +799,141 @@ describe('client wire fidelity', () => {
 
     expect(compilePathSpy).not.toHaveBeenCalled();
     compilePathSpy.mockRestore();
+  });
+});
+
+describe('client success status and headers', () => {
+  it('accepts only the declared success status for Ok', async () => {
+    const createdContract = {
+      createUser: {
+        method: 'POST',
+        path: '/users',
+        body: z.object({ email: z.string().email() }),
+        output: z.object({ id: z.string() }),
+        success: 201,
+        errors: { conflict: 409 },
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn().mockResolvedValue(jsonResponse(201, { id: 'u_new' }));
+    const client = createClient(createdContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.createUser({ body: { email: 'ada@example.com' } });
+
+    expect(result.isOk()).toBe(true);
+  });
+
+  it('maps a different 2xx status to validation_error before trusting the body', async () => {
+    const createdContract = {
+      createUser: {
+        method: 'POST',
+        path: '/users',
+        body: z.object({ email: z.string().email() }),
+        output: z.object({ id: z.string() }),
+        success: 201,
+        errors: { conflict: 409 },
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn().mockResolvedValue(jsonResponse(200, { id: 'u_new' }));
+    const client = createClient(createdContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.createUser({ body: { email: 'ada@example.com' } });
+
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('validation_error');
+      expect(result.error.message).toContain('expected 201');
+    }
+  });
+
+  it('resolves 204 routes to Ok without reading the response body', async () => {
+    const deleteContract = {
+      deleteUser: {
+        method: 'DELETE',
+        path: '/users/:id',
+        params: z.object({ id: z.string() }),
+        success: 204,
+        errors: { not_found: 404 },
+      },
+    } satisfies ContractDef;
+
+    const textSpy = vi.spyOn(Response.prototype, 'text');
+    const fetchStub = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const client = createClient(deleteContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+    });
+
+    const result = await client.deleteUser({ params: { id: 'u_1' } });
+
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toBeUndefined();
+    }
+    expect(textSpy).not.toHaveBeenCalled();
+    textSpy.mockRestore();
+  });
+
+  it('sends merged request headers on the wire', async () => {
+    const traceContract = {
+      trace: {
+        method: 'GET',
+        path: '/trace',
+        headers: z.object({ 'x-request-id': z.string().min(1) }),
+        output: z.object({ ok: z.boolean() }),
+        errors: {},
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn(async (_url, init) => {
+      const request = new Request('https://api.example.com/trace', init);
+      expect(request.headers.get('x-request-id')).toBe('req-42');
+      expect(request.headers.get('authorization')).toBe('Bearer global');
+      return jsonResponse(200, { ok: true });
+    });
+    const client = createClient(traceContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+      headers: { authorization: 'Bearer global' },
+    });
+
+    const result = await client.trace({ headers: { 'x-request-id': 'req-42' } });
+
+    expect(result.isOk()).toBe(true);
+    expect(fetchStub).toHaveBeenCalledOnce();
+  });
+
+  it('lets per-call headers override global headers for the same key', async () => {
+    const traceContract = {
+      trace: {
+        method: 'GET',
+        path: '/trace',
+        headers: z.object({ 'x-request-id': z.string() }),
+        output: z.object({ ok: z.boolean() }),
+        errors: {},
+      },
+    } satisfies ContractDef;
+
+    const fetchStub = vi.fn(async (_url, init) => {
+      const request = new Request('https://api.example.com/trace', init);
+      expect(request.headers.get('x-request-id')).toBe('call-wins');
+      return jsonResponse(200, { ok: true });
+    });
+    const client = createClient(traceContract, {
+      baseUrl: 'https://api.example.com',
+      fetch: fetchStub,
+      headers: { 'x-request-id': 'global' },
+    });
+
+    await client.trace({ headers: { 'x-request-id': 'call-wins' } });
+
+    expect(fetchStub).toHaveBeenCalledOnce();
   });
 });

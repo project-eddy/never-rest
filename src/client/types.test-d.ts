@@ -14,20 +14,20 @@ const contract = {
     path: '/users/:id',
     params: z.object({ id: z.string() }),
     output: z.object({ id: z.string(), name: z.string() }),
-    errors: ['not_found'] as const,
+    errors: { not_found: 404 } as const,
   },
   loadOrders: {
     method: 'GET',
     path: '/users/:userId/orders',
     params: z.object({ userId: z.string() }),
     output: z.object({ orders: z.array(z.string()) }),
-    errors: ['not_found'] as const,
+    errors: { not_found: 404 } as const,
   },
   listUsers: {
     method: 'GET',
     path: '/users',
     output: z.object({ users: z.array(z.object({ id: z.string() })) }),
-    errors: [] as const,
+    errors: {} as const,
   },
 } satisfies ContractDef;
 
@@ -80,7 +80,7 @@ const _transformContract = {
     params: z.object({ id: z.string() }),
     query: z.object({ limit: z.string().transform(Number) }),
     output: z.object({ value: z.number() }),
-    errors: [] as const,
+    errors: {} as const,
   },
 } satisfies ContractDef;
 

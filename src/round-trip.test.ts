@@ -9,27 +9,20 @@ import { railError } from './error.js';
 import { toNodeHandler } from './node/to-node-handler.js';
 import { serve, type Handlers } from './server/serve.js';
 
-const statuses = {
-  validation_error: 400,
-  not_found: 404,
-  route_not_found: 404,
-  internal: 500,
-} as const;
-
 const roundTripContract = {
   getItem: {
     method: 'GET',
     path: '/items/:id',
     params: z.object({ id: z.string() }),
     output: z.object({ id: z.string(), label: z.string() }),
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
   search: {
     method: 'GET',
     path: '/search',
     query: z.object({ tags: z.array(z.string()) }),
     output: z.object({ tags: z.array(z.string()) }),
-    errors: [],
+    errors: {},
   },
 } as const satisfies ContractDef;
 
@@ -62,7 +55,7 @@ function serveRoundTrip(
   handlers: Handlers<typeof roundTripContract, RoundTripContext>,
   options: Parameters<
     typeof serve<typeof roundTripContract, RoundTripContext>
-  >[2] = { statuses, origin: 'round-trip' },
+  >[2] = { origin: 'round-trip' },
 ) {
   return serve(roundTripContract, handlers, options);
 }
@@ -160,7 +153,7 @@ describe('HTTP round-trip (toNodeHandler + createClient)', () => {
     };
 
     await withServer(
-      serveRoundTrip(handlers, { statuses, origin: 'round-trip', disclosure: 'full' }),
+      serveRoundTrip(handlers, { origin: 'round-trip', disclosure: 'full' }),
       async (baseUrl) => {
         const client = createClient(roundTripContract, { baseUrl });
         const result = await client.getItem({ params: { id: 'i1' } });

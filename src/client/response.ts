@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { errAsync, okAsync, ResultAsync } from 'neverthrow';
 
-import type { ClientErrorOf, RouteDef } from '../contract/types.js';
+import type { ClientErrorOf, OutputOf, RouteDef } from '../contract/types.js';
 import {
   railError,
   type RailError,
@@ -166,7 +166,7 @@ function mapProtocolError<TRoute extends RouteDef>(
   route: TRoute,
   error: RailError<string>,
 ): ClientErrorOf<TRoute> {
-  if ((route.errors as readonly string[]).includes(error.code)) {
+  if (error.code in route.errors) {
     return error as ClientErrorOf<TRoute>;
   }
 
@@ -179,13 +179,35 @@ function mapProtocolError<TRoute extends RouteDef>(
   }) as ClientErrorOf<TRoute>;
 }
 
+function validationError(message: string): RailError<'validation_error'> {
+  return railError('validation_error', message);
+}
+
+function unexpectedSuccessStatusError(
+  actual: number,
+  expected: number,
+): RailError<'validation_error'> {
+  return validationError(
+    `Unexpected success status ${actual}; expected ${expected}`,
+  );
+}
+
 /** Map an HTTP response to Ok output or Err RailError. */
 export function mapResponse<TRoute extends RouteDef>(
   route: TRoute,
   response: Response,
-): ResultAsync<StandardSchemaV1.InferOutput<TRoute['output']>, ClientErrorOf<TRoute>> {
-  return ResultAsync.fromPromise(response.text(), () => unavailableError()).andThen(
-    (text) => {
+): ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>> {
+  const expectedStatus = route.success ?? 200;
+
+  if (response.status === expectedStatus) {
+    if (expectedStatus === 204 || route.output === undefined) {
+      return okAsync(undefined as OutputOf<TRoute>);
+    }
+
+    const outputSchema = route.output;
+    return ResultAsync.fromPromise(response.text(), () =>
+      unavailableError(),
+    ).andThen((text) => {
       let parsed: unknown;
       try {
         parsed = text.length > 0 ? JSON.parse(text) : undefined;
@@ -193,10 +215,29 @@ export function mapResponse<TRoute extends RouteDef>(
         return errAsync(internalError('Response body is not valid JSON'));
       }
 
-      const isSuccess = response.status >= 200 && response.status < 300;
+      return validateValue(outputSchema, parsed) as ResultAsync<
+        OutputOf<TRoute>,
+        ClientErrorOf<TRoute>
+      >;
+    });
+  }
 
-      if (isSuccess) {
-        return validateValue(route.output, parsed);
+  if (response.status >= 200 && response.status < 300) {
+    return errAsync(
+      unexpectedSuccessStatusError(
+        response.status,
+        expectedStatus,
+      ) as ClientErrorOf<TRoute>,
+    );
+  }
+
+  return ResultAsync.fromPromise(response.text(), () => unavailableError()).andThen(
+    (text) => {
+      let parsed: unknown;
+      try {
+        parsed = text.length > 0 ? JSON.parse(text) : undefined;
+      } catch {
+        return errAsync(internalError('Response body is not valid JSON'));
       }
 
       const envelope = parseRailErrorEnvelope(parsed);
