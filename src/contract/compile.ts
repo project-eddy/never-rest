@@ -12,8 +12,56 @@ type ReservedErrorCode = (typeof RESERVED_ERROR_CODES)[number];
 
 const reservedErrorCodeSet = new Set<string>(RESERVED_ERROR_CODES);
 
+const ALLOWED_SUCCESS_STATUSES = [200, 201, 202, 204] as const;
+
 function isReservedErrorCode(code: string): code is ReservedErrorCode {
   return reservedErrorCodeSet.has(code);
+}
+
+function isValidErrorStatus(status: number): boolean {
+  return Number.isInteger(status) && status >= 400 && status <= 599;
+}
+
+function validateSuccessAndOutput(operation: string, route: RouteDef): void {
+  const success = route.success ?? 200;
+
+  if (
+    !(ALLOWED_SUCCESS_STATUSES as readonly number[]).includes(success)
+  ) {
+    throw new ContractConfigurationError(
+      `Operation "${operation}" declares invalid success status ${success}; allowed values are 200, 201, 202, and 204`,
+    );
+  }
+
+  if (success === 204) {
+    if (route.output !== undefined) {
+      throw new ContractConfigurationError(
+        `Operation "${operation}" with success 204 must not declare an output schema`,
+      );
+    }
+    return;
+  }
+
+  if (route.output === undefined) {
+    throw new ContractConfigurationError(
+      `Operation "${operation}" must declare an output schema when success is not 204`,
+    );
+  }
+}
+
+function validateErrorMap(operation: string, errors: RouteDef['errors']): void {
+  for (const [code, status] of Object.entries(errors)) {
+    if (isReservedErrorCode(code)) {
+      throw new ContractConfigurationError(
+        `Reserved error code "${code}" cannot be used as a domain code on operation "${operation}"`,
+      );
+    }
+    if (!isValidErrorStatus(status)) {
+      throw new ContractConfigurationError(
+        `Invalid error status ${status} for code "${code}" on operation "${operation}"; statuses must be integers from 400 to 599`,
+      );
+    }
+  }
 }
 
 /** Thrown when a contract fails construction-time validation. */
@@ -32,7 +80,7 @@ export interface CompiledRouteEntry<TRoute extends RouteDef = RouteDef> {
 export interface CompiledContract<TContract extends ContractDef> {
   readonly contract: TContract;
   readonly domainErrorCodes: {
-    readonly [K in keyof TContract]: readonly TContract[K]['errors'][number][];
+    readonly [K in keyof TContract]: readonly (keyof TContract[K]['errors'] & string)[];
   };
   readonly routes: {
     readonly [K in keyof TContract]: CompiledRouteEntry<TContract[K]>;
@@ -102,20 +150,8 @@ export function compileContract<TContract extends ContractDef>(
     }
     seenNormalizedPath.set(methodNormalized, operation);
 
-    const seenCodes = new Set<string>();
-    for (const code of route.errors) {
-      if (seenCodes.has(code)) {
-        throw new ContractConfigurationError(
-          `Duplicate error code "${code}" on operation "${operation}"`,
-        );
-      }
-      seenCodes.add(code);
-      if (isReservedErrorCode(code)) {
-        throw new ContractConfigurationError(
-          `Reserved error code "${code}" cannot be used as a domain code on operation "${operation}"`,
-        );
-      }
-    }
+    validateErrorMap(operation, route.errors);
+    validateSuccessAndOutput(operation, route);
 
     let compiledPath: CompiledPath;
     try {
@@ -158,7 +194,7 @@ export function compileContract<TContract extends ContractDef>(
     seenMatchers.set(matcherKey, operation);
 
     routeEntries[operation] = { route, compiledPath };
-    domainCodes[operation] = route.errors;
+    domainCodes[operation] = Object.keys(route.errors);
   }
 
   return {

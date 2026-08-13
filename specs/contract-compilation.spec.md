@@ -12,10 +12,10 @@ status: draft
 
 `compileContract` validates every route before client or server construction.
 Duplicate literal paths, trailing-slash aliases, compiled matcher collisions,
-duplicate path parameter names, reserved domain error codes, and duplicate error
-codes within a route all throw `ContractConfigurationError` naming the
-conflicting operations. `assertHandlersComplete` ensures every operation key
-maps to a function handler. `matchPath` decodes path captures safely and returns
+duplicate path parameter names, reserved domain error codes, invalid error
+status values, invalid success statuses, and output/success mismatches all throw
+`ContractConfigurationError` naming the conflicting operations.
+`assertHandlersComplete` ensures every operation key maps to a function handler. `matchPath` decodes path captures safely and returns
 `invalid_encoding` instead of throwing on malformed percent sequences.
 `isContractPath` reports whether a pathname matches any compiled route so a
 shared-process host can dispatch without duplicating the path list.
@@ -60,6 +60,46 @@ Scenario: Rejecting reserved error codes as domain codes
   When compileContract is called
   Then ContractConfigurationError is thrown
   And the error names the reserved code "internal"
+```
+
+## Invalid error status values are rejected
+
+```gherkin
+Scenario: Rejecting error statuses outside 400-599
+  Given a contract route whose errors map "not_found" to 299
+  When compileContract is called
+  Then ContractConfigurationError is thrown
+  And the error names the invalid status for "not_found"
+```
+
+## Success 204 requires no output schema
+
+```gherkin
+Scenario: Rejecting output on a 204 route
+  Given a contract route with success 204 and an output schema
+  When compileContract is called
+  Then ContractConfigurationError is thrown
+  And the error states that success 204 must not declare output
+```
+
+## Non-204 routes require an output schema
+
+```gherkin
+Scenario: Rejecting missing output when success is not 204
+  Given a contract route with default success 200 and no output schema
+  When compileContract is called
+  Then ContractConfigurationError is thrown
+  And the error states that output is required
+```
+
+## Invalid success statuses are rejected
+
+```gherkin
+Scenario: Rejecting success statuses outside 200, 201, 202, and 204
+  Given a contract route with success 203 and an output schema
+  When compileContract is called
+  Then ContractConfigurationError is thrown
+  And the error names the invalid success status
 ```
 
 ## Missing handlers fail at construction

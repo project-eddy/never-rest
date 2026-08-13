@@ -7,6 +7,7 @@ import type {
   ContractDef,
   ErrorOf,
   HandlerArgsOf,
+  OutputOf,
   RouteDef,
 } from './types.js';
 
@@ -16,7 +17,7 @@ type ValidContract = {
     path: '/users/:id';
     params: StandardSchemaV1;
     output: StandardSchemaV1;
-    errors: readonly ['not_found'];
+    errors: { readonly not_found: 404 };
   };
 };
 
@@ -63,28 +64,39 @@ type _ValidationNotInDomain = ExpectNot<
   RailError<'validation_error'> extends SampleDomainError ? true : false
 >;
 
-type MissingOutputRoute = {
+type NoOutputWithout204Route = {
   method: 'GET';
   path: '/users/:id';
-  errors: readonly ['not_found'];
+  errors: { readonly not_found: 404 };
+};
+
+type NoOutputWith204Route = {
+  method: 'DELETE';
+  path: '/users/:id';
+  success: 204;
+  errors: { readonly not_found: 404 };
 };
 
 type UnknownMethodRoute = {
   method: 'HEAD';
   path: '/users/:id';
   output: StandardSchemaV1;
-  errors: readonly ['not_found'];
+  errors: { readonly not_found: 404 };
 };
 
 type InvalidErrorsRoute = {
   method: 'GET';
   path: '/users/:id';
   output: StandardSchemaV1;
-  errors: readonly [404];
+  errors: readonly ['not_found'];
 };
 
-type _RejectsMissingOutput = Expect<
-  MissingOutputRoute extends RouteDef ? false : true
+type _AllowsMissingOutputAtTypeLevel = Expect<
+  NoOutputWithout204Route extends RouteDef ? true : false
+>;
+
+type _Allows204WithoutOutput = Expect<
+  NoOutputWith204Route extends RouteDef ? true : false
 >;
 
 type _RejectsUnknownMethod = Expect<
@@ -98,13 +110,14 @@ type _RejectsInvalidErrors = Expect<
 const _paramsSchema = z.object({ id: z.string() });
 const _queryTransform = z.object({ limit: z.string().transform(Number) });
 const _bodySchema = z.object({ name: z.string().min(1) });
+const _headersSchema = z.object({ 'x-request-id': z.string() });
 
 type GetUserRoute = {
   method: 'GET';
   path: '/users/:id';
   params: typeof _paramsSchema;
   output: StandardSchemaV1;
-  errors: readonly ['not_found'];
+  errors: { readonly not_found: 404 };
 };
 
 type CreateUserRoute = {
@@ -112,7 +125,7 @@ type CreateUserRoute = {
   path: '/users';
   body: typeof _bodySchema;
   output: StandardSchemaV1;
-  errors: readonly ['conflict'];
+  errors: { readonly conflict: 409 };
 };
 
 type SearchRoute = {
@@ -120,14 +133,29 @@ type SearchRoute = {
   path: '/search';
   query: typeof _queryTransform;
   output: StandardSchemaV1;
-  errors: readonly [];
+  errors: { readonly [code: string]: number };
 };
 
 type ListRoute = {
   method: 'GET';
   path: '/users';
   output: StandardSchemaV1;
-  errors: readonly [];
+  errors: { readonly [code: string]: number };
+};
+
+type HeadersRoute = {
+  method: 'GET';
+  path: '/trace';
+  headers: typeof _headersSchema;
+  output: StandardSchemaV1;
+  errors: { readonly [code: string]: number };
+};
+
+type DeleteUserRoute = {
+  method: 'DELETE';
+  path: '/users/:id';
+  success: 204;
+  errors: { readonly not_found: 404 };
 };
 
 type _GetUserClientArgs = Expect<
@@ -154,10 +182,30 @@ type _SearchHandlerQueryIsNumber = Expect<
     : false
 >;
 
+type _HeadersClientArgs = Expect<
+  ClientArgsOf<HeadersRoute> extends {
+    readonly headers: { 'x-request-id': string };
+  }
+    ? true
+    : false
+>;
+
+type _HeadersHandlerArgs = Expect<
+  HandlerArgsOf<HeadersRoute> extends {
+    readonly headers: { 'x-request-id': string };
+  }
+    ? true
+    : false
+>;
+
 type _ListClientArgsEmpty = Expect<
   keyof ClientArgsOf<ListRoute> extends never ? true : false
 >;
 
 type _ListHandlerArgsEmpty = Expect<
   keyof HandlerArgsOf<ListRoute> extends never ? true : false
+>;
+
+type _DeleteOutputIsVoid = Expect<
+  OutputOf<DeleteUserRoute> extends void ? true : false
 >;

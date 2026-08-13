@@ -13,7 +13,7 @@ const baseRoute = {
   path: '/users/:id',
   params: z.object({ id: z.string() }),
   output: z.object({ id: z.string() }),
-  errors: ['not_found'] as const,
+  errors: { not_found: 404 } as const,
 };
 
 describe('compileContract', () => {
@@ -49,13 +49,13 @@ describe('compileContract', () => {
         method: 'GET' as const,
         path: '/users',
         output: z.object({ id: z.string() }),
-        errors: ['not_found'] as const,
+        errors: { not_found: 404 } as const,
       },
       listUsersSlash: {
         method: 'GET' as const,
         path: '/users/',
         output: z.object({ id: z.string() }),
-        errors: ['not_found'] as const,
+        errors: { not_found: 404 } as const,
       },
     } satisfies ContractDef;
 
@@ -102,7 +102,7 @@ describe('compileContract', () => {
     const contract = {
       getUser: {
         ...baseRoute,
-        errors: ['internal'] as const,
+        errors: { internal: 500 } as const,
       },
     } satisfies ContractDef;
 
@@ -112,17 +112,31 @@ describe('compileContract', () => {
     );
   });
 
-  it('throws ContractConfigurationError for duplicate codes within a route', () => {
+  it('throws ContractConfigurationError for reserved host error codes', () => {
     const contract = {
       getUser: {
         ...baseRoute,
-        errors: ['not_found', 'not_found'] as const,
+        errors: { route_not_found: 404 } as const,
       },
     } satisfies ContractDef;
 
     expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
     expect(() => compileContract(contract)).toThrow(
-      'Duplicate error code "not_found" on operation "getUser"',
+      'Reserved error code "route_not_found" cannot be used as a domain code on operation "getUser"',
+    );
+  });
+
+  it('throws ContractConfigurationError for invalid error status values', () => {
+    const contract = {
+      getUser: {
+        ...baseRoute,
+        errors: { not_found: 299 } as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Invalid error status 299 for code "not_found" on operation "getUser"',
     );
   });
 
@@ -132,7 +146,7 @@ describe('compileContract', () => {
         method: 'GET' as const,
         path: '/users/:id',
         output: z.object({ id: z.string() }),
-        errors: ['not_found'] as const,
+        errors: { not_found: 404 } as const,
       },
     } satisfies ContractDef;
 
@@ -149,7 +163,7 @@ describe('compileContract', () => {
         path: '/users',
         params: z.object({ id: z.string() }),
         output: z.object({ id: z.string() }),
-        errors: [] as const,
+        errors: {} as const,
       },
     } satisfies ContractDef;
 
@@ -166,7 +180,7 @@ describe('compileContract', () => {
         path: '/users',
         body: z.object({ name: z.string() }),
         output: z.object({ id: z.string() }),
-        errors: [] as const,
+        errors: {} as const,
       },
     } satisfies ContractDef;
 
@@ -184,7 +198,7 @@ describe('compileContract', () => {
         params: z.object({ id: z.string() }),
         body: z.object({ reason: z.string() }),
         output: z.object({ ok: z.boolean() }),
-        errors: [] as const,
+        errors: {} as const,
       },
     } satisfies ContractDef;
 
@@ -202,7 +216,103 @@ describe('compileContract', () => {
         query: z.object({ force: z.boolean() }),
         body: z.object({ name: z.string() }),
         output: z.object({ id: z.string() }),
-        errors: ['conflict'] as const,
+        errors: { conflict: 409 } as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).not.toThrow();
+  });
+
+  it('allows the same domain code to map to different statuses on different routes', () => {
+    const contract = {
+      getUser: baseRoute,
+      getArchive: {
+        method: 'GET' as const,
+        path: '/archives/:id',
+        params: z.object({ id: z.string() }),
+        output: z.object({ id: z.string() }),
+        errors: { not_found: 410 } as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).not.toThrow();
+  });
+
+  it('allows success 204 without an output schema', () => {
+    const contract = {
+      deleteUser: {
+        method: 'DELETE' as const,
+        path: '/users/:id',
+        params: z.object({ id: z.string() }),
+        success: 204,
+        errors: { not_found: 404 } as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).not.toThrow();
+  });
+
+  it('throws when success 204 declares an output schema', () => {
+    const contract = {
+      deleteUser: {
+        method: 'DELETE' as const,
+        path: '/users/:id',
+        params: z.object({ id: z.string() }),
+        success: 204,
+        output: z.object({ ok: z.boolean() }),
+        errors: { not_found: 404 } as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Operation "deleteUser" with success 204 must not declare an output schema',
+    );
+  });
+
+  it('throws when success is not 204 and output is missing', () => {
+    const contract = {
+      getUser: {
+        method: 'GET' as const,
+        path: '/users/:id',
+        params: z.object({ id: z.string() }),
+        errors: { not_found: 404 } as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Operation "getUser" must declare an output schema when success is not 204',
+    );
+  });
+
+  it('throws for invalid success status values', () => {
+    const contract = {
+      createUser: {
+        method: 'POST' as const,
+        path: '/users',
+        body: z.object({ name: z.string() }),
+        output: z.object({ id: z.string() }),
+        success: 203,
+        errors: {} as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Operation "createUser" declares invalid success status 203',
+    );
+  });
+
+  it('allows success 201 with an output schema', () => {
+    const contract = {
+      createUser: {
+        method: 'POST' as const,
+        path: '/users',
+        body: z.object({ name: z.string() }),
+        output: z.object({ id: z.string() }),
+        success: 201,
+        errors: { conflict: 409 } as const,
       },
     } satisfies ContractDef;
 
@@ -272,14 +382,14 @@ describe('isContractPath', () => {
       method: 'GET' as const,
       path: '/users',
       output: z.object({ id: z.string() }),
-      errors: ['not_found'] as const,
+      errors: { not_found: 404 } as const,
     },
     createUser: {
       method: 'POST' as const,
       path: '/users',
       body: z.object({ name: z.string() }),
       output: z.object({ id: z.string() }),
-      errors: ['not_found'] as const,
+      errors: { not_found: 404 } as const,
     },
   } satisfies ContractDef;
 

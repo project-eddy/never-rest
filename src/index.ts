@@ -4,5 +4,5 @@ export type { RailError, RailIssue } from './error.js';
 export { chain, flatten, formatChain, railError } from './error.js';
 export type { RespondOptions } from './respond.js';
 export { respond } from './respond.js';
-export type { StatusMap } from './status.js';
-export { statusFor, toDeclaredResponse } from './status.js';
+export type { HostStatuses, StatusMap } from './status.js';
+export { HOST_STATUSES, statusFor, toDeclaredResponse } from './status.js';

@@ -11,10 +11,11 @@ status: draft
 # Mapping RailError codes to HTTP statuses
 
 Handlers return `Result` values; the server must translate `RailError` codes
-into HTTP status codes using a consumer-supplied `StatusMap`. Routes declare
-which statuses they may emit; any error whose mapped status is not declared
-degrades to **500** while preserving the error body. This file specifies
-`statusFor`, `toDeclaredResponse`, and the `respond` integration.
+into HTTP status codes using each route's `errors` map and the host defaults in
+`HOST_STATUSES`. Routes declare which statuses they may emit; any error whose
+mapped status is not declared degrades to **500** while preserving the error
+body. This file specifies `statusFor`, `toDeclaredResponse`, `HOST_STATUSES`,
+and the `respond` integration.
 
 ## Declared status is returned
 
@@ -45,7 +46,7 @@ Scenario: Degrading an undeclared mapped status to 500
 
 ```gherkin
 Scenario: Mapping an unmatched method or path to route_not_found
-  Given a status map where "route_not_found" maps to 404
+  Given HOST_STATUSES where route_not_found maps to 404
   And an incoming request that does not match any declared route
   When serve handles the request
   Then the response status is 404
@@ -60,7 +61,7 @@ Scenario: Rejecting undecodable path parameter captures
   Given a route with a path parameter
   And an incoming request whose capture has invalid percent-encoding
   When serve handles the request
-  Then the response status is the declared validation_error status
+  Then the response status is HOST_STATUSES.validation_error
   And the response body has code "validation_error"
   But the response body does not have code "route_not_found"
 ```
@@ -77,12 +78,12 @@ Scenario: Wrapping handler-forged internal errors
   And the original handler message is preserved only under cause at full disclosure
 ```
 
-## Custom status map
+## Per-route error status map
 
 ```gherkin
-Scenario: Using a consumer-defined status map
-  Given a status map where "seat_taken" maps to 409
-  And a route declares 409 among its allowed statuses
+Scenario: Mapping a route-declared error code to its HTTP status
+  Given a route whose errors map "seat_taken" to 409
+  And the route declares 409 among its allowed statuses
   And a RailError with code "seat_taken" and message "Row 4 seat 12"
   When statusFor is called with that map and error
   Then the returned status is 409

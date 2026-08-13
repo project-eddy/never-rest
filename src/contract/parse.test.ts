@@ -28,7 +28,7 @@ const zodRoute = {
   path: '/users',
   body: zodSchema,
   output: zodSchema,
-  errors: ['not_found'] as const,
+  errors: { not_found: 404 } as const,
 } satisfies RouteDef;
 
 const valibotRoute = {
@@ -36,7 +36,7 @@ const valibotRoute = {
   path: '/users',
   body: valibotSchema,
   output: valibotSchema,
-  errors: ['not_found'] as const,
+  errors: { not_found: 404 } as const,
 } satisfies RouteDef;
 
 const arktypeRoute = {
@@ -44,14 +44,14 @@ const arktypeRoute = {
   path: '/users',
   body: arktypeSchema,
   output: arktypeSchema,
-  errors: ['not_found'] as const,
+  errors: { not_found: 404 } as const,
 } satisfies RouteDef;
 
 const noSourcesRoute = {
   method: 'GET',
   path: '/health',
   output: zodSchema,
-  errors: [] as const,
+  errors: {} as const,
 } satisfies RouteDef;
 
 const queryDefaultRoute = {
@@ -61,7 +61,7 @@ const queryDefaultRoute = {
     limit: z.string().default('10').transform(Number),
   }),
   output: z.object({ ok: z.boolean() }),
-  errors: [] as const,
+  errors: {} as const,
 } satisfies RouteDef;
 
 describe('parseRouteSources', () => {
@@ -151,7 +151,7 @@ describe('parseRouteSources', () => {
       params: z.object({ id: z.string() }),
       body: z.object({ id: z.string(), name: z.string() }),
       output: z.object({ ok: z.boolean() }),
-      errors: [] as const,
+      errors: {} as const,
     } satisfies RouteDef;
 
     const result = await parseRouteSources(route, {
@@ -165,6 +165,49 @@ describe('parseRouteSources', () => {
         params: { id: 'path-id' },
         body: { id: 'body-id', name: 'Ada' },
       });
+    }
+  });
+
+  it('parses declared headers as a distinct source', async () => {
+    const route = {
+      method: 'GET',
+      path: '/trace',
+      headers: z.object({ 'x-request-id': z.string().min(1) }),
+      output: z.object({ ok: z.boolean() }),
+      errors: {} as const,
+    } satisfies RouteDef;
+
+    const result = await parseRouteSources(route, {
+      headers: { 'x-request-id': 'req-1' },
+    });
+
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual({
+        headers: { 'x-request-id': 'req-1' },
+      });
+    }
+  });
+
+  it('returns validation_error when declared headers are missing', async () => {
+    const route = {
+      method: 'GET',
+      path: '/trace',
+      headers: z.object({ 'x-request-id': z.string() }),
+      output: z.object({ ok: z.boolean() }),
+      errors: {} as const,
+    } satisfies RouteDef;
+
+    const result = await parseRouteSources(route, {});
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.code).toBe('validation_error');
+      expect(result.error.issues).toEqual([
+        {
+          path: ['headers'],
+          message: 'Missing required headers for this route',
+        },
+      ]);
     }
   });
 });
@@ -181,7 +224,7 @@ const outputRoute = {
   path: '/users/:id',
   params: z.object({ id: z.string() }),
   output: outputTransformSchema,
-  errors: ['not_found'] as const,
+  errors: { not_found: 404 } as const,
 } satisfies RouteDef;
 
 describe('parseOutput', () => {
@@ -208,6 +251,22 @@ describe('parseOutput', () => {
       );
       expect(result.error.cause?.issues).toBeDefined();
       expect(result.error.cause!.issues!.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('returns void for routes without an output schema', async () => {
+    const route = {
+      method: 'DELETE',
+      path: '/users/:id',
+      params: z.object({ id: z.string() }),
+      success: 204,
+      errors: { not_found: 404 } as const,
+    } satisfies RouteDef;
+
+    const result = await parseOutput(route, undefined);
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toBeUndefined();
     }
   });
 });

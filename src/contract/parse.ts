@@ -13,6 +13,7 @@ export interface RawRouteSources {
   readonly params?: Record<string, string>;
   readonly query?: unknown;
   readonly body?: unknown;
+  readonly headers?: unknown;
 }
 
 function toPathSegment(
@@ -77,7 +78,7 @@ export function parseSchema<Output>(
 }
 
 function prefixIssues(
-  source: 'params' | 'query' | 'body',
+  source: 'params' | 'query' | 'body' | 'headers',
   issues: readonly RailIssue[],
 ): readonly RailIssue[] {
   return issues.map((issue) => ({
@@ -87,7 +88,7 @@ function prefixIssues(
 }
 
 function parseDeclaredSource(
-  source: 'params' | 'query' | 'body',
+  source: 'params' | 'query' | 'body' | 'headers',
   schema: StandardSchemaV1,
   value: unknown,
 ): ResultAsync<unknown, RailError<'validation_error'>> {
@@ -110,14 +111,14 @@ function parseDeclaredSource(
 /**
  * Parse each declared input source independently.
  * Client and server both call this — client with InferInput-shaped values,
- * server with wire-decoded params / query / body.
+ * server with wire-decoded params / query / body / headers.
  */
 export function parseRouteSources<TRoute extends RouteDef>(
   route: TRoute,
   raw: RawRouteSources,
 ): ResultAsync<HandlerArgsOf<TRoute>, RailError<'validation_error'>> {
   const checks: ResultAsync<
-    Partial<Record<'params' | 'query' | 'body', unknown>>,
+    Partial<Record<'params' | 'query' | 'body' | 'headers', unknown>>,
     RailError<'validation_error'>
   >[] = [];
 
@@ -145,6 +146,14 @@ export function parseRouteSources<TRoute extends RouteDef>(
     );
   }
 
+  if (route.headers !== undefined) {
+    checks.push(
+      parseDeclaredSource('headers', route.headers, raw.headers).map((value) => ({
+        headers: value,
+      })),
+    );
+  }
+
   if (checks.length === 0) {
     return okAsync({} as HandlerArgsOf<TRoute>);
   }
@@ -163,6 +172,10 @@ export function parseOutput<TRoute extends RouteDef>(
   route: TRoute,
   value: unknown,
 ): ResultAsync<OutputOf<TRoute>, RailError<'internal'>> {
+  if (route.output === undefined) {
+    return okAsync(undefined as OutputOf<TRoute>);
+  }
+
   return parseSchema(route.output, value).mapErr((failure) =>
     railError('internal', 'An unexpected error occurred', {
       cause: railError(

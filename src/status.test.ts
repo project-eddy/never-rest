@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { railError } from './error.js';
-import { statusFor, toDeclaredResponse } from './status.js';
+import { HOST_STATUSES, statusFor, toDeclaredResponse } from './status.js';
 
 const statuses = {
   validation_error: 400,
@@ -12,6 +12,16 @@ const statuses = {
 } as const;
 
 type TestCode = keyof typeof statuses;
+
+describe('HOST_STATUSES', () => {
+  it('exposes default host status codes', () => {
+    expect(HOST_STATUSES).toEqual({
+      validation_error: 400,
+      internal: 500,
+      route_not_found: 404,
+    });
+  });
+});
 
 describe('statusFor', () => {
   it('maps error codes through the supplied status map', () => {
