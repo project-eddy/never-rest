@@ -7,6 +7,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-13
+
 ### Added
 
 - `params?`, `query?`, `body?`, and `headers?` on `RouteDef` — each optional Standard Schema; replaces the flat `input` field so path, query, body, and headers cannot silently merge fields that share a name.
@@ -35,12 +37,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `ClientInputOf`, `HandlerInputOf`, and `InputOf` — use `ClientArgsOf` and `HandlerArgsOf`.
 - `parseInput` — use `parseRouteSources`.
 - `ServeStatusMap` and `ServeOptions.statuses` — put domain statuses on `RouteDef.errors`.
-
-### Internal
-
-- Railway × protocol invariant suite (`src/railway/`, `specs/railway-boundary.spec.md`) — catalogue and adversarial combinator handlers against `serve`.
-- Perf benches regenerated for the errors-map contract shape; combined slope remains 584 instantiations per route (budget 1,800).
-- Streaming and multipart feasibility verdict: keep them off the railway (`research/20260813-streaming-multipart-feasibility.md`).
 
 ## [0.4.1] - 2026-08-12
 
@@ -119,7 +115,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `@eddy-works/never-rest/node`: `toNodeHandler` for Node's `http` interface.
 - A published type-instantiation budget of 1,800 per route, enforced in CI with `@ark/attest`.
 
-[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.5.0
 [0.4.1]: https://github.com/project-eddy/never-rest/releases/tag/v0.4.1
 [0.4.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.4.0
 [0.3.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.3.0

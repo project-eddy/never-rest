@@ -1,6 +1,6 @@
 {
   "name": "@eddy-works/never-rest",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "HTTP contract library where handlers return Result instead of throwing",
   "type": "module",
   "sideEffects": false,
