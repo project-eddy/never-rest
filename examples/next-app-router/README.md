@@ -7,7 +7,7 @@ behind a Next catch-all `/api` route (with named `GET` / `POST` / … exports).
 
 ## Read in this order
 
-1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` + `statuses`
+1. [Shared contract](../packages/shared-contract/README.md) — `usersContract`
 2. [`app/api/[...path]/route.ts`](app/api/[...path]/route.ts) — handlers, `serve`, Next mount
 
 ## Protocol win
@@ -20,9 +20,9 @@ output schema and strips it. Unmatched routes are `route_not_found` (not domain
 
 ## What this stack does differently
 
-Next puts APIs under `/api/…`. The shared contract uses `/users/:id`. This
-file strips `/api` before calling never-rest so the contract stays the same
-as in every other example.
+Next puts APIs under `/api/…`. The shared contract uses `/users/:id`. Pass
+`basePath: '/api'` to `serve` so requests keep their real URL — no manual
+prefix stripping.
 
 ## Run
 

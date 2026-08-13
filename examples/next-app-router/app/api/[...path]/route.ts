@@ -2,10 +2,7 @@ import { err, ok } from 'neverthrow';
 
 import { railError } from '@eddy-works/never-rest';
 import { serve, type Handlers } from '@eddy-works/never-rest/server';
-import {
-  statuses,
-  usersContract,
-} from '@never-rest-examples/shared-contract';
+import { usersContract } from '@never-rest-examples/shared-contract';
 
 type UserRecord = { id: string; name: string; passwordHash: string };
 
@@ -69,48 +66,40 @@ const usersHandlers: Handlers<typeof usersContract, undefined> = {
     }));
     return ok(wireCandidates);
   },
+
+  ping: () => ok({ ok: true as const }),
+
+  deleteUser: ({ params }) => {
+    if (!users.has(params.id)) {
+      return err(railError('not_found', `User ${params.id} not found`));
+    }
+    users.delete(params.id);
+    return ok(undefined);
+  },
 };
 
-// disclosure omitted → `public` (fail-closed at the HTTP edge).
-const usersApi = serve(usersContract, usersHandlers, {
-  statuses,
+// Contract paths are /users…; Next mounts this handler under /api via basePath.
+export const usersApi = serve(usersContract, usersHandlers, {
+  basePath: '/api',
   origin: 'next-demo',
 });
 
-// Next mounts this under /api/*; the contract paths are /users… — strip the prefix.
-function toContractRequest(request: Request): Request {
-  const url = new URL(request.url);
-  const pathname = url.pathname;
-
-  const isUnderApi =
-    pathname === '/api' || pathname.startsWith('/api/');
-
-  if (!isUnderApi) {
-    return request;
-  }
-
-  const withoutApiPrefix = pathname.slice('/api'.length) || '/';
-  url.pathname = withoutApiPrefix;
-
-  return new Request(url, request);
-}
-
 export async function GET(request: Request): Promise<Response> {
-  return usersApi(toContractRequest(request), undefined);
+  return usersApi(request, undefined);
 }
 
 export async function POST(request: Request): Promise<Response> {
-  return usersApi(toContractRequest(request), undefined);
+  return usersApi(request, undefined);
 }
 
 export async function PUT(request: Request): Promise<Response> {
-  return usersApi(toContractRequest(request), undefined);
+  return usersApi(request, undefined);
 }
 
 export async function PATCH(request: Request): Promise<Response> {
-  return usersApi(toContractRequest(request), undefined);
+  return usersApi(request, undefined);
 }
 
 export async function DELETE(request: Request): Promise<Response> {
-  return usersApi(toContractRequest(request), undefined);
+  return usersApi(request, undefined);
 }

@@ -14,11 +14,10 @@ gateway prove *why this beats throw-based APIs*.
 
 1. **Lesson 1 — Shared contract**  
    [`packages/shared-contract`](packages/shared-contract)  
-   Read `contract.ts`. This package exports only `usersContract`, schemas,
-   and `statuses` — no handlers and no `serve`.  
-   **Win:** the complete status map is the protocol surface (domain codes +
-   `validation_error` / `internal` / `route_not_found`). `unavailable` is
-   client-only.
+   Read `contract.ts`. This package exports only `usersContract` and schemas —
+   no handlers and no `serve`.  
+   **Win:** domain statuses on each route; host codes are serve defaults;
+   `unavailable` is client-only.
 
 2. **Lesson 2 — Pick one stack**  
    Open that folder’s mount file. Each example imports the contract, writes
@@ -53,8 +52,8 @@ compare mounts without rewriting the route table.
 | --- | --- | --- | --- |
 | [`express`](express) | Express (Node) | 3001 | `toNodeHandler` bridges Node ↔ Web Fetch |
 | [`hono`](hono) | Hono | 3002 | Native Web `Request` — no adapter |
-| [`next-app-router`](next-app-router) | Next.js App Router | 3003 | Catch-all `/api/*` with path prefix strip |
-| [`sveltekit`](sveltekit) | SvelteKit | 3004 | `hooks.server.ts` + `isContractPath` |
+| [`next-app-router`](next-app-router) | Next.js App Router | 3003 | Catch-all `/api/*` with `basePath: '/api'` |
+| [`sveltekit`](sveltekit) | SvelteKit | 3004 | `hooks.server.ts` + cooperative `handle()` |
 | [`cloudflare-workers`](cloudflare-workers) | Cloudflare Workers | 3005 | Worker `fetch` calls `serve()` |
 | [`gateway`](gateway) | In-process | — | Cause chains, disclosure, `ClientErrorOf` |
 | [`validators`](validators) | In-process | — | Zod / Valibot / ArkType via Standard Schema |
@@ -76,7 +75,7 @@ Typecheck all examples:
 pnpm examples:typecheck
 ```
 
-Example conformance (users contract against Express + Hono mounts):
+Example conformance (users contract against Express, Hono, Next, and SvelteKit mounts):
 
 ```bash
 pnpm exec vitest run --config examples/conformance/vitest.config.ts

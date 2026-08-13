@@ -7,38 +7,43 @@ export const userSchema = z.object({
   name: z.string(),
 });
 
-// Path params, query, and body are declared separately for the typed client.
+// Path params, query, body, and headers are declared separately for the typed client.
+// Domain error statuses live on each route; host codes (validation_error, internal,
+// route_not_found) are serve defaults — do not list them in route.errors.
 export const usersContract = {
+  listUsers: {
+    method: 'GET',
+    path: '/users',
+    output: z.array(userSchema),
+    errors: {},
+  },
+  ping: {
+    method: 'GET',
+    path: '/users/ping',
+    headers: z.object({ 'x-request-id': z.string().min(1) }),
+    output: z.object({ ok: z.literal(true) }),
+    errors: {},
+  },
   getUser: {
     method: 'GET',
     path: '/users/:id',
     params: z.object({ id: z.string() }),
     output: userSchema,
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
   createUser: {
     method: 'POST',
     path: '/users',
     body: z.object({ name: z.string().min(1) }),
     output: userSchema,
-    errors: ['conflict'],
+    success: 201,
+    errors: { conflict: 409 },
   },
-  listUsers: {
-    method: 'GET',
-    path: '/users',
-    output: z.array(userSchema),
-    errors: [],
+  deleteUser: {
+    method: 'DELETE',
+    path: '/users/:id',
+    params: z.object({ id: z.string() }),
+    success: 204,
+    errors: { not_found: 404 },
   },
 } as const satisfies ContractDef;
-
-// Protocol surface for `serve`: every domain code on the contract plus host
-// codes (`validation_error`, `internal`, `route_not_found`). Missing map
-// entries fail construction. `unavailable` is client-only — synthesised on
-// network failure by `createClient`, never listed here.
-export const statuses = {
-  validation_error: 400,
-  not_found: 404,
-  conflict: 409,
-  route_not_found: 404,
-  internal: 500,
-} as const;

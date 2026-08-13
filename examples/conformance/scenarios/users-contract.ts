@@ -11,6 +11,17 @@ export type FetchHandler = (
   context: undefined,
 ) => Response | Promise<Response>;
 
+export type ScenarioOptions = {
+  /** Prepended to contract paths (e.g. `/api` for Next basePath mounts). */
+  readonly urlPrefix?: string;
+  /** When true, skip host-only route_not_found on paths outside the contract. */
+  readonly cooperativeMount?: boolean;
+};
+
+function contractUrl(path: string, urlPrefix = ''): string {
+  return `http://example.test${urlPrefix}${path}`;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
 }
@@ -19,9 +30,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export async function listUsers(
   label: string,
   handler: FetchHandler,
+  options: ScenarioOptions = {},
 ): Promise<void> {
   const response = await handler(
-    new Request('http://example.test/users'),
+    new Request(contractUrl('/users', options.urlPrefix)),
     undefined,
   );
   expect(response.status, `${label} GET /users status`).toBe(200);
@@ -37,13 +49,31 @@ export async function listUsers(
   }
 }
 
+/** GET /users/ping — 200 when required header is present. */
+export async function pingWithHeader(
+  label: string,
+  handler: FetchHandler,
+  options: ScenarioOptions = {},
+): Promise<void> {
+  const response = await handler(
+    new Request(contractUrl('/users/ping', options.urlPrefix), {
+      headers: { 'x-request-id': 'conformance-ping' },
+    }),
+    undefined,
+  );
+  expect(response.status, `${label} GET /users/ping status`).toBe(200);
+  const body: unknown = await response.json();
+  expect(body, `${label} GET /users/ping body`).toEqual({ ok: true });
+}
+
 /** GET /users/ada — 200; schema fields only (passwordHash stripped). */
 export async function getAda(
   label: string,
   handler: FetchHandler,
+  options: ScenarioOptions = {},
 ): Promise<void> {
   const response = await handler(
-    new Request('http://example.test/users/ada'),
+    new Request(contractUrl('/users/ada', options.urlPrefix)),
     undefined,
   );
   expect(response.status, `${label} GET /users/ada status`).toBe(200);
@@ -62,9 +92,10 @@ export async function getAda(
 export async function domainNotFound(
   label: string,
   handler: FetchHandler,
+  options: ScenarioOptions = {},
 ): Promise<void> {
   const response = await handler(
-    new Request('http://example.test/users/missing'),
+    new Request(contractUrl('/users/missing', options.urlPrefix)),
     undefined,
   );
   expect(response.status, `${label} GET /users/missing status`).toBe(404);
@@ -79,9 +110,10 @@ export async function domainNotFound(
 export async function routeNotFound(
   label: string,
   handler: FetchHandler,
+  options: ScenarioOptions = {},
 ): Promise<void> {
   const response = await handler(
-    new Request('http://example.test/nope'),
+    new Request(contractUrl('/nope', options.urlPrefix)),
     undefined,
   );
   expect(response.status, `${label} GET /nope status`).toBe(404);
@@ -92,21 +124,42 @@ export async function routeNotFound(
   }
 }
 
-/** POST /users — 200 create; passwordHash stripped from wire body. */
+/** PATCH on a known path — host miss → code route_not_found (cooperative mounts). */
+export async function methodNotFoundOnKnownPath(
+  label: string,
+  handler: FetchHandler,
+  options: ScenarioOptions = {},
+): Promise<void> {
+  const response = await handler(
+    new Request(contractUrl('/users/ada', options.urlPrefix), {
+      method: 'PATCH',
+    }),
+    undefined,
+  );
+  expect(response.status, `${label} PATCH /users/ada status`).toBe(404);
+  const body: unknown = await response.json();
+  expect(isRecord(body), `${label} PATCH /users/ada body`).toBe(true);
+  if (isRecord(body)) {
+    expect(body.code, `${label} wrong method code`).toBe('route_not_found');
+  }
+}
+
+/** POST /users — 201 create; passwordHash stripped from wire body. */
 export async function createUser(
   label: string,
   handler: FetchHandler,
-): Promise<void> {
+  options: ScenarioOptions = {},
+): Promise<string | undefined> {
   const uniqueName = `Smoke User ${crypto.randomUUID()}`;
   const response = await handler(
-    new Request('http://example.test/users', {
+    new Request(contractUrl('/users', options.urlPrefix), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: uniqueName }),
     }),
     undefined,
   );
-  expect(response.status, `${label} POST /users status`).toBe(200);
+  expect(response.status, `${label} POST /users status`).toBe(201);
   const body: unknown = await response.json();
   expect(body, `${label} POST /users body`).toMatchObject({
     name: uniqueName,
@@ -117,17 +170,46 @@ export async function createUser(
   ).toBe(false);
   if (isRecord(body) && typeof body.id === 'string') {
     expect(body.id.length, `${label} created id`).toBeGreaterThan(0);
+    return body.id;
   }
+  return undefined;
+}
+
+/** DELETE /users/:id — 204 with empty body. */
+export async function deleteUser(
+  label: string,
+  handler: FetchHandler,
+  id: string,
+  options: ScenarioOptions = {},
+): Promise<void> {
+  const response = await handler(
+    new Request(contractUrl(`/users/${id}`, options.urlPrefix), {
+      method: 'DELETE',
+    }),
+    undefined,
+  );
+  expect(response.status, `${label} DELETE /users/${id} status`).toBe(204);
+  const text = await response.text();
+  expect(text, `${label} DELETE /users/${id} body`).toBe('');
 }
 
 /** Run every users-contract scenario against one mount. */
 export async function runUsersContractScenarios(
   label: string,
   handler: FetchHandler,
+  options: ScenarioOptions = {},
 ): Promise<void> {
-  await listUsers(label, handler);
-  await getAda(label, handler);
-  await domainNotFound(label, handler);
-  await routeNotFound(label, handler);
-  await createUser(label, handler);
+  await listUsers(label, handler, options);
+  await pingWithHeader(label, handler, options);
+  await getAda(label, handler, options);
+  await domainNotFound(label, handler, options);
+  if (options.cooperativeMount) {
+    await methodNotFoundOnKnownPath(label, handler, options);
+  } else {
+    await routeNotFound(label, handler, options);
+  }
+  const createdId = await createUser(label, handler, options);
+  if (createdId !== undefined) {
+    await deleteUser(label, handler, createdId, options);
+  }
 }

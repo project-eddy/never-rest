@@ -7,7 +7,7 @@ result on Express with `toNodeHandler`.
 
 ## Read in this order
 
-1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` + `statuses`
+1. [Shared contract](../packages/shared-contract/README.md) — `usersContract`
 2. [`src/server.ts`](src/server.ts) — handlers, `serve`, Express mount
 
 ## Protocol win

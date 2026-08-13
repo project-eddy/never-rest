@@ -2,12 +2,8 @@ import type { Handle } from '@sveltejs/kit';
 import { err, ok } from 'neverthrow';
 
 import { railError } from '@eddy-works/never-rest';
-import { compileContract, isContractPath } from '@eddy-works/never-rest/contract';
 import { serve, type Handlers } from '@eddy-works/never-rest/server';
-import {
-  statuses,
-  usersContract,
-} from '@never-rest-examples/shared-contract';
+import { usersContract } from '@never-rest-examples/shared-contract';
 
 type UserRecord = { id: string; name: string; passwordHash: string };
 
@@ -71,21 +67,28 @@ const usersHandlers: Handlers<typeof usersContract, undefined> = {
     }));
     return ok(wireCandidates);
   },
+
+  ping: () => ok({ ok: true as const }),
+
+  deleteUser: ({ params }) => {
+    if (!users.has(params.id)) {
+      return err(railError('not_found', `User ${params.id} not found`));
+    }
+    users.delete(params.id);
+    return ok(undefined);
+  },
 };
 
 // disclosure omitted → `public` (fail-closed at the HTTP edge).
-const usersApi = serve(usersContract, usersHandlers, {
-  statuses,
+export const usersApi = serve(usersContract, usersHandlers, {
   origin: 'sveltekit-demo',
 });
 
-const compiledUsers = compileContract(usersContract);
-
-// Dispatch from compiled paths — not a `/users*` prefix, which would steal
-// unrelated routes such as `/users/export`.
+// Cooperative mount: only contract paths reach never-rest; everything else falls through.
 export const handle: Handle = async ({ event, resolve }) => {
-  if (isContractPath(compiledUsers, event.url.pathname)) {
-    return usersApi(event.request, undefined);
+  const result = await usersApi.handle(event.request, undefined);
+  if (result.matched) {
+    return result.response;
   }
   return resolve(event);
 };

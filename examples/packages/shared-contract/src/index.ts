@@ -1,1 +1,1 @@
-export { statuses, userSchema, usersContract } from './contract.js';
+export { userSchema, usersContract } from './contract.js';

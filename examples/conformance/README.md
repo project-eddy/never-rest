@@ -11,12 +11,11 @@ pnpm exec vitest run --config examples/conformance/vitest.config.ts
 
 | File | What it checks |
 | --- | --- |
-| [`users-mounts.test.ts`](users-mounts.test.ts) | Express + Hono mounts against the shared users contract |
-| [`scenarios/users-contract.ts`](scenarios/users-contract.ts) | List → get Ada → domain `not_found` → host `route_not_found` → create (and proves `passwordHash` never leaves on the wire) |
+| [`users-mounts.test.ts`](users-mounts.test.ts) | Express, Hono, Next (`basePath`), and SvelteKit (`handle()`) mounts against the shared users contract |
+| [`scenarios/users-contract.ts`](scenarios/users-contract.ts) | List → ping (headers) → get Ada → domain `not_found` → host `route_not_found` (or wrong-method `route_not_found` on cooperative mounts) → create `201` → delete `204` (and proves `passwordHash` never leaves on the wire) |
 
-Framework mounts under next / sveltekit / workers are not imported here; they
-copy the same handler pattern. Express and Hono are enough to guard the shared
-contract behaviour.
+Cloudflare Workers copies the same handler pattern as Hono; it is not imported here
+to avoid Workers-specific types in the conformance runner.
 
 Library protocol edge cases (parsed output stripping, undeclared errors,
 client `unavailable`) live in `src/protocol/` and run under `pnpm test`.

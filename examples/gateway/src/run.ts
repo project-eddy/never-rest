@@ -23,16 +23,6 @@ import type { ContractDef } from '@eddy-works/never-rest/contract';
 import { createClient } from '@eddy-works/never-rest/client';
 import { serve, type Handlers } from '@eddy-works/never-rest/server';
 
-// --- Status map (domain + host codes; unavailable is client-only) ------------
-
-const statuses = {
-  validation_error: 400,
-  not_found: 404,
-  fulfilment_failed: 502,
-  route_not_found: 404,
-  internal: 500,
-} as const;
-
 // --- 1. Inventory service (always fails) -------------------------------------
 
 const inventoryContract = {
@@ -41,7 +31,7 @@ const inventoryContract = {
     path: '/reserve',
     body: z.object({ sku: z.string(), qty: z.number().int().positive() }),
     output: z.object({ reservationId: z.string() }),
-    errors: ['not_found'],
+    errors: { not_found: 404 },
   },
 } as const satisfies ContractDef;
 
@@ -56,7 +46,6 @@ const inventoryHandlers: Handlers<typeof inventoryContract, undefined> = {
 };
 
 const inventoryFetch = serve(inventoryContract, inventoryHandlers, {
-  statuses,
   origin: 'inventory',
   disclosure: 'full',
 });
@@ -84,7 +73,7 @@ const ordersContract = {
     params: z.object({ id: z.string() }),
     body: z.object({ sku: z.string(), qty: z.number() }),
     output: z.object({ orderId: z.string(), reservationId: z.string() }),
-    errors: ['fulfilment_failed', 'not_found'],
+    errors: { fulfilment_failed: 502, not_found: 404 },
   },
 } as const satisfies ContractDef;
 
@@ -132,7 +121,6 @@ async function renderAt(
   disclosure: 'full' | 'internal' | 'public' | undefined,
 ): Promise<void> {
   const ordersApi = serve(ordersContract, ordersHandlers, {
-    statuses,
     origin: 'orders',
     ...(disclosure === undefined ? {} : { disclosure }),
   });

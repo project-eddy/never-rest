@@ -2,10 +2,7 @@ import { err, ok } from 'neverthrow';
 
 import { railError } from '@eddy-works/never-rest';
 import { serve, type Handlers } from '@eddy-works/never-rest/server';
-import {
-  statuses,
-  usersContract,
-} from '@never-rest-examples/shared-contract';
+import { usersContract } from '@never-rest-examples/shared-contract';
 
 type UserRecord = { id: string; name: string; passwordHash: string };
 
@@ -69,10 +66,19 @@ const usersHandlers: Handlers<typeof usersContract, undefined> = {
     }));
     return ok(wireCandidates);
   },
+
+  ping: () => ok({ ok: true as const }),
+
+  deleteUser: ({ params }) => {
+    if (!users.has(params.id)) {
+      return err(railError('not_found', `User ${params.id} not found`));
+    }
+    users.delete(params.id);
+    return ok(undefined);
+  },
 };
 
 // disclosure omitted → `public` (fail-closed at the HTTP edge).
 export const usersApi = serve(usersContract, usersHandlers, {
-  statuses,
   origin: 'express-demo',
 });

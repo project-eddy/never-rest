@@ -5,13 +5,12 @@
 import { err, ok } from 'neverthrow';
 
 import { railError } from '@eddy-works/never-rest';
-import { serve, type Handlers, type ServeStatusMap } from '@eddy-works/never-rest/server';
 import type { ContractDef } from '@eddy-works/never-rest/contract';
+import { serve, type Handlers } from '@eddy-works/never-rest/server';
 
 import { usersContract as arktypeContract } from './contracts/arktype.js';
 import { usersContract as valibotContract } from './contracts/valibot.js';
 import { usersContract as zodContract } from './contracts/zod.js';
-import { statuses } from './statuses.js';
 
 type User = { id: string; name: string };
 
@@ -38,6 +37,14 @@ function createHandlers<TContract extends ContractDef>(
       return ok(user);
     },
     listUsers: () => ok([...users.values()]),
+    ping: () => ok({ ok: true as const }),
+    deleteUser: ({ params }: { params: { id: string } }) => {
+      if (!users.has(params.id)) {
+        return err(railError('not_found', `User ${params.id} not found`));
+      }
+      users.delete(params.id);
+      return ok(undefined);
+    },
   };
 
   return handlers as Handlers<TContract, undefined>;
@@ -48,8 +55,6 @@ async function smoke<TContract extends ContractDef>(
   contract: TContract,
 ): Promise<void> {
   const api = serve(contract, createHandlers(contract), {
-    // Shared fixture covers the three users-contract variants equally.
-    statuses: statuses as ServeStatusMap<TContract>,
     origin: `${label}-demo`,
   });
 
@@ -77,5 +82,5 @@ async function smoke<TContract extends ContractDef>(
 }
 
 await smoke('zod', zodContract);
-await smoke('valibot', valibotContract);
 await smoke('arktype', arktypeContract);
+await smoke('valibot', valibotContract);

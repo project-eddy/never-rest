@@ -7,7 +7,7 @@ the result as a Worker `fetch` handler.
 
 ## Read in this order
 
-1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` + `statuses`
+1. [Shared contract](../packages/shared-contract/README.md) — `usersContract`
 2. [`src/index.ts`](src/index.ts) — handlers, `serve`, Worker mount
 
 ## Protocol win

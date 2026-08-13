@@ -1,7 +1,7 @@
 # Validators (Standard Schema)
 
 Same `users` contract rewritten with three Standard Schema libraries.
-`serve` / handlers / status map stay identical — only the schemas change.
+`serve` / handlers stay identical — only the schemas change.
 
 **Protocol win.** Standard Schema is not only request validation: the same schemas define
 the wire output never-rest always parses and serialises. (Parsed-output
@@ -34,9 +34,9 @@ pnpm --filter @never-rest-examples/validators start
 Expected output:
 
 ```
-zod      valid=200  invalid=400
-valibot  valid=200  invalid=400
-arktype  valid=200  invalid=400
+zod      valid=201  invalid=400
+valibot  valid=201  invalid=400
+arktype  valid=201  invalid=400
 ```
 
 ## Side by side

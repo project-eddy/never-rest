@@ -3,11 +3,11 @@
 ## What you will learn
 
 How to import a shared contract, write handlers, call `serve`, and dispatch
-from compiled contract paths in `hooks.server.ts` (`isContractPath`).
+cooperatively from `hooks.server.ts` via `handler.handle()`.
 
 ## Read in this order
 
-1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` + `statuses`
+1. [Shared contract](../packages/shared-contract/README.md) — `usersContract`
 2. [`src/hooks.server.ts`](src/hooks.server.ts) — handlers, `serve`, SvelteKit mount
 
 ## Protocol win
@@ -21,9 +21,10 @@ output schema and strips it. Unmatched routes are `route_not_found` (not domain
 ## What this stack does differently
 
 API traffic is handled in `hooks.server.ts`, not a `+server.ts` file. The hook
-uses `isContractPath` on the compiled contract so only those pathnames reach
-never-rest; other paths render as normal pages. A `/users*` prefix would steal
-unrelated routes. `event.request` is already a Web `Request`.
+calls `usersApi.handle(event.request)` — `matched: true` returns the never-rest
+response; `matched: false` falls through to SvelteKit pages. A `/users*` prefix
+heuristic would steal unrelated routes. `event.request` is already a Web
+`Request`.
 
 ## Run
 
