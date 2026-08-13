@@ -38,13 +38,13 @@ const stableContract = {
     method: 'GET' as const,
     path: '/users/:id',
     output: userSchema,
-    errors: ['not_found'] as const,
+    errors: { not_found: 404 },
   },
   listUsers: {
     method: 'GET' as const,
     path: '/users',
     output: z.array(userSchema),
-    errors: [] as const,
+    errors: {},
   },
 } as const satisfies ContractDef;
 
@@ -64,13 +64,13 @@ describe('checkContractOutputs', () => {
         method: 'GET' as const,
         path: '/users/:id',
         output: userSchema,
-        errors: ['not_found'] as const,
+        errors: { not_found: 404 },
       },
       getScore: {
         method: 'GET' as const,
         path: '/score',
         output: z.number().transform(String),
-        errors: [] as const,
+        errors: {},
       },
     } as const satisfies ContractDef;
 

@@ -9,13 +9,13 @@ const _sampleContract = {
     method: 'GET' as const,
     path: '/users/:id',
     output: z.object({ id: z.string(), name: z.string() }),
-    errors: ['not_found'] as const,
+    errors: { not_found: 404 },
   },
   listUsers: {
     method: 'GET' as const,
     path: '/users',
     output: z.array(z.object({ id: z.string(), name: z.string() })),
-    errors: [] as const,
+    errors: {},
   },
 } as const satisfies ContractDef;
 

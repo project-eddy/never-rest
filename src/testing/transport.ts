@@ -75,29 +75,39 @@ export function checkTransportStability<T extends StandardSchemaV1>(
     });
 }
 
-/** One sample per contract operation, typed as that route's output input shape. */
+/** One sample per contract operation that declares an output schema. 204 routes are omitted. */
 export type ContractOutputSamples<TContract extends ContractDef> = {
-  readonly [K in keyof TContract]: StandardSchemaV1.InferInput<
-    TContract[K]['output']
+  readonly [K in keyof TContract as TContract[K]['output'] extends StandardSchemaV1
+    ? K
+    : never]: StandardSchemaV1.InferInput<
+    Extract<TContract[K]['output'], StandardSchemaV1>
   >;
 };
 
 /**
  * Run `checkTransportStability` on every contract output schema.
- * Omitting an operation is a type error.
+ * Omitting an operation that declares `output` is a type error. Routes without
+ * `output` (`success: 204`) are skipped.
  */
 export function checkContractOutputs<TContract extends ContractDef>(
   contract: TContract,
   samples: ContractOutputSamples<TContract>,
 ): ResultAsync<void, RailError<'transport_unstable'>> {
   const operations = Object.keys(contract) as (keyof TContract & string)[];
-  const checks = operations.map((operation) =>
-    checkTransportStability(
-      contract[operation].output,
-      samples[operation],
-    ).mapErr((error) =>
-      transportUnstable(`Operation "${operation}": ${error.message}`, error),
-    ),
-  );
+  const checks = operations.flatMap((operation) => {
+    const output = contract[operation].output;
+    if (output === undefined) {
+      return [];
+    }
+
+    return [
+      checkTransportStability(
+        output,
+        samples[operation as keyof ContractOutputSamples<TContract>],
+      ).mapErr((error) =>
+        transportUnstable(`Operation "${operation}": ${error.message}`, error),
+      ),
+    ];
+  });
   return ResultAsync.combine(checks).map(() => undefined);
 }
