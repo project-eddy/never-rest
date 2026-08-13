@@ -7,12 +7,12 @@ behind a Next catch-all `/api` route (with named `GET` / `POST` / … exports).
 
 ## Read in this order
 
-1. [Shared contract](../packages/shared-contract/README.md) — `usersContract`
-2. [`app/api/[...path]/route.ts`](app/api/[...path]/route.ts) — handlers, `serve`, Next mount
+1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` and [`createUsersDb()`](../packages/shared-contract/src/db.ts)
+2. [`app/api/[...path]/route.ts`](app/api/[...path]/route.ts) — handlers return the database `Result`, then Next mount
 
 ## Protocol win
 
-Handlers return `Result` — no throw middleware. They return the store record
+Handlers stay on the railway: they return `createUsersDb()` Results. `Handlers<typeof usersContract>` rejects undeclared error codes. They return the database row
 (including `passwordHash`); `parseOutput` strips undeclared fields before the
 response leaves the process. Unmatched routes are `route_not_found` (not domain
 `not_found`). Omitted `disclosure` defaults to `public`. See
