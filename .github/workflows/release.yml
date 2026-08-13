@@ -2,6 +2,8 @@ name: Release to npm
 
 # Publishes the package to npm whenever a semver tag like v1.0.0 is pushed.
 # Uses npm trusted publishing via GitHub Actions OIDC; no NPM_TOKEN secret is required.
+# After a successful publish, creates a GitHub Release whose notes are the matching
+# CHANGELOG.md version section (### Internal is already dropped at cut time).
 
 on:
   push:
@@ -13,7 +15,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - name: Checkout
@@ -58,6 +60,9 @@ jobs:
       - name: Specs lint
         run: pnpm specs:lint
 
+      - name: OpenAPI lint
+        run: pnpm openapi:lint
+
       - name: Type performance
         run: pnpm perf:check
 
@@ -81,3 +86,22 @@ jobs:
 
       - name: Publish to npm with trusted publishing
         run: npm publish --access public
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NOTES_FILE="$(mktemp)"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { capture = 1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' CHANGELOG.md > "$NOTES_FILE"
+          if [ ! -s "$NOTES_FILE" ]; then
+            echo "::error file=CHANGELOG.md::No ## [$VERSION] section found; refuse empty GitHub Release notes."
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file "$NOTES_FILE"

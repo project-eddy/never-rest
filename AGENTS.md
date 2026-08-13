@@ -14,7 +14,7 @@
 1. Move the `## [Unreleased]` entries under a new `## [x.y.z] - yyyy-mm-dd` heading, leaving `## [Unreleased]` empty. Drop the `### Internal` block rather than publishing it.
 2. Update the link definitions at the bottom of the file, including the `Unreleased` compare range.
 3. Bump `version` in `package.json` to match.
-4. Push a `vx.y.z` tag. The release workflow refuses to publish when the tag and `package.json` version disagree.
+4. Push a `vx.y.z` tag. The release workflow refuses to publish when the tag and `package.json` version disagree. It also runs `pnpm openapi:lint` (Spectral on the OpenAPI golden fixture) and, after a successful npm publish, creates a GitHub Release whose notes are the matching `## [x.y.z]` changelog section.
 
 ## Implementation plans
 
