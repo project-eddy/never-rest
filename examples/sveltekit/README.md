@@ -12,9 +12,9 @@ cooperatively from `hooks.server.ts` via `handler.handle()`.
 
 ## Protocol win
 
-Handlers return `Result` — no throw middleware. Each mount returns a user
-object that still includes `passwordHash`; `serve` serialises the **parsed**
-output schema and strips it. Unmatched routes are `route_not_found` (not domain
+Handlers return `Result` — no throw middleware. They return the store record
+(including `passwordHash`); `parseOutput` strips undeclared fields before the
+response leaves the process. Unmatched routes are `route_not_found` (not domain
 `not_found`). Omitted `disclosure` defaults to `public`. See
 [`../conformance/README.md`](../conformance/README.md).
 

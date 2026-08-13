@@ -20,8 +20,8 @@ const users = new Map<string, UserRecord>([
 
 /**
  * Handlers return Result — expected failures are `err(railError(...))`, not throws.
- * `serve` always serialises the **parsed** output schema, so extra fields below
- * are stripped before the response leaves the process.
+ * Return the store record as-is; `serve` parses the output schema and serialises
+ * that (extra fields such as `passwordHash` are stripped).
  */
 const usersHandlers: Handlers<typeof usersContract, undefined> = {
   getUser: ({ params }) => {
@@ -30,12 +30,7 @@ const usersHandlers: Handlers<typeof usersContract, undefined> = {
       // Domain miss (resource) — distinct from host `route_not_found` on /nope.
       return err(railError('not_found', `User ${params.id} not found`));
     }
-    const wireCandidate = {
-      id: user.id,
-      name: user.name,
-      passwordHash: user.passwordHash,
-    };
-    return ok(wireCandidate);
+    return ok(user);
   },
 
   createUser: ({ body }) => {
@@ -50,22 +45,10 @@ const usersHandlers: Handlers<typeof usersContract, undefined> = {
       passwordHash: `demo-hash-${id}`,
     };
     users.set(id, user);
-    const wireCandidate = {
-      id: user.id,
-      name: user.name,
-      passwordHash: user.passwordHash,
-    };
-    return ok(wireCandidate);
+    return ok(user);
   },
 
-  listUsers: () => {
-    const wireCandidates = [...users.values()].map((user) => ({
-      id: user.id,
-      name: user.name,
-      passwordHash: user.passwordHash,
-    }));
-    return ok(wireCandidates);
-  },
+  listUsers: () => ok([...users.values()]),
 
   ping: () => ok({ ok: true as const }),
 
