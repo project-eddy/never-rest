@@ -13,7 +13,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/**/*.test-d.ts'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.test-d.ts', 'src/openapi/fixtures/**'],
       reporter: ['text', 'text-summary', 'html'],
       thresholds: {
         statements: 88,
