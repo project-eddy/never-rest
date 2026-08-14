@@ -14,6 +14,9 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Internal
 
+- Gateway example keeps `inventoryContract` and `ordersContract` as named exports in `src/contract.ts`; the never-rest skill records that layout as working convention.
+- SvelteKit example splits railway (`src/handler.ts`) from the cooperative hook mount (`src/hooks.server.ts`).
+- Next App Router example splits railway (`handler.ts`) from the catch-all mount (`app/api/[...path]/route.ts`).
 - Framework examples persist users through `createUsersDb()`, which returns `ResultAsync` with contract `railError` codes so handlers stay on the railway.
 - Implementation plan for the files-and-streams 0.6 follow-through (`plans/20260813-files-and-streams-0.6.md`).
 

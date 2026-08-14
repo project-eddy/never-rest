@@ -61,8 +61,8 @@ compare mounts without rewriting the route table.
 | --- | --- | --- | --- |
 | [`express`](express) | Express (Node) | 3001 | `toNodeHandler` bridges Node ↔ Web Fetch |
 | [`hono`](hono) | Hono | 3002 | Native Web `Request` — no adapter |
-| [`next-app-router`](next-app-router) | Next.js App Router | 3003 | Catch-all `/api/*` with `basePath: '/api'` |
-| [`sveltekit`](sveltekit) | SvelteKit | 3004 | `hooks.server.ts` + cooperative `handle()` |
+| [`next-app-router`](next-app-router) | Next.js App Router | 3003 | `handler.ts` + catch-all `/api/*` with `basePath: '/api'` |
+| [`sveltekit`](sveltekit) | SvelteKit | 3004 | `handler.ts` + cooperative `handle()` in `hooks.server.ts` |
 | [`cloudflare-workers`](cloudflare-workers) | Cloudflare Workers | 3005 | Worker `fetch` calls `serve()` |
 | [`gateway`](gateway) | In-process | — | Cause chains, disclosure, `ClientErrorOf` |
 | [`validators`](validators) | In-process | — | Zod / Valibot / ArkType via Standard Schema |

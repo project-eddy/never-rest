@@ -29,8 +29,8 @@ Read them as five lessons:
 | --- | --- |
 | [Express](../examples/express) | Node via `@eddy-works/never-rest/node` (`toNodeHandler`) |
 | [Hono](../examples/hono) | Fetch-native mount |
-| [Next App Router](../examples/next-app-router) | Catch-all route handlers + `basePath: '/api'` |
-| [SvelteKit](../examples/sveltekit) | `hooks.server.ts` + cooperative `handle()` |
+| [Next App Router](../examples/next-app-router) | `handler.ts` + catch-all `/api/*` with `basePath: '/api'` |
+| [SvelteKit](../examples/sveltekit) | `handler.ts` + cooperative `handle()` in `hooks.server.ts` |
 | [Cloudflare Workers](../examples/cloudflare-workers) | Worker `fetch` handler |
 | [Gateway](../examples/gateway) | `chain`, disclosure, `ClientErrorOf` |
 | [Validators](../examples/validators) | Zod / Valibot / ArkType (Standard Schema) |
