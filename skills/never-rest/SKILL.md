@@ -7,6 +7,8 @@ description: Lookup index for @eddy-works/never-rest — HTTP contracts with Res
 
 Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer behaviour from ts-rest or oRPC.
 
+Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`, and clients import it — they do not define it. See [contract modules](references/contract-modules.md).
+
 ## Question → doc
 
 | Question | Where |
@@ -33,6 +35,7 @@ Lookup index for `@eddy-works/never-rest`. Read the linked anchor; do not infer 
 | What is `origin` and who sets it? | [errors-as-intelligence.md — Origin](docs/errors-as-intelligence.md#origin) · [api.md — serve](docs/api.md#serve) |
 | When is an error `retryable`? | [errors-as-intelligence.md — Retryable](docs/errors-as-intelligence.md#retryable) |
 | How do I define a contract? | [api.md — ContractDef](docs/api.md#contractdef) · [api.md — RouteDef](docs/api.md#routedef) |
+| Where should the contract live? | [references/contract-modules.md](references/contract-modules.md) · [shared-contract](examples/packages/shared-contract) · [gateway contract](examples/gateway/src/contract.ts) |
 | How do I type input/output/errors for a route? | [api.md — ClientArgsOf](docs/api.md#clientargsof) · [HandlerArgsOf](docs/api.md#handlerargsof) · [OutputOf](docs/api.md#outputof) · [ErrorOf](docs/api.md#errorof) · [ClientErrorOf](docs/api.md#clienterrorof) |
 | How do I name client args from the contract? | [api.md — ClientArgsOf](docs/api.md#clientargsof) |
 | How do I prove an output schema is transport-stable? | [api.md — checkTransportStability](docs/api.md#checktransportstability) · [api.md — checkContractOutputs](docs/api.md#checkcontractoutputs) · [migrating.md — Output schemas](docs/migrating.md#output-schemas--transport-stability) |

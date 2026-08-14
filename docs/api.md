@@ -274,7 +274,7 @@ export const contract = {
 } as const satisfies ContractDef;
 ```
 
-Use `as const satisfies ContractDef` so error-code keys stay literal. Without `as const`, `errors` widens and domain codes stop being literal.
+Use `as const satisfies ContractDef` so error-code keys stay literal. Without `as const`, `errors` widens and domain codes stop being literal. Keep the object in its own module (or shared package) and import it from handlers, `serve`, and clients — see the [gateway example](../examples/gateway).
 
 ### `compileContract`
 
