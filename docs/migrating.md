@@ -136,9 +136,11 @@ Callable `serve()` still answers every request (including `route_not_found`). Sh
 // Next — mount under /api without rewriting Request URLs
 const usersApi = serve(contract, handlers, { basePath: '/api', origin: 'next-demo' });
 
-export async function GET(request: Request) {
+function handle(request: Request) {
   return usersApi(request, undefined);
 }
+
+export { handle as GET, handle as POST, handle as PUT, handle as PATCH, handle as DELETE };
 
 // SvelteKit — only contract paths reach never-rest
 export const handle: Handle = async ({ event, resolve }) => {

@@ -3,12 +3,17 @@
 ## What you will learn
 
 How to import a shared contract, write handlers, call `serve`, and mount
-behind a Next catch-all `/api` route (with named `GET` / `POST` / … exports).
+behind a Next catch-all `/api` route.
 
 ## Read in this order
 
 1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` and [`createUsersDb()`](../packages/shared-contract/src/db.ts)
-2. [`app/api/[...path]/route.ts`](app/api/[...path]/route.ts) — handlers return the database `Result`, then Next mount
+2. [`handler.ts`](handler.ts) — handlers return the database `Result`, then `serve`
+3. [`app/api/[...path]/route.ts`](app/api/[...path]/route.ts) — Next mount only
+
+App Router has no default fetch export, so the catch-all aliases one function
+as `GET` / `POST` / `PUT` / `PATCH` / `DELETE`. That is host ceremony, not
+domain code.
 
 ## Protocol win
 
@@ -22,7 +27,8 @@ response leaves the process. Unmatched routes are `route_not_found` (not domain
 
 Next puts APIs under `/api/…`. The shared contract uses `/users/:id`. Pass
 `basePath: '/api'` to `serve` so requests keep their real URL — no manual
-prefix stripping.
+prefix stripping. The catch-all lets `serve` own `/api/nope` as
+`route_not_found` instead of Next HTML 404.
 
 ## Run
 
