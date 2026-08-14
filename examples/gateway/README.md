@@ -11,7 +11,8 @@ network failure.
 ## Read in this order
 
 1. [Shared contract (Lesson 1)](../packages/shared-contract/README.md) — what a contract looks like (optional but useful)
-2. [`src/run.ts`](src/run.ts) — inventory → orders → disclosure prints + unavailable
+2. [`src/contract.ts`](src/contract.ts) — `inventoryContract` and `ordersContract`
+3. [`src/run.ts`](src/run.ts) — inventory → orders → disclosure prints + unavailable
 
 There is no HTTP server. The script runs both services in-process and prints
 JSON to the terminal.

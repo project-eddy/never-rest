@@ -18,7 +18,7 @@ Read them as five lessons:
    **Win:** the contract is self-contained HTTP truth; host codes (`validation_error` / `internal` / `route_not_found`) are serve defaults; `unavailable` is client-only.
 2. **One framework mount** — each stack imports that contract, writes handlers against the shared in-memory users database (`ResultAsync` / `railError`), calls `serve`, then mounts.  
    **Win:** same law mounts anywhere; `basePath` and `handle()` for shared pipelines; unmatched path ≠ resource missing; omitted `disclosure` → `public`.
-3. **Gateway** — [`gateway`](../examples/gateway): `chain`, graded disclosure, `ClientErrorOf` / `unavailable`.  
+3. **Gateway** — [`gateway`](../examples/gateway): named contract exports, `chain`, graded disclosure, `ClientErrorOf` / `unavailable`.  
    **Win:** cross-service honesty without throw middleware.
 4. **Validators** — [`validators`](../examples/validators): same contract in Zod, Valibot, and ArkType.  
    **Win:** schemas are the wire law (input + always-on parsed output).

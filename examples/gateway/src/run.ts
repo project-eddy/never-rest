@@ -10,7 +10,6 @@
  * No HTTP server — both services run in-process.
  */
 import { err, ok } from 'neverthrow';
-import { z } from 'zod';
 
 import {
   chain,
@@ -19,21 +18,12 @@ import {
   railError,
   type RailError,
 } from '@eddy-works/never-rest';
-import type { ContractDef } from '@eddy-works/never-rest/contract';
 import { createClient } from '@eddy-works/never-rest/client';
 import { serve, type Handlers } from '@eddy-works/never-rest/server';
 
-// --- 1. Inventory service (always fails) -------------------------------------
+import { inventoryContract, ordersContract } from './contract.js';
 
-const inventoryContract = {
-  reserve: {
-    method: 'POST',
-    path: '/reserve',
-    body: z.object({ sku: z.string(), qty: z.number().int().positive() }),
-    output: z.object({ reservationId: z.string() }),
-    errors: { not_found: 404 },
-  },
-} as const satisfies ContractDef;
+// --- 1. Inventory service (always fails) -------------------------------------
 
 const inventoryHandlers: Handlers<typeof inventoryContract, undefined> = {
   reserve: () =>
@@ -65,17 +55,6 @@ const unreachableInventoryClient = createClient(inventoryContract, {
 });
 
 // --- 2. Orders service (wraps inventory Err with chain) ----------------------
-
-const ordersContract = {
-  fulfil: {
-    method: 'POST',
-    path: '/orders/:id/fulfil',
-    params: z.object({ id: z.string() }),
-    body: z.object({ sku: z.string(), qty: z.number() }),
-    output: z.object({ orderId: z.string(), reservationId: z.string() }),
-    errors: { fulfilment_failed: 502, not_found: 404 },
-  },
-} as const satisfies ContractDef;
 
 const ordersHandlers: Handlers<typeof ordersContract, undefined> = {
   fulfil: async ({ params, body }) => {
