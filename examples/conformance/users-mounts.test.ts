@@ -3,7 +3,7 @@ import { describe, it } from 'vitest';
 import { usersApi as expressUsersApi } from '../express/src/handler.js';
 import { usersApi as honoUsersApi } from '../hono/src/handler.js';
 import { usersApi as nextUsersApi } from '../next-app-router/app/api/[...path]/route.js';
-import { usersApi as sveltekitUsersApi } from '../sveltekit/src/hooks.server.js';
+import { usersApi as sveltekitUsersApi } from '../sveltekit/src/handler.js';
 import { runUsersContractScenarios } from './scenarios/users-contract.js';
 
 describe('users mounts (express + hono)', () => {

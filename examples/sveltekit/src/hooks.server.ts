@@ -1,44 +1,14 @@
 import type { Handle } from '@sveltejs/kit';
-import { ok } from 'neverthrow';
 
-import { serve, type Handlers } from '@eddy-works/never-rest/server';
-import { usersContract } from '@never-rest-examples/shared-contract';
-import { createUsersDb } from '@never-rest-examples/shared-contract/db';
-
-const db = createUsersDb();
+import { usersApi } from './handler.js';
 
 /**
- * The database returns Result, so handlers stay on the railway — return it
- * (or `andThen`) instead of wrapping `undefined`. Return the row as-is;
- * `serve` parses the output schema and strips extra fields such as `passwordHash`.
+ * Cooperative mount — SvelteKit's equivalent of Express `app.use`.
+ *
+ * `handle()` returns `matched: true` only for contract paths (and wrong-method
+ * on those paths). Pages and other routes get `matched: false` and fall
+ * through to `resolve`. A `/users*` prefix check would steal unrelated URLs.
  */
-const usersHandlers: Handlers<typeof usersContract, undefined> = {
-  getUser: ({ params }) =>
-    // Domain miss (resource) — distinct from host `route_not_found` on /nope.
-    db.getUser(params.id),
-
-  createUser: ({ body }) => {
-    const id = body.name.toLowerCase().replace(/\s+/g, '-');
-    return db.insertUser({
-      id,
-      name: body.name,
-      passwordHash: `demo-hash-${id}`,
-    });
-  },
-
-  listUsers: () => db.listUsers(),
-
-  ping: () => ok({ ok: true as const }),
-
-  deleteUser: ({ params }) => db.deleteUser(params.id),
-};
-
-// disclosure omitted → `public` (fail-closed at the HTTP edge).
-export const usersApi = serve(usersContract, usersHandlers, {
-  origin: 'sveltekit-demo',
-});
-
-// Cooperative mount: only contract paths reach never-rest; everything else falls through.
 export const handle: Handle = async ({ event, resolve }) => {
   const result = await usersApi.handle(event.request, undefined);
   if (result.matched) {

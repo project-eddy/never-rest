@@ -2,13 +2,16 @@
 
 ## What you will learn
 
-How to import a shared contract, write handlers, call `serve`, and dispatch
+How to import a shared contract, write handlers, call `serve`, and mount
 cooperatively from `hooks.server.ts` via `handler.handle()`.
 
 ## Read in this order
 
 1. [Shared contract](../packages/shared-contract/README.md) — `usersContract` and [`createUsersDb()`](../packages/shared-contract/src/db.ts)
-2. [`src/hooks.server.ts`](src/hooks.server.ts) — handlers return the database `Result`, then cooperative `handle()`
+2. [`src/handler.ts`](src/handler.ts) — handlers return the database `Result`, then `serve`
+3. [`src/hooks.server.ts`](src/hooks.server.ts) — SvelteKit mount only
+
+There is no `+server.ts` for `/users`. The hook is the mount.
 
 ## Protocol win
 
@@ -20,11 +23,17 @@ response leaves the process. Unmatched routes are `route_not_found` (not domain
 
 ## What this stack does differently
 
-API traffic is handled in `hooks.server.ts`, not a `+server.ts` file. The hook
-calls `usersApi.handle(event.request)` — `matched: true` returns the never-rest
-response; `matched: false` falls through to SvelteKit pages. A `/users*` prefix
-heuristic would steal unrelated routes. `event.request` is already a Web
-`Request`.
+SvelteKit shares one fetch pipeline with pages. Callable `serve()` would answer
+every request — including `/` — with JSON `route_not_found`. So the hook calls
+`usersApi.handle(event.request)`:
+
+| Result | Meaning |
+| --- | --- |
+| `matched: true` | Contract path (or wrong method on one) — return the never-rest `Response` |
+| `matched: false` | Not on the contract — `resolve(event)` so `+page.svelte` and the rest of the app run |
+
+`event.request` is already a Web `Request`. Do not pre-filter with a `/users*`
+prefix; that is not the contract path set.
 
 ## Run
 
