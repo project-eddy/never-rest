@@ -75,6 +75,9 @@ jobs:
       - name: Docs build
         run: pnpm docs:build
 
+      - name: SvelteKit sync
+        run: pnpm --filter @never-rest-examples/sveltekit exec svelte-kit sync
+
       - name: Examples conformance
         run: pnpm exec vitest run --config examples/conformance/vitest.config.ts
 

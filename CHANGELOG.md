@@ -14,6 +14,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Internal
 
+- CI and release workflows run `svelte-kit sync` before example conformance so SvelteKit imports resolve in clean checkouts.
 - Gateway example keeps `inventoryContract` and `ordersContract` as named exports in `src/contract.ts`; the never-rest skill records that layout as working convention.
 - SvelteKit example splits railway (`src/handler.ts`) from the cooperative hook mount (`src/hooks.server.ts`).
 - Next App Router example splits railway (`handler.ts`) from the catch-all mount (`app/api/[...path]/route.ts`).
