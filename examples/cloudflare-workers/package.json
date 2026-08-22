@@ -14,8 +14,8 @@
     "neverthrow": "^8.2.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260809.1",
+    "@cloudflare/workers-types": "^5.20260819.1",
     "typescript": "^5.8.3",
-    "wrangler": "^4.24.0"
+    "wrangler": "^4.124.0"
   }
 }
