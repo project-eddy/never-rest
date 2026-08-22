@@ -57,6 +57,9 @@ jobs:
       - name: Test coverage
         run: pnpm test:coverage
 
+      - name: CRAP 8
+        run: pnpm crap
+
       - name: Specs lint
         run: pnpm specs:lint
 

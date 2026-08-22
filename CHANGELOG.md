@@ -17,6 +17,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Internal
 
+- Per-function CRAP ≤ 8 gate (`pnpm crap`), ESLint `complexity` 8 on production `src/`, and Stryker mutation testing (`pnpm test:mutate`, break threshold 67). Coverage floors are statements/lines 92, branches 88, functions 95. See `research/20260821-crap-and-mutation-testing.md`.
 - CI and release workflows run `svelte-kit sync` before example conformance so SvelteKit imports resolve in clean checkouts.
 - Gateway example keeps `inventoryContract` and `ordersContract` as named exports in `src/contract.ts`; the never-rest skill records that layout as working convention.
 - SvelteKit example splits railway (`src/handler.ts`) from the cooperative hook mount (`src/hooks.server.ts`).
