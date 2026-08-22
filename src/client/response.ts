@@ -10,6 +10,15 @@ import {
 
 export const MAX_CAUSE_DEPTH = 16;
 
+function isPathArray(path: unknown): path is readonly (string | number)[] {
+  if (!Array.isArray(path)) {
+    return false;
+  }
+  return path.every(
+    (segment) => typeof segment === 'string' || typeof segment === 'number',
+  );
+}
+
 function isValidIssue(value: unknown): value is RailIssue {
   if (typeof value !== 'object' || value === null) {
     return false;
@@ -18,17 +27,119 @@ function isValidIssue(value: unknown): value is RailIssue {
   if (typeof issue.message !== 'string') {
     return false;
   }
-  if (issue.path !== undefined) {
-    if (!Array.isArray(issue.path)) {
-      return false;
-    }
-    for (const segment of issue.path) {
-      if (typeof segment !== 'string' && typeof segment !== 'number') {
-        return false;
-      }
-    }
+  if (issue.path === undefined) {
+    return true;
   }
-  return true;
+  return isPathArray(issue.path);
+}
+
+function optionalString(value: unknown): string | undefined | 'invalid' {
+  if (value === undefined) {
+    return undefined;
+  }
+  return typeof value === 'string' ? value : 'invalid';
+}
+
+function optionalBoolean(value: unknown): boolean | undefined | 'invalid' {
+  if (value === undefined) {
+    return undefined;
+  }
+  return typeof value === 'boolean' ? value : 'invalid';
+}
+
+function parseIssues(value: unknown): readonly RailIssue[] | 'invalid' {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value) || !value.every(isValidIssue)) {
+    return 'invalid';
+  }
+  return value;
+}
+
+function parseCtx(
+  value: unknown,
+): Readonly<Record<string, unknown>> | undefined | 'invalid' {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return 'invalid';
+  }
+  return value as Readonly<Record<string, unknown>>;
+}
+
+function parseOptionalFields(candidate: Record<string, unknown>):
+  | 'invalid'
+  | {
+      readonly issues: readonly RailIssue[] | undefined;
+      readonly origin: string | undefined;
+      readonly nextStep: string | undefined;
+      readonly retryable: boolean | undefined;
+      readonly ctx: Readonly<Record<string, unknown>> | undefined;
+    } {
+  const issues = parseIssues(candidate.issues);
+  const origin = optionalString(candidate.origin);
+  const nextStep = optionalString(candidate.nextStep);
+  const retryable = optionalBoolean(candidate.retryable);
+  const ctx = parseCtx(candidate.ctx);
+  if (
+    issues === 'invalid' ||
+    origin === 'invalid' ||
+    nextStep === 'invalid' ||
+    retryable === 'invalid' ||
+    ctx === 'invalid'
+  ) {
+    return 'invalid';
+  }
+  return {
+    issues: candidate.issues === undefined ? undefined : issues,
+    origin,
+    nextStep,
+    retryable,
+    ctx,
+  };
+}
+
+function envelopeExtra(
+  fields: Exclude<ReturnType<typeof parseOptionalFields>, 'invalid'>,
+  cause: RailError<string> | undefined,
+): Omit<RailError<string>, 'code' | 'message'> | undefined {
+  const extra = {
+    ...(fields.issues !== undefined ? { issues: fields.issues } : {}),
+    ...(fields.origin !== undefined ? { origin: fields.origin } : {}),
+    ...(fields.nextStep !== undefined ? { nextStep: fields.nextStep } : {}),
+    ...(fields.retryable !== undefined ? { retryable: fields.retryable } : {}),
+    ...(fields.ctx !== undefined ? { ctx: fields.ctx } : {}),
+    ...(cause !== undefined ? { cause } : {}),
+  };
+  return Object.keys(extra).length > 0 ? extra : undefined;
+}
+
+function parseCause(
+  value: unknown,
+  depth: number,
+): RailError<string> | undefined | 'missing' {
+  if (value === undefined) {
+    return 'missing';
+  }
+  return parseRailErrorEnvelope(value, depth + 1);
+}
+
+function asErrorCandidate(
+  value: unknown,
+): { readonly code: string; readonly message: string } & Record<string, unknown> | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.code !== 'string' || typeof candidate.message !== 'string') {
+    return undefined;
+  }
+  return candidate as { readonly code: string; readonly message: string } & Record<
+    string,
+    unknown
+  >;
 }
 
 /** Parse a wire error envelope with bounded cause depth; malformed input returns undefined. */
@@ -39,64 +150,25 @@ export function parseRailErrorEnvelope(
   if (depth > MAX_CAUSE_DEPTH) {
     return undefined;
   }
-
-  if (typeof value !== 'object' || value === null) {
+  const candidate = asErrorCandidate(value);
+  if (candidate === undefined) {
     return undefined;
   }
 
-  const candidate = value as Record<string, unknown>;
-
-  if (typeof candidate.code !== 'string' || typeof candidate.message !== 'string') {
+  const fields = parseOptionalFields(candidate);
+  if (fields === 'invalid') {
     return undefined;
   }
 
-  if (candidate.issues !== undefined) {
-    if (!Array.isArray(candidate.issues)) {
-      return undefined;
-    }
-    for (const issue of candidate.issues) {
-      if (!isValidIssue(issue)) {
-        return undefined;
-      }
-    }
-  }
-
-  if (candidate.origin !== undefined && typeof candidate.origin !== 'string') {
+  const cause = parseCause(candidate.cause, depth);
+  if (cause === undefined) {
     return undefined;
   }
-
-  if (candidate.nextStep !== undefined && typeof candidate.nextStep !== 'string') {
-    return undefined;
-  }
-
-  if (candidate.retryable !== undefined && typeof candidate.retryable !== 'boolean') {
-    return undefined;
-  }
-
-  let cause: RailError<string> | undefined;
-  if (candidate.cause !== undefined) {
-    cause = parseRailErrorEnvelope(candidate.cause, depth + 1);
-    if (cause === undefined) {
-      return undefined;
-    }
-  }
-
-  const extra = {
-    ...(candidate.issues !== undefined
-      ? { issues: candidate.issues as readonly RailIssue[] }
-      : {}),
-    ...(candidate.origin !== undefined ? { origin: candidate.origin } : {}),
-    ...(candidate.nextStep !== undefined ? { nextStep: candidate.nextStep } : {}),
-    ...(candidate.retryable !== undefined ? { retryable: candidate.retryable } : {}),
-    ...(cause !== undefined ? { cause } : {}),
-  };
 
   return railError(
     candidate.code,
     candidate.message,
-    Object.keys(extra).length > 0
-      ? (extra as Omit<RailError<string>, 'code' | 'message'>)
-      : undefined,
+    envelopeExtra(fields, cause === 'missing' ? undefined : cause),
   );
 }
 
@@ -108,15 +180,26 @@ function unavailableError(): RailError<'unavailable'> {
   return railError('unavailable', 'Network request failed', { retryable: true });
 }
 
+function isStringOrNumber(value: unknown): value is string | number {
+  return typeof value === 'string' || typeof value === 'number';
+}
+
+function primitiveOrString(value: unknown): string | number {
+  return isStringOrNumber(value) ? value : String(value);
+}
+
+function keyFromPathObject(segment: object): string | number {
+  if (!('key' in segment)) {
+    return String(segment);
+  }
+  return primitiveOrString((segment as { key: unknown }).key);
+}
+
 function toPathSegment(
   segment: PropertyKey | StandardSchemaV1.PathSegment,
 ): string | number {
-  if (typeof segment === 'object' && segment !== null && 'key' in segment) {
-    const key = segment.key;
-    if (typeof key === 'string' || typeof key === 'number') {
-      return key;
-    }
-    return String(key);
+  if (typeof segment === 'object' && segment !== null) {
+    return keyFromPathObject(segment);
   }
   if (typeof segment === 'string' || typeof segment === 'number') {
     return segment;
@@ -148,13 +231,8 @@ function mapValidationResult<Output>(
     const paths = result.issues
       .map((issue) => issue.path?.map(toPathSegment).join('.') ?? '')
       .join(', ');
-    return errAsync(
-      internalError(
-        paths.length > 0
-          ? `Response validation failed: ${paths}`
-          : 'Response validation failed',
-      ),
-    );
+    const suffix = paths.length > 0 ? `: ${paths}` : '';
+    return errAsync(internalError(`Response validation failed${suffix}`));
   }
   if ('value' in result) {
     return okAsync(result.value);
