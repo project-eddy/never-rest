@@ -7,6 +7,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-22
+
 ### Added
 
 - HTTP clients keep `RailError.ctx` when parsing a JSON error envelope (`parseRailErrorEnvelope`), matching local dispatch and `disclose`.
@@ -14,17 +16,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `RailError.ctx` — optional structured context for whoever reads the error, disclosed at `full` and `internal` and always stripped at `public`. The named fields cover what every caller needs (`retryable`, `nextStep`, `origin`); `ctx` carries what only the raising tool knows — which gate rejected, which category, which files were involved. Agent-facing tools are the main consumer of this library, and an agent choosing its next move needs that detail structured rather than flattened into `message`. Named `ctx` rather than `meta` because it is the error's context, not metadata about the error; kept separate from `issues`, which means validation paths and would be corrupted for every other consumer by overloading.
 - Guide for file uploads and SSE: JSON stays on the railway; multipart and streams use sibling host handlers with `parseRouteSources` / `parseSchema` ([docs/files-and-streams.md](docs/files-and-streams.md)).
 - In-process [`examples/files-and-streams`](examples/files-and-streams) — served JSON catalog, shadow `uploadMeta` `RouteDef`, `handle()` fallthrough for `POST /uploads` and `GET /jobs/:id/events`.
-
-### Internal
-
-- Per-function CRAP ≤ 8 gate (`pnpm crap`), ESLint `complexity` 8 on production `src/`, and Stryker mutation testing (`pnpm test:mutate`, break threshold 67). Coverage floors are statements/lines 92, branches 88, functions 95. See `research/20260821-crap-and-mutation-testing.md`.
-- CI and release workflows run `svelte-kit sync` before example conformance so SvelteKit imports resolve in clean checkouts.
-- Gateway example keeps `inventoryContract` and `ordersContract` as named exports in `src/contract.ts`; the never-rest skill records that layout as working convention.
-- SvelteKit example splits railway (`src/handler.ts`) from the cooperative hook mount (`src/hooks.server.ts`).
-- Next App Router example splits railway (`handler.ts`) from the catch-all mount (`app/api/[...path]/route.ts`).
-- Framework examples persist users through `createUsersDb()`, which returns `ResultAsync` with contract `railError` codes so handlers stay on the railway.
-- Implementation plan for the files-and-streams 0.6 follow-through (`plans/20260813-files-and-streams-0.6.md`).
-
 
 ## [0.5.0] - 2026-08-13
 
@@ -134,7 +125,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `@eddy-works/never-rest/node`: `toNodeHandler` for Node's `http` interface.
 - A published type-instantiation budget of 1,800 per route, enforced in CI with `@ark/attest`.
 
-[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.6.0
 [0.5.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.5.0
 [0.4.1]: https://github.com/project-eddy/never-rest/releases/tag/v0.4.1
 [0.4.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.4.0

@@ -1,6 +1,6 @@
 {
   "name": "@eddy-works/never-rest",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Result-based contracts for HTTP and in-process dispatch — handlers return Result instead of throwing",
   "type": "module",
   "sideEffects": false,
