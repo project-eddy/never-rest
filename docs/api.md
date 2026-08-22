@@ -1,11 +1,11 @@
 ---
 title: API reference
-description: Public exports for never-rest — errors, contract, server, and client.
+description: Public exports for never-rest — errors, contract, HTTP serve, HTTP client, and in-process dispatch.
 ---
 
 # API reference
 
-Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `./client`, `./node`, `./testing`, `./openapi`, `./query`.
+Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `./client`, `./node`, `./local`, `./testing`, `./openapi`, `./query`.
 
 | Module | Status |
 | --- | --- |
@@ -14,6 +14,7 @@ Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `.
 | `./server` | **Shipped** |
 | `./client` | **Shipped** |
 | `./node` | **Shipped** |
+| `./local` | **Shipped** (in-process dispatch; no `Request` / `Response`) |
 | `./testing` | **Shipped** (test-time helpers; not for production handlers) |
 | `./openapi` | **Shipped** |
 | `./query` | **Shipped** (cache-layer adapters; no React/TanStack dependency) |
@@ -50,8 +51,19 @@ interface RailError<TCode extends string = string> {
   readonly origin?: string;
   readonly retryable?: boolean;
   readonly nextStep?: string;
+  readonly ctx?: Readonly<Record<string, unknown>>;
 }
 ```
+
+`ctx` carries structured context for whoever reads the error — most often an
+agent deciding what to do next. The named fields cover what every caller needs
+(`retryable`, `nextStep`, `origin`); `ctx` carries what only the tool raising the
+error knows: which gate rejected, which category, which files were involved.
+
+It is disclosed at `full` and `internal` and always stripped at `public`, because
+the keys are caller-defined and cannot be vetted for leakage the way the named
+fields can. Do not reach for `issues` instead — that means validation paths, and
+overloading it corrupts the meaning for every other consumer.
 
 ### `railError` (function)
 
@@ -198,6 +210,15 @@ function disclose<TCode extends string>(
 disclose(chain(outer, cause), 'public'); // no cause, no internal issue paths
 ```
 
+| Field | `full` | `internal` | `public` |
+| --- | --- | --- | --- |
+| `code`, `message` | kept | kept | kept |
+| `issues` | kept | kept | paths emptied |
+| `retryable` | kept | kept | kept |
+| `nextStep` | kept | kept | kept only when advisory |
+| `ctx` | kept | kept | dropped |
+| `cause`, `origin` | kept | dropped | dropped |
+
 ### `RespondOptions`
 
 ```ts
@@ -252,6 +273,8 @@ Each input source is optional. Declare `params` when the path has `:param` segme
 
 `errors` is a code → HTTP-status map (`{ not_found: 404 }`). Use `{}` when the route declares no domain errors. Host codes (`validation_error`, `internal`, `route_not_found`) must not appear here. The same domain code may map to different statuses on different routes. `output` is required unless `success` is `204`.
 
+`method`, `path`, `success`, and the status numbers in `errors` are the HTTP projection of the route. [`createLocalClient`](#createlocalclient) / [`createDispatcher`](#createdispatcher) address the operation by name and ignore those statuses — HTTP is not a local concern. Keep the fields anyway: the same object still compiles, still exports OpenAPI, and still mounts on `serve`.
+
 ### `ContractDef`
 
 ```ts
@@ -274,7 +297,7 @@ export const contract = {
 } as const satisfies ContractDef;
 ```
 
-Use `as const satisfies ContractDef` so error-code keys stay literal. Without `as const`, `errors` widens and domain codes stop being literal. Keep the object in its own module (or shared package) and import it from handlers, `serve`, and clients — see the [gateway example](../examples/gateway).
+Use `as const satisfies ContractDef` so error-code keys stay literal. Without `as const`, `errors` widens and domain codes stop being literal. Keep the object in its own module (or shared package) and import it from handlers, `serve`, `createClient`, `createLocalClient`, and `toOpenAPI` — see the [gateway example](../examples/gateway).
 
 ### `compileContract`
 
@@ -553,7 +576,8 @@ type Handler<TRoute extends RouteDef, TContext> = (
   | Promise<Result<OutputOf<TRoute>, ErrorOf<TRoute>>>;
 ```
 
-Sync `ok` / `err`, `ResultAsync`, or `Promise<Result>` are all accepted. For `success: 204`, `OutputOf` is `void` — return `ok(undefined)` (or `ok()`).
+Sync `ok` / `err`, `ResultAsync`, or `Promise<Result>` are all accepted. For `success: 204`, `OutputOf` is `void` — return `ok(undefined)` (or `ok()`). HTTP handlers receive `request`. For the same function on [`./local`](#eddy-worksnever-restlocal), write a [`LocalHandler`](#localhandler) (no `request`) — it is assignable to `Handler`.
+
 ### `Handlers`
 
 ```ts
@@ -710,6 +734,140 @@ Low-level fetch URL and `RequestInit` from declared sources. Used by `createClie
 
 ---
 
+## `@eddy-works/never-rest/local`
+
+In-process dispatch for a contract. The contract still governs the call; nothing
+goes over HTTP. Use this when both sides live in the same process, or when a
+host already carries the operation as a string (NDJSON sockets, MCP stdio, agent
+tool calls) and only needs the railway, schemas, and disclosure.
+
+No `Request`, `Response`, or JSON round-trip is constructed. Declared input and
+output still validate through [`parseRouteSources`](#parseroutesources) /
+[`parseOutput`](#parseoutput). There is no `unavailable` — there is no network.
+
+This is a production transport. For an in-process client that exercises the real
+HTTP path in tests, use [`createTestClient`](#createtestclient) instead.
+
+Per-route `errors` status maps are ignored here — HTTP status is not a local
+concern. Disclosure defaults to `full`, because callers in the same process are
+in the same trust circle. Narrow it with `disclosure: 'public'` when the in-process
+caller is not trusted.
+
+### `LocalOptions`
+
+```ts
+interface LocalOptions<TContext> {
+  readonly context?: TContext;
+  readonly origin?: string;
+  readonly disclosure?: Disclosure;
+}
+```
+
+`origin` is stamped onto any error that does not already carry one.
+
+### `LocalHandler`
+
+```ts
+type LocalHandler<TRoute extends RouteDef, TContext> = (
+  args: HandlerArgsOf<TRoute> & { readonly context: TContext },
+) =>
+  | Result<OutputOf<TRoute>, ErrorOf<TRoute>>
+  | ResultAsync<OutputOf<TRoute>, ErrorOf<TRoute>>
+  | Promise<Result<OutputOf<TRoute>, ErrorOf<TRoute>>>;
+
+type LocalHandlers<TContract extends ContractDef, TContext> = {
+  readonly [K in keyof TContract]: LocalHandler<TContract[K], TContext>;
+};
+```
+
+A `Handler` without `request`. `LocalHandler` is assignable to
+[`Handler`](#handler), so the same function mounts under `serve` or through local
+dispatch with no change.
+
+### `createLocalClient`
+
+```ts
+function createLocalClient<TContract extends ContractDef, TContext = undefined>(
+  contract: TContract,
+  handlers: LocalHandlers<TContract, TContext>,
+  options?: LocalOptions<TContext>,
+): LocalClient<TContract>;
+```
+
+One typed method per operation. Each call returns
+`ResultAsync<OutputOf<Route>, LocalErrorOf<Route>>` — declared domain codes plus
+the host codes local dispatch can raise (`validation_error`, `internal`). There
+is no `unavailable`.
+
+```ts
+import { createLocalClient } from '@eddy-works/never-rest/local';
+
+const claims = createLocalClient(claimContract, claimHandlers, {
+  context: { agent: 'agent-9' },
+  origin: 'atc',
+});
+
+const result = await claims.getClaim({ params: { zone: 'core' } });
+```
+
+### `createDispatcher`
+
+```ts
+interface LocalDispatcher<TContract extends ContractDef, TContext> {
+  readonly operations: readonly (keyof TContract & string)[];
+  dispatch(
+    operation: string,
+    args: unknown,
+    context?: TContext,
+  ): ResultAsync<unknown, RailError<string>>;
+}
+
+function createDispatcher<TContract extends ContractDef, TContext = undefined>(
+  contract: TContract,
+  handlers: LocalHandlers<TContract, TContext>,
+  options?: LocalOptions<TContext>,
+): LocalDispatcher<TContract, TContext>;
+```
+
+The same machinery addressed by operation name. `operations` lets a host
+enumerate what it can serve. An operation outside the contract returns
+`route_not_found`. `dispatch` takes `args: unknown` because the host decoded the
+frame; validation still runs against the declared sources.
+
+```ts
+import { createDispatcher } from '@eddy-works/never-rest/local';
+
+const dispatcher = createDispatcher(claimContract, claimHandlers, {
+  origin: 'atc',
+});
+
+// Inside an existing NDJSON socket loop:
+const result = await dispatcher.dispatch(frame.method, frame.params, context);
+```
+
+Both constructors throw `ContractConfigurationError` when an operation has no
+handler. A handler that throws becomes an `internal` rail error with the thrown
+message as its cause, so nothing escapes the railway.
+
+### `LocalErrorOf` / `LocalHostErrorCode`
+
+```ts
+type LocalHostErrorCode = 'validation_error' | 'internal' | 'route_not_found';
+
+type LocalErrorOf<TRoute extends RouteDef> =
+  | ErrorOf<TRoute>
+  | RailError<LocalHostErrorCode>;
+```
+
+`createLocalClient` methods are typed with `LocalErrorOf` for that route.
+`dispatch` widens to `RailError<string>` because the operation is a runtime
+string. `route_not_found` appears on `dispatch` for an unknown operation name;
+typed client methods cannot name an operation that is not on the contract.
+
+**Tests:** `src/local/dispatch.test.ts` — scenarios from [specs/local-dispatch.spec.md](https://github.com/project-eddy/never-rest/blob/main/specs/local-dispatch.spec.md).
+
+---
+
 ## `@eddy-works/never-rest/testing`
 
 Test-time helpers — not for production request paths.
@@ -732,7 +890,7 @@ function createTestClient<TContract extends ContractDef, TContext>(
 ): Client<TContract>;
 ```
 
-Typed in-process client through the real `serve` path. Default `baseUrl` is `http://never-rest.test`. `basePath` is applied to both the handler and the client.
+Typed in-process client through the real `serve` path. Default `baseUrl` is `http://never-rest.test`. `basePath` is applied to both the handler and the client. This is not [`createLocalClient`](#createlocalclient) — that skips HTTP entirely.
 
 ```ts
 import { createTestClient } from '@eddy-works/never-rest/testing';

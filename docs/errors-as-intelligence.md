@@ -1,6 +1,6 @@
 ---
 title: Errors as intelligence
-description: RailError fields for agents and gateways — nextStep, origin, retryable, cause chains.
+description: RailError fields for agents and gateways — nextStep, origin, retryable, ctx, cause chains.
 ---
 
 # Errors as intelligence
@@ -11,9 +11,10 @@ description: RailError fields for agents and gateways — nextStep, origin, retr
 
 | Field | Role |
 | --- | --- |
-| `code` | Stable machine identifier, declared on the route's `errors` array |
+| `code` | Stable machine identifier, declared on the route's `errors` map |
 | `message` | Human-readable summary |
 | `issues` | Structured validation problems (`path` + `message`) |
+| `ctx` | Caller-defined diagnostic context (which gate, which files) — kept at `full` / `internal`, stripped at `public` |
 | `cause` | Downstream `RailError`, preserved verbatim across hops |
 | `origin` | Service name stamped on production (e.g. `inventory`, `orders`) |
 | `retryable` | Hint that the same request may succeed later (timeouts, 503-shaped failures) |
@@ -23,7 +24,7 @@ description: RailError fields for agents and gateways — nextStep, origin, retr
 
 ## Origin
 
-Stamp `origin` on each hop when constructing errors (`railError` / `chain`). `serve` also stamps `options.origin` onto outgoing errors that lack one (recursive on `cause`). Each service in a chain should use a distinct `origin` so `formatChain` and agent tooling can read:
+Stamp `origin` on each hop when constructing errors (`railError` / `chain`). `serve` and `./local` also stamp `options.origin` onto outgoing errors that lack one (`serve` recursively on `cause`). Each service in a chain should use a distinct `origin` so `formatChain` and agent tooling can read:
 
 ```
 [orders] order_failed: Could not fulfil

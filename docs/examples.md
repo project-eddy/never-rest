@@ -12,6 +12,10 @@ Runnable mini projects live under [`examples/`](../examples/).
 domain failures; clients get an honest `ClientErrorOf` union; disclosure
 defaults to fail-closed (`public`).
 
+These examples mount `serve`. The same `ContractDef` also runs without HTTP —
+[`createLocalClient`](./api.md#createlocalclient) / [`createDispatcher`](./api.md#createdispatcher)
+on [`./local`](./api.md#eddy-worksnever-restlocal).
+
 Read them as five lessons:
 
 1. **Shared contract** — [`packages/shared-contract`](../examples/packages/shared-contract): `usersContract` only (domain statuses on each route).  

@@ -1,6 +1,6 @@
 ---
 title: Concepts
-description: Railway at the HTTP boundary, no middleware via andThen, errors as data, and graded disclosure.
+description: Railway at the API boundary, HTTP and in-process transports, no middleware via andThen, errors as data, and graded disclosure.
 ---
 
 # Concepts
@@ -9,13 +9,27 @@ description: Railway at the HTTP boundary, no middleware via andThen, errors as 
 
 Never-rest is an **opinionated architectural choice**: Result-based railway-oriented programming at the API boundary. Whether either side uses railway style internally is up to that team; the contract assumes at least one side wants `Result` at the edge.
 
-A **railway** is a success/failure track: operations stay on `Ok` until something fails, then the chain moves to `Err` and stays there. never-rest puts the railway at the HTTP boundary.
+A **railway** is a success/failure track: operations stay on `Ok` until something fails, then the chain moves to `Err` and stays there. never-rest puts the railway at the boundary — HTTP via `serve`, in-process via `./local`.
 
-Handlers return `Result` or `ResultAsync` — never throw for expected failures (`not_found`, `validation_error`, domain codes). `createClient` returns `ResultAsync` for every operation; network failures, parse failures, and declared error responses become `Err(RailError)` so callers use `map`, `mapErr`, `andThen`, and `match` without `try/catch` at each hop.
+Handlers return `Result` or `ResultAsync` — never throw for expected failures (`not_found`, `validation_error`, domain codes). `createClient` and `createLocalClient` both return `ResultAsync` for every operation so callers use `map`, `mapErr`, `andThen`, and `match` without `try/catch` at each hop. On HTTP, network failures become `Err(unavailable)`. Local dispatch has no network, so it never produces `unavailable`.
 
 `parseRouteSources` follows this rule: validation failures per source are `Err(validation_error)`, never throws. Thrown validators are caught and mapped to `Err`.
 
-`serve` catches thrown exceptions inside a handler and converts them to a 500 `RailError` (original message under `cause` for internal disclosure). Public disclosure does not leak a stack trace.
+`serve` catches thrown exceptions inside a handler and converts them to a 500 `RailError` (original message under `cause` for internal disclosure). Local dispatch does the same conversion without constructing a `Response`. Public disclosure does not leak a stack trace.
+
+## One contract, more than HTTP
+
+The contract is the law. HTTP is one projection of it.
+
+`RouteDef` still names `method`, `path`, `success`, and an `errors` status map because those fields are the HTTP and OpenAPI view of the operation. [`createLocalClient`](./api.md#createlocalclient) and [`createDispatcher`](./api.md#createdispatcher) ignore those statuses: they address the operation by name, validate declared `params` / `query` / `body` / `headers` and `output`, and return `ResultAsync`. No `Request`, no `Response`, no JSON round-trip.
+
+Use `createLocalClient` when TypeScript can see both sides — module talking to module in the same process. Use `createDispatcher` when a foreign transport already carries the operation as a string: an NDJSON socket, MCP stdio, an agent tool call. The host owns framing; never-rest owns the railway.
+
+A [`LocalHandler`](./api.md#localhandler) is a `Handler` without `request`. Write that shape if the same function should mount under `serve` and under local dispatch. HTTP-only handlers may still read `request`.
+
+Disclosure defaults differ by transport because the trust circle differs: `serve` omitted → `public`; `./local` omitted → `full`. Narrow local disclosure when the in-process caller is not trusted.
+
+For an in-process client that still exercises the HTTP path in tests, use [`createTestClient`](./api.md#createtestclient) — that is not `./local`.
 
 ## No middleware — the chain is the middleware
 
@@ -78,11 +92,11 @@ HTTP status is not embedded in the error object. Domain codes map to statuses vi
 
 | Level | Intended caller | What stays | What drops |
 | --- | --- | --- | --- |
-| `full` | Same trust circle (gateway ↔ service, internal agent) | Everything including `cause` chain and `nextStep` | — |
-| `internal` | Staff tools, support consoles | `code`, `message`, `issues`, `nextStep` | `cause` chain |
-| `public` | Internet clients, untrusted agents | Safe `code` and message; advisory `nextStep` only | `cause`, `origin`, diagnostic `issues` paths |
+| `full` | Same trust circle (gateway ↔ service, internal agent, in-process caller) | Everything including `cause` chain, `ctx`, and `nextStep` | — |
+| `internal` | Staff tools, support consoles | `code`, `message`, `issues`, `ctx`, `nextStep` | `cause` chain, `origin` |
+| `public` | Internet clients, untrusted agents | Safe `code` and message; advisory `nextStep` only | `cause`, `origin`, `ctx`, diagnostic `issues` paths |
 
-`disclose(error, level)` is the mechanism, used by `respond` and `serve`. oRPC documents the same problem as repeated DANGER callouts about sensitive data in error payloads; never-rest encodes the policy in one function. `serve` resolves `disclosure` per incoming `Request` when a function is supplied in `ServeOptions`; when `disclosure` is omitted, `serve` defaults to `public`. `respond` still defaults to `full`.
+`disclose(error, level)` is the mechanism, used by `respond`, `serve`, and `./local`. oRPC documents the same problem as repeated DANGER callouts about sensitive data in error payloads; never-rest encodes the policy in one function. `serve` resolves `disclosure` per incoming `Request` when a function is supplied in `ServeOptions`; when `disclosure` is omitted, `serve` defaults to `public`. `respond` and `./local` default to `full`.
 
 ### Route matching order
 

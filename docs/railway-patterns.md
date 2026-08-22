@@ -7,7 +7,7 @@ description: Named railway and flow patterns for neverthrow + never-rest — gat
 
 Most HTTP libraries teach you middleware, try/catch, and status codes. never-rest teaches you a **railway**: two tracks (`Ok` and `Err`), functions that stay on those tracks, and composition that short-circuits on failure. The peer library is [neverthrow](https://github.com/supermacro/neverthrow) ([npm](https://www.npmjs.com/package/neverthrow)). The metaphor that made the idea famous is Scott Wlaschin’s [Railway Oriented Programming](https://fsharpforfunandprofit.com/rop/) ([long-form post](https://fsharpforfunandprofit.com/posts/recipe-part2/), [slides](https://speakerdeck.com/swlaschin/railway-oriented-programming-a-functional-approach-to-error-handling)).
 
-never-rest’s bet is blunt: put that railway at the HTTP boundary — handlers and clients both return `Result` / `ResultAsync` — and the usual middleware stack becomes ordinary TypeScript. This page names the patterns, shows them in neverthrow, and points at primary docs so you can learn the craft, not only the package.
+never-rest’s bet is blunt: put that railway at the API boundary — handlers and clients both return `Result` / `ResultAsync`, on HTTP via `serve` and in-process via `./local` — and the usual middleware stack becomes ordinary TypeScript. This page names the patterns, shows them in neverthrow, and points at primary docs so you can learn the craft, not only the package.
 
 Thesis and the short auth example: [concepts.md — No middleware](./concepts.md#no-middleware--the-chain-is-the-middleware). Graded disclosure and cause chains: [errors-as-intelligence.md](./errors-as-intelligence.md).
 
@@ -34,7 +34,7 @@ Thesis and the short auth example: [concepts.md — No middleware](./concepts.md
 
 In Wlaschin’s vocabulary, `andThen` is **bind**, `map` is **map**, and `andTee` is **tee**. neverthrow’s README is the TypeScript handbook; the ROP talk is the intuition.
 
-Wlaschin later wrote [Against Railway-Oriented Programming](https://fsharpforfunandprofit.com/posts/against-railway-oriented-programming/) — do not sprinkle `Result` into every pure helper. never-rest agrees: the railway belongs at **boundaries** (HTTP handlers, clients, gateways), where failure is part of the contract.
+Wlaschin later wrote [Against Railway-Oriented Programming](https://fsharpforfunandprofit.com/posts/against-railway-oriented-programming/) — do not sprinkle `Result` into every pure helper. never-rest agrees: the railway belongs at **boundaries** (HTTP handlers, local dispatch, clients, gateways), where failure is part of the contract.
 
 ---
 
@@ -748,6 +748,6 @@ Compensation (tear down a half-built cell after `migration_failed`) is real dist
 | [Combining Results](https://supermacro-neverthrow-22.mintlify.app/guides/combining-results) | Fan-out vs andThen |
 | [Error Recovery](https://supermacro-neverthrow-22.mintlify.app/guides/error-recovery) | orElse, match, unwrapOr |
 | [neverthrow tutorial](https://dj-nuo.com/blog/2025/10/08/neverthrow-tutorial/) | Practical map / andThen / andTee walkthrough |
-| [concepts.md](./concepts.md) | Railway at the HTTP boundary; no middleware |
+| [concepts.md](./concepts.md) | Railway at the API boundary; HTTP and local transports; no middleware |
 | [errors-as-intelligence.md](./errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |
 | [comparison.md](./comparison.md) | Why never-rest chooses `Result` over throw-based servers |

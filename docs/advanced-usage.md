@@ -9,7 +9,7 @@ Enterprise APIs need **non-omittable policy**: auth, tenancy, and audit that can
 
 Short thesis: [concepts.md — No middleware](./concepts.md#no-middleware--the-chain-is-the-middleware). Pattern catalogue (gates, tees, recover, kitchen sink): [railway-patterns.md](./railway-patterns.md).
 
-Examples on this page are **userland**. The library does not ship `withAuth` or a middleware API; you compose on top of [`Handler`](./api.md#handler) / [`serve`](./api.md#serve).
+Examples on this page are **userland**. The library does not ship `withAuth` or a middleware API; you compose on top of [`Handler`](./api.md#handler) / [`serve`](./api.md#serve). For the same policy on [`./local`](./api.md#eddy-worksnever-restlocal), compose on [`LocalHandler`](./api.md#localhandler) — there is no `request` to wrap.
 
 ```mermaid
 flowchart LR

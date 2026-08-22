@@ -7,6 +7,9 @@ Runnable mini projects that teach never-rest in five lessons.
 domain failures; clients get an honest `ClientErrorOf` union; disclosure
 defaults to fail-closed (`public`).
 
+These folders mount `serve`. The same `ContractDef` also runs without HTTP —
+see [`docs/api.md` — `./local`](../docs/api.md#eddy-worksnever-restlocal).
+
 Framework mounts stay thin — they teach *how to mount*. Smoke and the
 gateway prove *why this beats throw-based APIs*.
 

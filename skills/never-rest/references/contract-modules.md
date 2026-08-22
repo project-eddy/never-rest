@@ -1,14 +1,15 @@
 # Contract modules
 
-The contract is the shared HTTP law. Keep it in its own module so handlers,
-`serve`, hosts, clients, OpenAPI, and tests all import the same object.
+The contract is the shared law. Keep it in its own module so handlers,
+`serve`, `./local`, hosts, clients, OpenAPI, and tests all import the same object.
 
 ## Do
 
 - Keep contracts in their own module (or package), not next to `serve` or `main()`.
 - One `ContractDef` per service / bounded context; a module may export several.
 - Export each as `as const satisfies ContractDef` plus the schemas it owns.
-- Import that module from handlers, `serve`, `createClient`, and `toOpenAPI`.
+- Import that module from handlers, `serve`, `createClient`, `createLocalClient` /
+  `createDispatcher`, and `toOpenAPI`.
 - Share a package when more than one app or process must stay on the same law
   (see [`examples/packages/shared-contract`](../../../examples/packages/shared-contract)).
 

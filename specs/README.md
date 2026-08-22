@@ -1,9 +1,10 @@
 # never-rest behaviour specs
 
 Gherkin scenarios for rule-shaped library behaviour: status mapping, graded
-disclosure, cause chaining, client result mapping, contract compilation, and
-wire serialization. Type-level behaviour (instantiation budgets, assignability) is
-**not** specified here — see `perf/` and type tests.
+disclosure, cause chaining, client result mapping, contract compilation, wire
+serialization, OpenAPI export, and in-process dispatch. Type-level behaviour
+(instantiation budgets, assignability) is **not** specified here — see `perf/`
+and type tests.
 
 Spec files use the `*.spec.md` suffix so they stay distinct from handbook and
 docs markdown. Lint them with `pnpm specs:lint` (also run by the pre-commit hook).
@@ -22,6 +23,7 @@ docs markdown. Lint them with `pnpm specs:lint` (also run by the pre-commit hook
 | [wire-serialization.spec.md](./wire-serialization.spec.md) | Client `buildRequest` — path params, `key[]=` query arrays, pre-fetch validation errors |
 | [railway-boundary.spec.md](./railway-boundary.spec.md) | neverthrow combinators at `serve` — gates, mapErr, tees, recover, fail-closed reserved codes |
 | [openapi-export.spec.md](./openapi-export.spec.md) | `toOpenAPI` — contract-only OpenAPI 3.1; fail loudly when a validator cannot convert |
+| [local-dispatch.spec.md](./local-dispatch.spec.md) | `createLocalClient` / `createDispatcher` — in-process validation with no `Request` / `Response`; status maps ignored |
 
 Each file follows the [utility-belt Gherkin convention](https://github.com/project-eddy/utility-belt/blob/main/mixins/gherkin/SKILL.md): YAML frontmatter, a job-story callout, overview prose, and one fenced `gherkin` block per scenario with **exactly one `When`**.
 
@@ -83,6 +85,7 @@ one-to-one — they do not invent parallel wording.
 | Integration | `createClient` against a stubbed or in-process handler | `client-results.spec.md`, `wire-serialization.spec.md` |
 | Unit | `compileContract`, `matchPath`, `assertHandlersComplete`, `isContractPath`, `parseRouteSources` | `contract-compilation.spec.md`, `input-sources.spec.md` |
 | Unit | `toOpenAPI` | `openapi-export.spec.md` |
+| Unit | `createLocalClient`, `createDispatcher` | `local-dispatch.spec.md` |
 
 Suggested test file mapping:
 
@@ -100,6 +103,7 @@ Suggested test file mapping:
 | `src/testing/transport.test.ts` | transport-stability helpers (complements `server-output-validation.spec.md`) |
 | `src/testing/client.test.ts` | `createTestClient` (in-process `serve` + `createClient`) |
 | `src/openapi/to-openapi.test.ts` | `openapi-export.spec.md` |
+| `src/local/dispatch.test.ts` | `local-dispatch.spec.md` |
 
 ### Agent workflow
 

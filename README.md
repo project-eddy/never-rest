@@ -8,7 +8,7 @@
 
 **An opinionated architectural choice** — never-rest puts Result-based railway-oriented programming at the API boundary. Whether either side uses railway style internally is up to that team and does not matter to the contract. The assumption is that at least one side wants it; otherwise there is no reason to reach for this.
 
-On top of that choice: HTTP contracts where handlers return `Result` instead of throwing, errors carry their cause chain across service boundaries, and disclosure is graded by caller trust — not blanket obfuscation.
+On top of that choice: a `ContractDef` where handlers return `Result` instead of throwing. `serve` projects that contract onto HTTP. `./local` runs the same contract in-process — module to module, or behind a host that already carries the operation as a string (NDJSON, MCP stdio, agent tool calls). Errors carry their cause chain across boundaries. Disclosure is graded by caller trust — not blanket obfuscation.
 
 **Package:** `@eddy-works/never-rest` · **Licence:** Apache-2.0 · **Peer:** `neverthrow` · **Runtime deps:** none (validation via Standard Schema)
 
@@ -33,6 +33,7 @@ pnpm add @eddy-works/never-rest neverthrow
 | `@eddy-works/never-rest/server` | `serve`, `Handler`, `Handlers`, `ServeHandler`, `compileRoutes`, `matchRoute`, `assertProtocolResponse` |
 | `@eddy-works/never-rest/client` | `createClient`, `Client`, `ClientOptions`, `buildRequest` |
 | `@eddy-works/never-rest/node` | `toNodeHandler`, `FetchHandler`, `NodeHttpHandler` |
+| `@eddy-works/never-rest/local` | `createLocalClient`, `createDispatcher` |
 | `@eddy-works/never-rest/testing` | `createTestClient`, `assertProtocolResponse`, `checkTransportStability`, `checkContractOutputs` |
 | `@eddy-works/never-rest/openapi` | `toOpenAPI`, `OpenApiExportError` |
 | `@eddy-works/never-rest/query` | `createQueryOptions`, `createMutationOptions`, `isRetryable` |
@@ -140,6 +141,34 @@ await client
 
 Bring any Standard Schema validator (Zod 4, Valibot, ArkType). Use `as const satisfies ContractDef` on every contract — without `as const`, `errors` widens and domain codes stop being literal. `serve` returns a callable fetch handler (always answers, including `route_not_found`) plus cooperative `handle()` on Workers, Deno, Bun, Node 18+, SvelteKit, Next. For classic Node/`http` or Express, use [`toNodeHandler`](docs/api.md#tonodehandler) from `@eddy-works/never-rest/node`.
 
+The same contract also runs without HTTP. Handlers that omit `request` are `LocalHandler`s — assignable to `serve` as well:
+
+```ts
+import { createLocalClient, createDispatcher } from '@eddy-works/never-rest/local';
+
+const localHandlers = {
+  getUser: ({ params }) => findUser(params.id),
+  createUser: ({ body }) =>
+    reserveId(body.name).map((id) => {
+      const user = { id, name: body.name };
+      users.set(id, user);
+      return user;
+    }),
+};
+
+const localUsers = createLocalClient(contract, localHandlers, {
+  origin: 'users-api',
+});
+await localUsers.getUser({ params: { id: 'ada' } });
+
+await createDispatcher(contract, localHandlers, { origin: 'users-api' }).dispatch(
+  'getUser',
+  { params: { id: 'ada' } },
+);
+```
+
+`createLocalClient` is one typed method per operation. `createDispatcher` is the same machinery addressed by operation name, for a socket, MCP stdio, or tool-call host that already has the string. Both validate declared input and output; neither constructs a `Request` or `Response`. Disclosure defaults to `full`. Route `errors` status maps are ignored. See [docs/api.md — local](docs/api.md#eddy-worksnever-restlocal).
+
 ## Examples
 
 Mini projects share one contract and mount it on different runtimes — see [examples/README.md](examples/README.md):
@@ -179,10 +208,10 @@ Browsable site: [project-eddy.github.io/never-rest](https://project-eddy.github.
 
 | Doc | Topic |
 | --- | --- |
-| [docs/concepts.md](docs/concepts.md) | Railway at the boundary, no middleware, errors as data, trust circles |
+| [docs/concepts.md](docs/concepts.md) | Railway at the boundary, HTTP and local transports, no middleware, errors as data, trust circles |
 | [docs/railway-patterns.md](docs/railway-patterns.md) | Full railway/neverthrow pattern catalogue + white-label tenant kitchen sink |
 | [docs/advanced-usage.md](docs/advanced-usage.md) | Policy without middleware — capabilities, composers, host wraps, agents |
-| [docs/api.md](docs/api.md) | Every public export, signature, example |
+| [docs/api.md](docs/api.md) | Every public export, signature, example — including [`./local`](docs/api.md#eddy-worksnever-restlocal) |
 | [docs/examples.md](docs/examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway, files-and-streams |
 | [docs/files-and-streams.md](docs/files-and-streams.md) | JSON on the railway; multipart and SSE on the host |
 | [docs/errors-as-intelligence.md](docs/errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |
@@ -194,7 +223,7 @@ Agent lookup index: [skills/never-rest/SKILL.md](skills/never-rest/SKILL.md).
 
 ## Specs
 
-38+ Gherkin scenarios in `specs/` (63 across seven files) — extract with `pnpm specs:extract`. Tests map one-to-one to scenario titles:
+Gherkin scenarios in `specs/` — extract with `pnpm specs:extract`. Tests map one-to-one to scenario titles:
 
 | Spec | Tests |
 | --- | --- |
@@ -206,5 +235,8 @@ Agent lookup index: [skills/never-rest/SKILL.md](skills/never-rest/SKILL.md).
 | [specs/contract-compilation.spec.md](specs/contract-compilation.spec.md) | `src/contract/compile.test.ts`, `src/contract/path.test.ts`, `src/server/serve.test.ts` |
 | [specs/wire-serialization.spec.md](specs/wire-serialization.spec.md) | `src/client/create.test.ts`, `src/client/request.ts` paths |
 | [specs/input-sources.spec.md](specs/input-sources.spec.md) | `src/contract/compile.test.ts`, `src/contract/parse.test.ts` |
+| [specs/openapi-export.spec.md](specs/openapi-export.spec.md) | `src/openapi/to-openapi.test.ts` |
+| [specs/local-dispatch.spec.md](specs/local-dispatch.spec.md) | `src/local/dispatch.test.ts` |
+| [specs/railway-boundary.spec.md](specs/railway-boundary.spec.md) | `src/railway/` |
 
 See [specs/README.md](specs/README.md) for extraction and layout.

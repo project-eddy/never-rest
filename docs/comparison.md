@@ -16,7 +16,7 @@ Checkable anchors as of project research (August 2026). Re-verify versions befor
 | Client model | `ResultAsync`, composable | Varies by adapter | `safe()` tuple; no `andThen` chain | Promise + `try/catch` on client | Typed client; varies by setup |
 | Validation | Standard Schema (bring your validator) | Zod-first; Zod 4 gaps in shipped types | Standard Schema | Zod (typical) | Zod / Valibot (typical) |
 | Middleware | None — auth/gates are `andThen` in the handler | Built-in interceptors | Built-in | Built-in | Hono middleware stack |
-| Node bridge | `./node` `toNodeHandler` | Adapters (Express, …) | Adapters / plugins | Adapters | Hono-native |
+| Node / local | `./node` `toNodeHandler`; `./local` `createLocalClient` / `createDispatcher` | Adapters (Express, …) | Adapters / plugins | Adapters | Hono-native |
 | Type cost (20-route fixture, per route) | Spike ~1,346; budget 1,800 | ~5,984 (`c.router()`) | Not published by oRPC | Not published | Not published |
 | Plain object control | ~1,193 per route (no library) | — | — | — | — |
 
@@ -39,6 +39,7 @@ Instantiation numbers for never-rest and ts-rest are measured in CI via `@ark/at
   permission gates are `andThen` in the handler ([concepts.md](./concepts.md#no-middleware--the-chain-is-the-middleware)).
 - **Graded disclosure** as a function, not documentation warnings alone.
 - **Cause chains** across services as serialisable data.
+- **The same `ContractDef` without HTTP** — `createLocalClient` / `createDispatcher` keep the railway and schemas when the caller is in-process or the host already carries the operation as a string.
 
 **When to stay on ts-rest:** you need ts-rest's adapter ecosystem today, or the team will not adopt `Result` handlers. never-rest now exports OpenAPI from the contract via `toOpenAPI` — compare feature parity before choosing.
 
@@ -57,7 +58,7 @@ Instantiation numbers for never-rest and ts-rest are measured in CI via `@ark/at
 - **Server handlers return `Result`**, not `throw errors.X()`. Failure composes in the handler body.
 - **Client `ResultAsync`** — `client.getUser(id).andThen(loadOrders).map(toSummary)` typechecks; oRPC's `safe()` does not offer `map` / `andThen` / `match` on the result type.
 - **Disclosure levels** (`full` / `internal` / `public`) for the same error payload.
-- **HTTP contract-first** with declared status codes per route, not procedure-centric RPC.
+- **HTTP contract-first** with declared status codes per route, not procedure-centric RPC. The same contract also dispatches in-process via `./local` when HTTP is not the host.
 
 oRPC's own docs warn repeatedly not to put sensitive data in `ORPCError.data`; never-rest's `disclose()` encodes redaction policy.
 
@@ -75,7 +76,7 @@ oRPC's own docs warn repeatedly not to put sensitive data in `ORPCError.data`; n
 
 **What never-rest optimises for**
 
-- **HTTP contract-first** with explicit `method` + `path` and declared status codes per route — REST-shaped APIs, not procedure namespaces.
+- **HTTP contract-first** with explicit `method` + `path` and declared status codes per route — REST-shaped APIs, not procedure namespaces. `./local` still uses that contract; it drops the HTTP projection, not the operation names.
 - **`Result` handlers and `ResultAsync` clients** — no `TRPCError` throws; failures compose with `andThen` / `match` on both sides.
 - **Graded disclosure** and **cause chains** as first-class wire data for gateways and agents.
 
@@ -93,7 +94,7 @@ oRPC's own docs warn repeatedly not to put sensitive data in `ORPCError.data`; n
 
 **What never-rest optimises for**
 
-- **Runtime-agnostic `fetch`** — same contract on Workers, Node, Deno, and frameworks via `serve` / `toNodeHandler`, not Hono-specific chaining.
+- **Runtime-agnostic `fetch`** — same contract on Workers, Node, Deno, and frameworks via `serve` / `toNodeHandler`, not Hono-specific chaining. Same contract in-process via `./local` when there is no HTTP host.
 - **`Result` at the boundary** instead of throw middleware or ad-hoc `Response` construction in handlers.
 - **Cross-service error intelligence** — `origin`, `cause`, `nextStep`, and disclosure levels for multi-hop systems.
 
@@ -104,13 +105,14 @@ oRPC's own docs warn repeatedly not to put sensitive data in `ORPCError.data`; n
 **Best fit**
 
 - Web-standard `Request → Response` without framework adapters.
+- The same contract in-process (`createLocalClient`) or behind a string-addressed host (`createDispatcher`) — NDJSON, MCP stdio, agent tool calls.
 - Multi-service systems where downstream failures must bubble with cause intact.
-- Agent or internal tooling that consumes structured failures and `nextStep`.
-- Teams already on `neverthrow` who want the same railway at the HTTP edge.
+- Agent or internal tooling that consumes structured failures, `ctx`, and `nextStep`.
+- Teams already on `neverthrow` who want the same railway at HTTP and at in-process boundaries.
 - TypeScript projects where **published instantiation per route** matters in CI.
 
 **Not in scope today**
 
-Middleware, streaming, multipart, CLI/codegen, wildcards/nested routers. A thin Node bridge (`./node` → `toNodeHandler`) ships for Express/`http`; full framework adapter suites are out of scope. File uploads and SSE in *your* app: [files and streams](./files-and-streams.md) — JSON on the railway, bytes on a host handler.
+Middleware, streaming, multipart, CLI/codegen, wildcards/nested routers. A thin Node bridge (`./node` → `toNodeHandler`) ships for Express/`http`; full framework adapter suites are out of scope. File uploads and SSE in *your* app: [files and streams](./files-and-streams.md) — JSON on the railway, bytes on a host handler. `./local` is not a second protocol: the contract still declares HTTP method, path, and status maps; local dispatch ignores the statuses.
 
-**In scope (0.5):** OpenAPI 3.1 export via `toOpenAPI(contract, { info })` from the contract alone; a Result-preserving `./query` adapter (`createQueryOptions`, `createMutationOptions`, `isRetryable`) for TanStack Query-shaped caches — errors stay as data, never thrown across the cache boundary.
+**Also in the package:** OpenAPI 3.1 export via `toOpenAPI(contract, { info })` from the contract alone; a Result-preserving `./query` adapter (`createQueryOptions`, `createMutationOptions`, `isRetryable`) for TanStack Query-shaped caches — errors stay as data, never thrown across the cache boundary. `RailError.ctx` carries structured diagnostic context at `full` and `internal`.

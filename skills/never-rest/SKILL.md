@@ -1,6 +1,6 @@
 ---
 name: never-rest
-description: Lookup index for @eddy-works/never-rest — HTTP contracts with Result handlers, RailError chains, and graded disclosure. Use when implementing or debugging never-rest servers, clients, error mapping, disclosure, or migration from ts-rest/oRPC.
+description: Lookup index for @eddy-works/never-rest — HTTP contracts with Result handlers, RailError chains, graded disclosure, and in-process dispatch. Use when implementing or debugging never-rest servers, clients, local/in-process boundaries, error mapping, disclosure, or migration from ts-rest/oRPC.
 ---
 
 # never-rest
@@ -13,7 +13,8 @@ Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`
 
 | Question | Where |
 | --- | --- |
-| Why Result at the HTTP boundary instead of throws? | [concepts.md — Railway at the boundary](docs/concepts.md#railway-at-the-boundary) |
+| Why Result at the boundary instead of throws? | [concepts.md — Railway at the boundary](docs/concepts.md#railway-at-the-boundary) |
+| How do I use a contract without HTTP? | [concepts.md — One contract, more than HTTP](docs/concepts.md#one-contract-more-than-http) · [api.md — local](docs/api.md#eddy-worksnever-restlocal) |
 | Where did middleware go — how do I do auth / permissions? | [concepts.md — No middleware](docs/concepts.md#no-middleware--the-chain-is-the-middleware) · [migrating.md — Middleware](docs/migrating.md#middleware) |
 | How do I make auth / tenancy non-omittable without middleware? | [advanced-usage.md](docs/advanced-usage.md) |
 | Capability types / `Session` required by domain? | [advanced-usage.md — Capability types](docs/advanced-usage.md#capability-types) |
@@ -23,6 +24,7 @@ Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`
 | Router, recover, fan-out, lift, terminate, ROP links? | [railway-patterns.md](docs/railway-patterns.md) · [neverthrow](https://www.npmjs.com/package/neverthrow) · [Wlaschin ROP](https://fsharpforfunandprofit.com/rop/) |
 | White-label tenant provisioning kitchen sink? | [railway-patterns.md — Kitchen sink](docs/railway-patterns.md#kitchen-sink--white-label-enterprise-tenant-provisioning) |
 | What is `RailError` and what fields does it carry? | [api.md — RailError (interface)](docs/api.md#railerror-interface) |
+| How do I keep my own diagnostic context on an error? | [api.md — RailError (interface)](docs/api.md#railerror-interface) (`ctx`) · [api.md — disclose](docs/api.md#disclose) (per-level table) |
 | How do I construct an error? | [api.md — railError (function)](docs/api.md#railerror-function) |
 | How do I wrap a downstream error? | [api.md — chain](docs/api.md#chain) · [errors-as-intelligence.md — Gateway composition](docs/errors-as-intelligence.md#gateway-composition) |
 | How do I walk or log a cause chain? | [api.md — flatten](docs/api.md#flatten) · [formatChain](docs/api.md#formatchain) |
@@ -55,6 +57,9 @@ Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`
 | How do I upload files or run SSE? | [files-and-streams.md](docs/files-and-streams.md) · [examples/files-and-streams](examples/files-and-streams) |
 | How do I mount on Node http / Express? | [api.md — toNodeHandler](docs/api.md#tonodehandler) · [examples/express](examples/express) |
 | Where are runnable framework examples? | [examples/README.md](examples/README.md) · [docs/examples.md](docs/examples.md) |
+| How do I call a contract in-process, with no HTTP? | [api.md — local](docs/api.md#eddy-worksnever-restlocal) · [specs/local-dispatch.spec.md](specs/local-dispatch.spec.md) |
+| `createLocalClient` or `createTestClient`? | `createLocalClient` is a production transport that skips HTTP entirely; `createTestClient` exercises the real `serve` path in tests. [api.md — createLocalClient](docs/api.md#createlocalclient) · [createTestClient](docs/api.md#createtestclient) |
+| How do I put a contract behind a socket, MCP stdio, or a tool call? | [api.md — createDispatcher](docs/api.md#createdispatcher) |
 | How do I create a typed client? | [api.md — createClient](docs/api.md#createclient) |
 | How do I use the client with TanStack Query? | [api.md — query](docs/api.md#eddy-worksnever-restquery) · [railway-patterns.md — Terminate](docs/railway-patterns.md#terminate--dead-end) |
 | How do I chain client calls with neverthrow? | [api.md — Client](docs/api.md#client) · [specs/client-results.spec.md](specs/client-results.spec.md) → `src/client/create.test.ts` |
@@ -120,6 +125,15 @@ Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`
 | `Client` | `./client` | [api.md#client](docs/api.md#client) |
 | `createClient` | `./client` | [api.md#createclient](docs/api.md#createclient) |
 | `buildRequest` | `./client` | [api.md#buildrequest](docs/api.md#buildrequest) |
+| `createLocalClient` | `./local` | [api.md#createlocalclient](docs/api.md#createlocalclient) |
+| `createDispatcher` | `./local` | [api.md#createdispatcher](docs/api.md#createdispatcher) |
+| `LocalOptions` | `./local` | [api.md#localoptions](docs/api.md#localoptions) |
+| `LocalHandler` | `./local` | [api.md#localhandler](docs/api.md#localhandler) |
+| `LocalHandlers` | `./local` | [api.md#localhandler](docs/api.md#localhandler) |
+| `LocalClient` | `./local` | [api.md#createlocalclient](docs/api.md#createlocalclient) |
+| `LocalDispatcher` | `./local` | [api.md#createdispatcher](docs/api.md#createdispatcher) |
+| `LocalErrorOf` | `./local` | [api.md#createlocalclient](docs/api.md#createlocalclient) |
+| `LocalHostErrorCode` | `./local` | [api.md#createdispatcher](docs/api.md#createdispatcher) |
 | `createTestClient` | `./testing` | [api.md#createtestclient](docs/api.md#createtestclient) |
 | `checkTransportStability` | `./testing` | [api.md#checktransportstability](docs/api.md#checktransportstability) |
 | `checkContractOutputs` | `./testing` | [api.md#checkcontractoutputs](docs/api.md#checkcontractoutputs) |
@@ -146,4 +160,5 @@ Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`
 | [specs/input-sources.spec.md](specs/input-sources.spec.md) | `params` / `query` / `body` split, `parseRouteSources` | `src/contract/compile.test.ts`, `src/contract/parse.test.ts` |
 | [specs/wire-serialization.spec.md](specs/wire-serialization.spec.md) | Client path/query wire encoding | `src/client/create.test.ts` |
 | [specs/openapi-export.spec.md](specs/openapi-export.spec.md) | OpenAPI 3.1 from the contract | `src/openapi/to-openapi.test.ts` |
+| [specs/local-dispatch.spec.md](specs/local-dispatch.spec.md) | In-process client and operation dispatch, no `Request` / `Response` | `src/local/dispatch.test.ts` |
 | [specs/README.md](specs/README.md) | `pnpm specs:extract` | — |
