@@ -69,8 +69,17 @@ describe('flatten', () => {
     inner.cause = outer;
 
     const hops = flatten(outer);
-    expect(hops.length).toBeGreaterThan(0);
-    expect(hops.length).toBeLessThanOrEqual(17);
+    expect(hops.map((hop) => hop.message)).toEqual(['outer', 'inner']);
+  });
+
+  it('caps unique cause walks at MAX_CAUSE_DEPTH + 1 hops', () => {
+    let current = railError('internal', 'leaf');
+    for (let i = 0; i < 20; i += 1) {
+      current = railError('internal', `hop-${i}`, { cause: current });
+    }
+    const hops = flatten(current);
+    expect(hops).toHaveLength(17);
+    expect(hops[0]?.message).toBe('hop-19');
   });
 });
 

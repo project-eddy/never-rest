@@ -35,6 +35,9 @@ export function railError<TCode extends string>(
   message: string,
   extra?: Omit<RailError<TCode>, 'code' | 'message'>,
 ): RailError<TCode> {
+  // `{ ...undefined }` is `{}`, so this early return is equivalent to always
+  // spreading `extra`. Kept for a clearer object when there is no extra.
+  // Stryker disable next-line ConditionalExpression,BlockStatement
   if (extra === undefined) {
     return { code, message };
   }
