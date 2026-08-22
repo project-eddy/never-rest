@@ -1,7 +1,7 @@
 {
   "name": "@eddy-works/never-rest",
   "version": "0.5.0",
-  "description": "HTTP contract library where handlers return Result instead of throwing",
+  "description": "Result-based contracts for HTTP and in-process dispatch — handlers return Result instead of throwing",
   "type": "module",
   "sideEffects": false,
   "files": [
@@ -30,6 +30,10 @@
     "./node": {
       "types": "./dist/node/index.d.ts",
       "import": "./dist/node/index.js"
+    },
+    "./local": {
+      "types": "./dist/local/index.d.ts",
+      "import": "./dist/local/index.js"
     },
     "./testing": {
       "types": "./dist/testing/index.d.ts",
@@ -114,6 +118,9 @@
       ],
       "node": [
         "./dist/node/index.d.ts"
+      ],
+      "local": [
+        "./dist/local/index.d.ts"
       ],
       "testing": [
         "./dist/testing/index.d.ts"
