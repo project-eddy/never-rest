@@ -12,6 +12,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
 }
 
+function assertErrorEnvelope(
+  body: Record<string, unknown>,
+  declaredCodes: readonly string[],
+  disclosure: 'public' | 'full' | 'internal',
+  expect: typeof import('vitest').expect,
+): void {
+  expect(typeof body.code).toBe('string');
+  expect(typeof body.message).toBe('string');
+
+  const allowed = new Set([...declaredCodes, ...HOST_CODES]);
+  expect(allowed.has(body.code as string)).toBe(true);
+
+  if (disclosure === 'public') {
+    expect(body.cause).toBeUndefined();
+    if (body.code === 'internal') {
+      expect(body.message).toBe(CONSTANT_INTERNAL_MESSAGE);
+    }
+  }
+}
+
 /** Assert serve() protocol invariants for any handler outcome. */
 export async function assertProtocolResponse(options: {
   readonly response: Response;
@@ -42,18 +62,7 @@ export async function assertProtocolResponse(options: {
     return body;
   }
 
-  expect(typeof body.code).toBe('string');
-  expect(typeof body.message).toBe('string');
-
-  const allowed = new Set([...declaredCodes, ...HOST_CODES]);
-  expect(allowed.has(body.code as string)).toBe(true);
-
-  if (disclosure === 'public') {
-    expect(body.cause).toBeUndefined();
-    if (body.code === 'internal') {
-      expect(body.message).toBe(CONSTANT_INTERNAL_MESSAGE);
-    }
-  }
+  assertErrorEnvelope(body, declaredCodes, disclosure, expect);
 
   const serialised = JSON.stringify(body);
   for (const secret of forbidSubstrings) {

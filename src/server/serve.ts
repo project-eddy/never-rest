@@ -109,6 +109,28 @@ function isThrownInternal(error: RailError): boolean {
   );
 }
 
+function withoutCause(error: RailError, origin: string): RailError {
+  const { cause: _cause, ...rest } = error;
+  return { ...rest, origin: error.origin ?? origin };
+}
+
+function stampCause(
+  stamped: RailError,
+  cause: RailError,
+  origin: string,
+  depth: number,
+  seen: WeakSet<RailError>,
+): RailError {
+  if (seen.has(cause) || depth + 1 > MAX_CAUSE_DEPTH) {
+    const { cause: _cause, ...rest } = stamped;
+    return rest;
+  }
+  return {
+    ...stamped,
+    cause: stampOrigin(cause, origin, depth + 1, seen),
+  };
+}
+
 function stampOrigin(
   error: RailError,
   origin: string | undefined,
@@ -119,28 +141,17 @@ function stampOrigin(
     return error;
   }
   if (depth > MAX_CAUSE_DEPTH || seen.has(error)) {
-    const { cause: _cause, ...withoutCause } = error;
-    return {
-      ...withoutCause,
-      origin: error.origin ?? origin,
-    };
+    return withoutCause(error, origin);
   }
   seen.add(error);
   const stamped: RailError = {
     ...error,
     origin: error.origin ?? origin,
   };
-  if (error.cause !== undefined) {
-    if (seen.has(error.cause) || depth + 1 > MAX_CAUSE_DEPTH) {
-      const { cause: _cause, ...withoutCause } = stamped;
-      return withoutCause;
-    }
-    return {
-      ...stamped,
-      cause: stampOrigin(error.cause, origin, depth + 1, seen),
-    };
+  if (error.cause === undefined) {
+    return stamped;
   }
-  return stamped;
+  return stampCause(stamped, error.cause, origin, depth, seen);
 }
 
 function headersToRecord(headers: Headers): Record<string, string> {
@@ -387,6 +398,272 @@ function scopePath(pathname: string, basePath: `/${string}` | undefined): PathSc
   return { kind: 'outside_base' };
 }
 
+interface ServeRuntime<TContext> {
+  readonly compiled: CompiledContract<ContractDef>;
+  readonly routes: readonly CompiledRoute[];
+  readonly handlers: Handlers<ContractDef, TContext>;
+  readonly options: ServeOptions;
+  readonly hostStatuses: HostStatuses;
+  readonly internalStatus: number;
+  readonly basePath: `/${string}` | undefined;
+}
+
+function invalidEncodingResponse<TContext>(
+  param: string,
+  runtime: ServeRuntime<TContext>,
+  disclosure: Disclosure,
+): ProcessResult {
+  return {
+    response: respondWithError(
+      railError('validation_error', 'Validation failed', {
+        issues: [
+          {
+            path: ['params', param],
+            message: 'Path parameter has invalid percent-encoding',
+          },
+        ],
+      }),
+      runtime.options,
+      HOST_ONLY_ROUTE,
+      runtime.hostStatuses,
+      [runtime.hostStatuses.validation_error],
+      disclosure,
+    ),
+  };
+}
+
+function handlerErrorResponse<TContext>(
+  error: RailError<string>,
+  declaredCodes: readonly string[],
+  runtime: ServeRuntime<TContext>,
+  route: RouteDef,
+  declared: readonly number[],
+  disclosure: Disclosure,
+): ProcessResult {
+  const normalized = isThrownInternal(error)
+    ? error
+    : normalizeHandlerError(error, declaredCodes);
+  return {
+    response: respondWithError(
+      stampOrigin(normalized, runtime.options.origin),
+      runtime.options,
+      route,
+      runtime.hostStatuses,
+      declared,
+      disclosure,
+    ),
+  };
+}
+
+function okResponse<TContext>(
+  value: unknown,
+  successStatus: number,
+  route: RouteDef,
+  runtime: ServeRuntime<TContext>,
+  declared: readonly number[],
+  disclosure: Disclosure,
+): ProcessResult {
+  const statuses = statusMapForRoute(route, runtime.hostStatuses);
+  const response = respond(ok(value), {
+    success: successStatus,
+    statuses,
+    declared,
+    disclosure,
+  });
+  return {
+    response: successResponse(
+      response.status,
+      response.body,
+      runtime.hostStatuses.internal,
+    ),
+  };
+}
+
+async function readOptionalBody(
+  request: Request,
+  route: RouteDef,
+): Promise<Result<unknown, RailError<'validation_error'>>> {
+  if (route.body === undefined) {
+    return ok(undefined);
+  }
+  return readRequestBody(request);
+}
+
+function rawSourcesForMatch(
+  route: RouteDef,
+  match: Extract<RouteRequestMatch, { kind: 'match' }>,
+  url: URL,
+  request: Request,
+  rawBody: unknown,
+) {
+  return {
+    ...(route.params !== undefined ? { params: match.params } : {}),
+    ...(route.query !== undefined ? { query: searchParamsToObject(url) } : {}),
+    ...(route.body !== undefined ? { body: rawBody } : {}),
+    ...(route.headers !== undefined
+      ? { headers: headersToRecord(request.headers) }
+      : {}),
+  };
+}
+
+async function invokeMatchedRoute<TContext>(
+  runtime: ServeRuntime<TContext>,
+  request: Request,
+  context: TContext,
+  url: URL,
+  match: Extract<RouteRequestMatch, { kind: 'match' }>,
+  disclosure: Disclosure,
+): Promise<ProcessResult> {
+  const route = match.route;
+  const declared = declaredStatusesForRoute(route, runtime.hostStatuses);
+  const successStatus = route.success ?? 200;
+
+  const bodyResult = await readOptionalBody(request, route);
+  if (bodyResult.isErr()) {
+    return {
+      response: respondWithError(
+        bodyResult.error,
+        runtime.options,
+        route,
+        runtime.hostStatuses,
+        declared,
+        disclosure,
+      ),
+    };
+  }
+
+  const sourcesResult = await parseRouteSources(
+    route,
+    rawSourcesForMatch(route, match, url, request, bodyResult.value),
+  );
+
+  if (sourcesResult.isErr()) {
+    return {
+      response: respondWithError(
+        sourcesResult.error,
+        runtime.options,
+        route,
+        runtime.hostStatuses,
+        declared,
+        disclosure,
+      ),
+    };
+  }
+
+  const handler = runtime.handlers[match.key] as Handler<RouteDef, TContext>;
+  const handlerResult = await invokeHandler(handler, {
+    ...sourcesResult.value,
+    request,
+    context,
+  });
+
+  if (handlerResult.isErr()) {
+    return handlerErrorResponse(
+      handlerResult.error,
+      Object.keys(route.errors),
+      runtime,
+      route,
+      declared,
+      disclosure,
+    );
+  }
+
+  if (successStatus === 204) {
+    return okResponse(undefined, successStatus, route, runtime, declared, disclosure);
+  }
+
+  const outputResult = await parseOutput(route, handlerResult.value);
+  if (outputResult.isErr()) {
+    return {
+      response: respondWithError(
+        stampOrigin(outputResult.error, runtime.options.origin),
+        runtime.options,
+        route,
+        runtime.hostStatuses,
+        declared,
+        disclosure,
+      ),
+    };
+  }
+
+  return okResponse(
+    outputResult.value,
+    successStatus,
+    route,
+    runtime,
+    declared,
+    disclosure,
+  );
+}
+
+function outsideBaseResult<TContext>(
+  runtime: ServeRuntime<TContext>,
+  request: Request,
+  cooperative: boolean,
+): ProcessResult {
+  if (cooperative) {
+    return { kind: 'unmatched' };
+  }
+  const disclosure = resolveDisclosure(runtime.options.disclosure, request);
+  return {
+    response: routeNotFoundResponse(
+      runtime.options,
+      runtime.hostStatuses,
+      disclosure,
+    ),
+  };
+}
+
+async function processRequest<TContext>(
+  runtime: ServeRuntime<TContext>,
+  request: Request,
+  context: TContext,
+  cooperative: boolean,
+): Promise<ProcessResult> {
+  try {
+    const url = new URL(request.url);
+    const scoped = scopePath(url.pathname, runtime.basePath);
+
+    if (scoped.kind === 'outside_base') {
+      return outsideBaseResult(runtime, request, cooperative);
+    }
+
+    if (cooperative && !isContractPath(runtime.compiled, scoped.pathname)) {
+      return { kind: 'unmatched' };
+    }
+
+    const match = matchRequest(runtime.routes, request.method, scoped.pathname);
+    const disclosure = resolveDisclosure(runtime.options.disclosure, request);
+
+    if (match.kind === 'route_not_found') {
+      return {
+        response: routeNotFoundResponse(
+          runtime.options,
+          runtime.hostStatuses,
+          disclosure,
+        ),
+      };
+    }
+
+    if (match.kind === 'invalid_encoding') {
+      return invalidEncodingResponse(match.param, runtime, disclosure);
+    }
+
+    return invokeMatchedRoute(
+      runtime,
+      request,
+      context,
+      url,
+      match,
+      disclosure,
+    );
+  } catch {
+    return {
+      response: failsafeInternalResponse(runtime.internalStatus),
+    };
+  }
+}
+
 /** Web-standard fetch handler wired to a contract and handler map. */
 export function serve<TContract extends ContractDef, TContext>(
   contract: TContract,
@@ -399,193 +676,23 @@ export function serve<TContract extends ContractDef, TContext>(
     handlers,
   );
 
-  const routes = routesFromCompiled(compiled);
   const hostStatuses = mergeHostStatuses(options.hostStatuses);
-  const internalStatus = hostStatuses.internal;
-  const basePath = options.basePath;
-
-  async function processRequest(
-    request: Request,
-    context: TContext,
-    cooperative: boolean,
-  ): Promise<ProcessResult> {
-    try {
-      const url = new URL(request.url);
-      const scoped = scopePath(url.pathname, basePath);
-
-      if (scoped.kind === 'outside_base') {
-        if (cooperative) {
-          return { kind: 'unmatched' };
-        }
-        const disclosure = resolveDisclosure(options.disclosure, request);
-        return {
-          response: routeNotFoundResponse(options, hostStatuses, disclosure),
-        };
-      }
-
-      if (cooperative && !isContractPath(compiled, scoped.pathname)) {
-        return { kind: 'unmatched' };
-      }
-
-      const match = matchRequest(routes, request.method, scoped.pathname);
-      const disclosure = resolveDisclosure(options.disclosure, request);
-
-      if (match.kind === 'route_not_found') {
-        return {
-          response: routeNotFoundResponse(options, hostStatuses, disclosure),
-        };
-      }
-
-      if (match.kind === 'invalid_encoding') {
-        return {
-          response: respondWithError(
-            railError('validation_error', 'Validation failed', {
-              issues: [
-                {
-                  path: ['params', match.param],
-                  message: 'Path parameter has invalid percent-encoding',
-                },
-              ],
-            }),
-            options,
-            HOST_ONLY_ROUTE,
-            hostStatuses,
-            [hostStatuses.validation_error],
-            disclosure,
-          ),
-        };
-      }
-
-      const route = match.route;
-      const declared = declaredStatusesForRoute(route, hostStatuses);
-      const successStatus = route.success ?? 200;
-
-      let rawBody: unknown;
-      if (route.body !== undefined) {
-        const bodyResult = await readRequestBody(request);
-        if (bodyResult.isErr()) {
-          return {
-            response: respondWithError(
-              bodyResult.error,
-              options,
-              route,
-              hostStatuses,
-              declared,
-              disclosure,
-            ),
-          };
-        }
-        rawBody = bodyResult.value;
-      }
-
-      const sourcesResult = await parseRouteSources(route, {
-        ...(route.params !== undefined ? { params: match.params } : {}),
-        ...(route.query !== undefined
-          ? { query: searchParamsToObject(url) }
-          : {}),
-        ...(route.body !== undefined ? { body: rawBody } : {}),
-        ...(route.headers !== undefined
-          ? { headers: headersToRecord(request.headers) }
-          : {}),
-      });
-
-      if (sourcesResult.isErr()) {
-        return {
-          response: respondWithError(
-            sourcesResult.error,
-            options,
-            route,
-            hostStatuses,
-            declared,
-            disclosure,
-          ),
-        };
-      }
-
-      const handler = handlers[match.key as keyof TContract] as Handler<
-        RouteDef,
-        TContext
-      >;
-      const handlerResult = await invokeHandler(handler, {
-        ...sourcesResult.value,
-        request,
-        context,
-      });
-
-      const declaredCodes = Object.keys(route.errors);
-      if (handlerResult.isErr()) {
-        const normalized = isThrownInternal(handlerResult.error)
-          ? handlerResult.error
-          : normalizeHandlerError(handlerResult.error, declaredCodes);
-        return {
-          response: respondWithError(
-            stampOrigin(normalized, options.origin),
-            options,
-            route,
-            hostStatuses,
-            declared,
-            disclosure,
-          ),
-        };
-      }
-
-      if (successStatus !== 204) {
-        const outputResult = await parseOutput(route, handlerResult.value);
-        if (outputResult.isErr()) {
-          return {
-            response: respondWithError(
-              stampOrigin(outputResult.error, options.origin),
-              options,
-              route,
-              hostStatuses,
-              declared,
-              disclosure,
-            ),
-          };
-        }
-
-        const statuses = statusMapForRoute(route, hostStatuses);
-        const response = respond(ok(outputResult.value), {
-          success: successStatus,
-          statuses,
-          declared,
-          disclosure,
-        });
-        return {
-          response: successResponse(
-            response.status,
-            response.body,
-            hostStatuses.internal,
-          ),
-        };
-      }
-
-      const statuses = statusMapForRoute(route, hostStatuses);
-      const response = respond(ok(undefined), {
-        success: successStatus,
-        statuses,
-        declared,
-        disclosure,
-      });
-      return {
-        response: successResponse(
-          response.status,
-          response.body,
-          hostStatuses.internal,
-        ),
-      };
-    } catch {
-      return {
-        response: failsafeInternalResponse(internalStatus),
-      };
-    }
-  }
+  const runtime: ServeRuntime<TContext> = {
+    compiled: compiled as unknown as CompiledContract<ContractDef>,
+    routes: routesFromCompiled(compiled),
+    handlers: handlers as Handlers<ContractDef, TContext>,
+    options,
+    hostStatuses,
+    internalStatus: hostStatuses.internal,
+    basePath: options.basePath,
+  };
+  const internalStatus = runtime.internalStatus;
 
   const serveHandler = async (
     request: Request,
     context: TContext,
   ): Promise<Response> => {
-    const result = await processRequest(request, context, false);
+    const result = await processRequest(runtime, request, context, false);
     return 'response' in result
       ? result.response
       : failsafeInternalResponse(internalStatus);
@@ -597,7 +704,7 @@ export function serve<TContract extends ContractDef, TContext>(
   ): Promise<
     { matched: false } | { matched: true; response: Response }
   > => {
-    const result = await processRequest(request, context, true);
+    const result = await processRequest(runtime, request, context, true);
     if (!('response' in result)) {
       return { matched: false };
     }

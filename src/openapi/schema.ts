@@ -65,6 +65,36 @@ interface ObjectSchemaShape {
   readonly required: readonly string[];
 }
 
+function objectProperties(
+  operation: string,
+  source: SchemaSource,
+  schema: Record<string, unknown>,
+): Record<string, Record<string, unknown>> {
+  const properties = schema.properties;
+  if (
+    properties === undefined ||
+    typeof properties !== 'object' ||
+    properties === null ||
+    Array.isArray(properties)
+  ) {
+    throw new OpenApiExportError(
+      `Operation "${operation}" cannot convert ${source} schema: expected object properties`,
+    );
+  }
+  return properties as Record<string, Record<string, unknown>>;
+}
+
+function requiredNames(schema: Record<string, unknown>): readonly string[] {
+  const requiredValue = schema.required;
+  if (
+    Array.isArray(requiredValue) &&
+    requiredValue.every((item) => typeof item === 'string')
+  ) {
+    return requiredValue;
+  }
+  return [];
+}
+
 /** Extract top-level object properties from a JSON Schema object. */
 export function objectSchemaShape(
   operation: string,
@@ -77,27 +107,9 @@ export function objectSchemaShape(
     );
   }
 
-  const properties = schema.properties;
-  if (
-    properties === undefined ||
-    typeof properties !== 'object' ||
-    properties === null ||
-    Array.isArray(properties)
-  ) {
-    throw new OpenApiExportError(
-      `Operation "${operation}" cannot convert ${source} schema: expected object properties`,
-    );
-  }
-
-  const requiredValue = schema.required;
-  const required =
-    Array.isArray(requiredValue) && requiredValue.every((item) => typeof item === 'string')
-      ? requiredValue
-      : [];
-
   return {
-    properties: properties as Record<string, Record<string, unknown>>,
-    required,
+    properties: objectProperties(operation, source, schema),
+    required: requiredNames(schema),
   };
 }
 

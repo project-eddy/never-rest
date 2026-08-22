@@ -120,6 +120,59 @@ export function assertHandlersComplete(
   }
 }
 
+function rejectDuplicate(
+  seen: Map<string, string>,
+  key: string,
+  operation: string,
+  message: string,
+): void {
+  const duplicate = seen.get(key);
+  if (duplicate !== undefined) {
+    throw new ContractConfigurationError(message);
+  }
+  seen.set(key, operation);
+}
+
+function compilePathOrThrow(operation: string, path: string): CompiledPath {
+  try {
+    return compilePath(path);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new ContractConfigurationError(
+      `Invalid path on operation "${operation}": ${detail}`,
+    );
+  }
+}
+
+function validateParamsSchema(
+  operation: string,
+  route: RouteDef,
+  compiledPath: CompiledPath,
+): void {
+  const hasPathParams = compiledPath.paramNames.length > 0;
+  if (hasPathParams && route.params === undefined) {
+    throw new ContractConfigurationError(
+      `Operation "${operation}" path has parameters but no params schema`,
+    );
+  }
+  if (!hasPathParams && route.params !== undefined) {
+    throw new ContractConfigurationError(
+      `Operation "${operation}" declares params schema but path has no parameters`,
+    );
+  }
+}
+
+function validateBodyMethod(operation: string, route: RouteDef): void {
+  if (
+    route.body !== undefined &&
+    (route.method === 'GET' || route.method === 'DELETE')
+  ) {
+    throw new ContractConfigurationError(
+      `Operation "${operation}" cannot declare body on ${route.method}`,
+    );
+  }
+}
+
 /** Validate and precompile a contract for client and server construction. */
 export function compileContract<TContract extends ContractDef>(
   contract: TContract,
@@ -131,67 +184,34 @@ export function compileContract<TContract extends ContractDef>(
   const seenMatchers = new Map<string, string>();
 
   for (const [operation, route] of Object.entries(contract)) {
-    const methodPath = `${route.method}:${route.path}`;
-    const duplicate = seenMethodPath.get(methodPath);
-    if (duplicate !== undefined) {
-      throw new ContractConfigurationError(
-        `Duplicate route ${route.method} ${route.path} on operations "${duplicate}" and "${operation}"`,
-      );
-    }
-    seenMethodPath.set(methodPath, operation);
+    rejectDuplicate(
+      seenMethodPath,
+      `${route.method}:${route.path}`,
+      operation,
+      `Duplicate route ${route.method} ${route.path} on operations "${seenMethodPath.get(`${route.method}:${route.path}`)}" and "${operation}"`,
+    );
 
     const normalizedPath = normalizePath(route.path);
-    const methodNormalized = `${route.method}:${normalizedPath}`;
-    const normalizedDuplicate = seenNormalizedPath.get(methodNormalized);
-    if (normalizedDuplicate !== undefined) {
-      throw new ContractConfigurationError(
-        `Duplicate route ${route.method} ${route.path} on operations "${normalizedDuplicate}" and "${operation}"`,
-      );
-    }
-    seenNormalizedPath.set(methodNormalized, operation);
+    rejectDuplicate(
+      seenNormalizedPath,
+      `${route.method}:${normalizedPath}`,
+      operation,
+      `Duplicate route ${route.method} ${route.path} on operations "${seenNormalizedPath.get(`${route.method}:${normalizedPath}`)}" and "${operation}"`,
+    );
 
     validateErrorMap(operation, route.errors);
     validateSuccessAndOutput(operation, route);
 
-    let compiledPath: CompiledPath;
-    try {
-      compiledPath = compilePath(route.path);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      throw new ContractConfigurationError(
-        `Invalid path on operation "${operation}": ${detail}`,
-      );
-    }
+    const compiledPath = compilePathOrThrow(operation, route.path);
+    validateParamsSchema(operation, route, compiledPath);
+    validateBodyMethod(operation, route);
 
-    const hasPathParams = compiledPath.paramNames.length > 0;
-    if (hasPathParams && route.params === undefined) {
-      throw new ContractConfigurationError(
-        `Operation "${operation}" path has parameters but no params schema`,
-      );
-    }
-    if (!hasPathParams && route.params !== undefined) {
-      throw new ContractConfigurationError(
-        `Operation "${operation}" declares params schema but path has no parameters`,
-      );
-    }
-
-    if (
-      route.body !== undefined &&
-      (route.method === 'GET' || route.method === 'DELETE')
-    ) {
-      throw new ContractConfigurationError(
-        `Operation "${operation}" cannot declare body on ${route.method}`,
-      );
-    }
-
-    const matcherKey = `${route.method}:${compiledPath.regex.source}`;
-    const matcherDuplicate = seenMatchers.get(matcherKey);
-    if (matcherDuplicate !== undefined) {
-      throw new ContractConfigurationError(
-        `Duplicate route matcher ${route.method} ${route.path} on operations "${matcherDuplicate}" and "${operation}"`,
-      );
-    }
-    seenMatchers.set(matcherKey, operation);
+    rejectDuplicate(
+      seenMatchers,
+      `${route.method}:${compiledPath.regex.source}`,
+      operation,
+      `Duplicate route matcher ${route.method} ${route.path} on operations "${seenMatchers.get(`${route.method}:${compiledPath.regex.source}`)}" and "${operation}"`,
+    );
 
     routeEntries[operation] = { route, compiledPath };
     domainCodes[operation] = Object.keys(route.errors);

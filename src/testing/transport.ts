@@ -4,36 +4,58 @@ import type { ContractDef } from '../contract/types.js';
 import { railError, type RailError } from '../error.js';
 import { parseSchema } from '../contract/parse.js';
 
-function valuesEqual(left: unknown, right: unknown): boolean {
-  if (left === right) {
-    return true;
-  }
-  if (left instanceof Date && right instanceof Date) {
-    return left.getTime() === right.getTime();
-  }
-  if (typeof left !== typeof right) {
+function arraysEqual(left: readonly unknown[], right: readonly unknown[]): boolean {
+  if (left.length !== right.length) {
     return false;
   }
-  if (typeof left !== 'object' || left === null || right === null) {
+  return left.every((item, index) => valuesEqual(item, right[index]));
+}
+
+function recordsEqual(
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) {
     return false;
   }
+  return leftKeys.every((key) => valuesEqual(left[key], right[key]));
+}
+
+function objectsEqual(left: object, right: object): boolean {
   if (Array.isArray(left) && Array.isArray(right)) {
-    if (left.length !== right.length) {
-      return false;
-    }
-    return left.every((item, index) => valuesEqual(item, right[index]));
+    return arraysEqual(left, right);
   }
   if (Array.isArray(left) || Array.isArray(right)) {
     return false;
   }
-  const leftRecord = left as Record<string, unknown>;
-  const rightRecord = right as Record<string, unknown>;
-  const leftKeys = Object.keys(leftRecord);
-  const rightKeys = Object.keys(rightRecord);
-  if (leftKeys.length !== rightKeys.length) {
+  return recordsEqual(
+    left as Record<string, unknown>,
+    right as Record<string, unknown>,
+  );
+}
+
+function sameDates(left: unknown, right: unknown): boolean {
+  return (
+    left instanceof Date &&
+    right instanceof Date &&
+    left.getTime() === right.getTime()
+  );
+}
+
+function isObject(value: unknown): value is object {
+  return typeof value === 'object' && value !== null;
+}
+
+function valuesEqual(left: unknown, right: unknown): boolean {
+  if (left === right || sameDates(left, right)) {
+    return true;
+  }
+  if (!isObject(left) || !isObject(right)) {
     return false;
   }
-  return leftKeys.every((key) => valuesEqual(leftRecord[key], rightRecord[key]));
+  return objectsEqual(left, right);
 }
 
 function transportUnstable(

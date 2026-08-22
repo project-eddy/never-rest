@@ -30,6 +30,13 @@ export default tseslint.config(
     },
   },
   {
+    files: ["src/**/*.ts"],
+    ignores: ["src/**/*.test.ts", "src/**/*.test-d.ts"],
+    rules: {
+      complexity: ["error", 8],
+    },
+  },
+  {
     files: ["scripts/**/*.{js,mjs,cjs}", "perf/**/*.{js,mjs,cjs}"],
     languageOptions: {
       globals: {

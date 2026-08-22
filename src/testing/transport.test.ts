@@ -16,6 +16,28 @@ describe('checkTransportStability', () => {
     expect(result.isOk()).toBe(true);
   });
 
+  it('passes nested objects and arrays', async () => {
+    const schema = z.object({
+      tags: z.array(z.string()),
+      meta: z.object({ count: z.number() }),
+    });
+    const result = await checkTransportStability(schema, {
+      tags: ['a', 'b'],
+      meta: { count: 2 },
+    });
+    expect(result.isOk()).toBe(true);
+  });
+
+  it('round-trips coerced dates as equal Dates', async () => {
+    const schema = z.object({
+      when: z.coerce.date(),
+    });
+    const result = await checkTransportStability(schema, {
+      when: '2026-01-01T00:00:00.000Z',
+    });
+    expect(result.isOk()).toBe(true);
+  });
+
   it('fails for a number-to-string output transform', async () => {
     const schema = z.number().transform(String);
 

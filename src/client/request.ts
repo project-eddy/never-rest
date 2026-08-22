@@ -52,6 +52,45 @@ function isQueryPrimitive(value: unknown): value is string | number | boolean {
   );
 }
 
+function appendArrayQuery(
+  search: URLSearchParams,
+  key: string,
+  value: readonly unknown[],
+): Result<void, RailError<'validation_error'>> {
+  if (value.length === 0) {
+    return err(
+      validationError(
+        `Query parameter "${key}" cannot be an empty array; omit the field or use POST`,
+        [
+          {
+            path: ['query', key],
+            message: 'Empty array is not representable in a query string',
+          },
+        ],
+      ),
+    );
+  }
+
+  for (const item of value) {
+    if (isQueryPrimitive(item)) {
+      search.append(`${key}[]`, String(item));
+    } else if (item instanceof Date) {
+      search.append(`${key}[]`, item.toISOString());
+    } else {
+      return err(
+        validationError(`Query parameter "${key}" has an unrepresentable value`, [
+          {
+            path: ['query', key],
+            message:
+              'Nested objects, bigint, and nested arrays are not supported in query strings',
+          },
+        ]),
+      );
+    }
+  }
+  return ok(undefined);
+}
+
 function appendQueryValue(
   search: URLSearchParams,
   key: string,
@@ -72,38 +111,7 @@ function appendQueryValue(
   }
 
   if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return err(
-        validationError(
-          `Query parameter "${key}" cannot be an empty array; omit the field or use POST`,
-          [
-            {
-              path: ['query', key],
-              message: 'Empty array is not representable in a query string',
-            },
-          ],
-        ),
-      );
-    }
-
-    for (const item of value) {
-      if (isQueryPrimitive(item)) {
-        search.append(`${key}[]`, String(item));
-      } else if (item instanceof Date) {
-        search.append(`${key}[]`, item.toISOString());
-      } else {
-        return err(
-          validationError(`Query parameter "${key}" has an unrepresentable value`, [
-            {
-              path: ['query', key],
-              message:
-                'Nested objects, bigint, and nested arrays are not supported in query strings',
-            },
-          ]),
-        );
-      }
-    }
-    return ok(undefined);
+    return appendArrayQuery(search, key, value);
   }
 
   return err(
@@ -177,6 +185,62 @@ function pathParamsFromArgs(
   return ok(pathParams);
 }
 
+function querySuffix(
+  args: ClientArgsOf<RouteDef>,
+): Result<string, RailError<'validation_error'>> {
+  const queryValue = (args as { readonly query?: unknown }).query;
+  if (queryValue === undefined) {
+    return ok('');
+  }
+  const queryRecord = asRecord(queryValue);
+  if (queryRecord === undefined) {
+    return err(
+      validationError('Query must be an object', [
+        { path: ['query'], message: 'Query must be an object' },
+      ]),
+    );
+  }
+  return toQueryString(queryRecord);
+}
+
+function applyJsonBody(
+  init: RequestInit,
+  headers: Headers,
+  bodyValue: unknown,
+): Result<void, RailError<'internal'>> {
+  if (bodyValue === undefined) {
+    return ok(undefined);
+  }
+  if (!headers.has('content-type')) {
+    headers.set('content-type', 'application/json');
+  }
+  try {
+    init.body = JSON.stringify(bodyValue);
+    return ok(undefined);
+  } catch {
+    return err(internalError('Request body cannot be serialized'));
+  }
+}
+
+function mergeRequestHeaders(
+  headers: HeadersInit | undefined,
+): Result<Headers, RailError<'internal'>> {
+  try {
+    return ok(new Headers(headers));
+  } catch {
+    return err(internalError('Request headers are invalid'));
+  }
+}
+
+function requestUrl(
+  baseUrl: string,
+  pathname: string,
+  query: string,
+): string {
+  const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  return `${base}${pathname}${query}`;
+}
+
 /** Build a fetch URL and init from declared params / query / body sources. */
 export function buildRequest(
   route: RouteDef,
@@ -200,49 +264,31 @@ export function buildRequest(
     return err(pathnameResult.error);
   }
 
-  const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  let query = '';
-  const queryValue = (args as { readonly query?: unknown }).query;
-  if (queryValue !== undefined) {
-    const queryRecord = asRecord(queryValue);
-    if (queryRecord === undefined) {
-      return err(
-        validationError('Query must be an object', [
-          { path: ['query'], message: 'Query must be an object' },
-        ]),
-      );
-    }
-    const queryResult = toQueryString(queryRecord);
-    if (queryResult.isErr()) {
-      return err(queryResult.error);
-    }
-    query = queryResult.value;
+  const queryResult = querySuffix(args);
+  if (queryResult.isErr()) {
+    return err(queryResult.error);
   }
 
-  const url = `${base}${pathnameResult.value}${query}`;
+  const url = requestUrl(baseUrl, pathnameResult.value, queryResult.value);
 
-  let mergedHeaders: Headers;
-  try {
-    mergedHeaders = new Headers(headers);
-  } catch {
-    return err(internalError('Request headers are invalid'));
+  const headersResult = mergeRequestHeaders(headers);
+  if (headersResult.isErr()) {
+    return err(headersResult.error);
   }
+  const mergedHeaders = headersResult.value;
 
   const init: RequestInit = { method: route.method, headers: mergedHeaders };
   if (credentials !== undefined) {
     init.credentials = credentials;
   }
 
-  const bodyValue = (args as { readonly body?: unknown }).body;
-  if (bodyValue !== undefined) {
-    if (!mergedHeaders.has('content-type')) {
-      mergedHeaders.set('content-type', 'application/json');
-    }
-    try {
-      init.body = JSON.stringify(bodyValue);
-    } catch {
-      return err(internalError('Request body cannot be serialized'));
-    }
+  const bodyResult = applyJsonBody(
+    init,
+    mergedHeaders,
+    (args as { readonly body?: unknown }).body,
+  );
+  if (bodyResult.isErr()) {
+    return err(bodyResult.error);
   }
 
   return ok({ url, init });

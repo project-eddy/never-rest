@@ -16,15 +16,22 @@ export interface RawRouteSources {
   readonly headers?: unknown;
 }
 
+function keyFromPathObject(segment: object): string | number {
+  if (!('key' in segment)) {
+    return String(segment);
+  }
+  const key = (segment as { key: unknown }).key;
+  if (typeof key === 'string' || typeof key === 'number') {
+    return key;
+  }
+  return String(key);
+}
+
 function toPathSegment(
   segment: PropertyKey | StandardSchemaV1.PathSegment,
 ): string | number {
-  if (typeof segment === 'object' && segment !== null && 'key' in segment) {
-    const key = segment.key;
-    if (typeof key === 'string' || typeof key === 'number') {
-      return key;
-    }
-    return String(key);
+  if (typeof segment === 'object' && segment !== null) {
+    return keyFromPathObject(segment);
   }
   if (typeof segment === 'string' || typeof segment === 'number') {
     return segment;
