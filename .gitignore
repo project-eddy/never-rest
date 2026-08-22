@@ -1,6 +1,7 @@
 node_modules/
 dist/
 coverage/
+.stryker-tmp/
 .tmp/
 *.tsbuildinfo
 .DS_Store
