@@ -16,9 +16,20 @@ export interface RailError<TCode extends string = string> {
   readonly origin?: string;
   readonly retryable?: boolean;
   readonly nextStep?: string;
+  /**
+   * Structured context for whoever reads the error — most often an agent
+   * deciding what to do next. The named fields cover what every caller needs
+   * (`retryable`, `nextStep`, `origin`); `ctx` carries what only this tool
+   * knows: which gate rejected, which category, which files were involved.
+   *
+   * Disclosed at `full` and `internal`, stripped at `public` — the keys are
+   * caller-defined, so they cannot be vetted for leakage the way the named
+   * fields can.
+   */
+  readonly ctx?: Readonly<Record<string, unknown>>;
 }
 
-/** Construct a rail error with optional metadata. */
+/** Construct a rail error with optional context and named fields. */
 export function railError<TCode extends string>(
   code: TCode,
   message: string,

@@ -9,6 +9,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `RailError.ctx` — optional structured context for whoever reads the error, disclosed at `full` and `internal` and always stripped at `public`. The named fields cover what every caller needs (`retryable`, `nextStep`, `origin`); `ctx` carries what only the raising tool knows — which gate rejected, which category, which files were involved. Agent-facing tools are the main consumer of this library, and an agent choosing its next move needs that detail structured rather than flattened into `message`. Named `ctx` rather than `meta` because it is the error's context, not metadata about the error; kept separate from `issues`, which means validation paths and would be corrupted for every other consumer by overloading.
 - Guide for file uploads and SSE: JSON stays on the railway; multipart and streams use sibling host handlers with `parseRouteSources` / `parseSchema` ([docs/files-and-streams.md](docs/files-and-streams.md)).
 - In-process [`examples/files-and-streams`](examples/files-and-streams) — served JSON catalog, shadow `uploadMeta` `RouteDef`, `handle()` fallthrough for `POST /uploads` and `GET /jobs/:id/events`.
 

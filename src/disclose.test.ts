@@ -62,6 +62,47 @@ describe('disclose', () => {
     expect(JSON.stringify(disclosed)).not.toContain('HIDDEN_DOWNSTREAM_DETAIL');
   });
 
+  describe('ctx', () => {
+    const withCtx = railError('rejected', 'Submission rejected', {
+      ctx: {
+        gate: 'verify',
+        category: 'evidence_missing',
+        SECRET_SHARD_KEY: 'shard-7',
+      },
+    });
+
+    it('keeps ctx on full disclosure', () => {
+      expect(disclose(withCtx, 'full').ctx).toEqual({
+        gate: 'verify',
+        category: 'evidence_missing',
+        SECRET_SHARD_KEY: 'shard-7',
+      });
+    });
+
+    it('keeps ctx on internal disclosure', () => {
+      expect(disclose(withCtx, 'internal').ctx).toEqual({
+        gate: 'verify',
+        category: 'evidence_missing',
+        SECRET_SHARD_KEY: 'shard-7',
+      });
+    });
+
+    it('drops ctx on public disclosure', () => {
+      const disclosed = disclose(withCtx, 'public');
+
+      expect(disclosed.ctx).toBeUndefined();
+      expect(JSON.stringify(disclosed)).not.toContain('SECRET_SHARD_KEY');
+      expect(JSON.stringify(disclosed)).not.toContain('shard-7');
+    });
+
+    it('omits the ctx key entirely when absent', () => {
+      const plain = railError('not_found', 'Missing');
+
+      expect('ctx' in disclose(plain, 'internal')).toBe(false);
+      expect('ctx' in disclose(plain, 'public')).toBe(false);
+    });
+  });
+
   it('does not loop on cyclic cause chains when checking leakage', () => {
     const inner: { cause?: ReturnType<typeof railError> } = railError(
       'internal',

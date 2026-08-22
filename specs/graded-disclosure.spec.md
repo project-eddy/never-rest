@@ -95,6 +95,29 @@ Scenario: Stripping issues that reveal internal field names from public disclosu
   And the serialised result contains no substring "shardKey"
 ```
 
+## Internal keeps diagnostic ctx
+
+```gherkin
+Scenario: Retaining caller ctx at internal level
+  Given a RailError with code "rejected" and message "Submission rejected"
+  And ctx containing gate "verify" and category "evidence_missing"
+  When disclose is called with level "internal"
+  Then the result includes ctx with gate "verify"
+  And the result includes ctx with category "evidence_missing"
+```
+
+## Public must not leak ctx
+
+```gherkin
+Scenario: Stripping caller ctx from public disclosure
+  Given a RailError with code "rejected" and message "Submission rejected"
+  And ctx containing key "SECRET_SHARD_KEY" with value "shard-7"
+  When disclose is called with level "public"
+  Then the result has no ctx property
+  And the serialised result contains no substring "SECRET_SHARD_KEY"
+  And the serialised result contains no substring "shard-7"
+```
+
 ## Public drops diagnostic nextStep
 
 ```gherkin

@@ -50,33 +50,26 @@ function publicIssues(issues: readonly RailIssue[]): readonly RailIssue[] {
   }));
 }
 
-/**
- * Redact a rail error for the caller's trust level.
- * full — everything, including the cause chain and nextStep.
- * internal — code, message, issues, nextStep; cause chain dropped.
- * public — code and a safe message; nextStep kept only when advisory, not diagnostic.
- */
-export function disclose<TCode extends string>(
+function discloseInternal<TCode extends string>(
   error: RailError<TCode>,
-  level: Disclosure,
 ): RailError<TCode> {
-  if (level === 'full') {
-    return error;
-  }
+  return {
+    code: error.code,
+    message: error.message,
+    ...(error.issues !== undefined && { issues: error.issues }),
+    ...(error.retryable !== undefined && { retryable: error.retryable }),
+    ...(error.nextStep !== undefined && { nextStep: error.nextStep }),
+    ...(error.ctx !== undefined && { ctx: error.ctx }),
+  };
+}
 
-  if (level === 'internal') {
-    return {
-      code: error.code,
-      message: error.message,
-      ...(error.issues !== undefined && { issues: error.issues }),
-      ...(error.retryable !== undefined && { retryable: error.retryable }),
-      ...(error.nextStep !== undefined && { nextStep: error.nextStep }),
-    };
-  }
-
+function disclosePublic<TCode extends string>(
+  error: RailError<TCode>,
+): RailError<TCode> {
   const causeMessages = collectCauseMessages(error);
   const advisoryNextStep =
-    error.nextStep !== undefined && isAdvisoryNextStep(error.nextStep, causeMessages)
+    error.nextStep !== undefined &&
+    isAdvisoryNextStep(error.nextStep, causeMessages)
       ? error.nextStep
       : undefined;
 
@@ -87,4 +80,24 @@ export function disclose<TCode extends string>(
     ...(error.retryable !== undefined && { retryable: error.retryable }),
     ...(advisoryNextStep !== undefined && { nextStep: advisoryNextStep }),
   };
+}
+
+/**
+ * Redact a rail error for the caller's trust level.
+ * full — everything, including the cause chain, ctx, and nextStep.
+ * internal — code, message, issues, ctx, nextStep; cause chain dropped.
+ * public — code and a safe message; nextStep kept only when advisory, not
+ * diagnostic; ctx always dropped because its keys are caller-defined.
+ */
+export function disclose<TCode extends string>(
+  error: RailError<TCode>,
+  level: Disclosure,
+): RailError<TCode> {
+  if (level === 'full') {
+    return error;
+  }
+  if (level === 'internal') {
+    return discloseInternal(error);
+  }
+  return disclosePublic(error);
 }
