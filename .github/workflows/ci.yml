@@ -130,7 +130,7 @@ jobs:
 
       - name: Breaking OpenAPI changes
         if: github.event_name == 'pull_request'
-        uses: oasdiff/oasdiff-action/breaking@v0.1.12
+        uses: oasdiff/oasdiff-action/breaking@v0.1.14
         with:
           base: "origin/${{ github.base_ref }}:src/openapi/fixtures/fixture-openapi.json"
           revision: "HEAD:src/openapi/fixtures/fixture-openapi.json"
