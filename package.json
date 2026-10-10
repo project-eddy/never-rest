@@ -75,9 +75,13 @@
     "access": "public"
   },
   "peerDependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
     "neverthrow": "^8.0.0"
   },
   "peerDependenciesMeta": {
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    },
     "@types/node": {
       "optional": true
     }
@@ -86,6 +90,7 @@
     "@standard-schema/spec": "^1.0.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@arethetypeswrong/cli": "^0.18.1",
     "@ark/attest": "^0.56.3",
     "@eslint/js": "^9.28.0",
@@ -103,7 +108,8 @@
     "typescript-eslint": "^8.33.1",
     "valibot": "^1.4.2",
     "vitest": "^3.2.4",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "rate-limiter-flexible": "^7.1.1"
   },
   "packageManager": "pnpm@10.33.3",
   "engines": {
