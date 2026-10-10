@@ -20,8 +20,9 @@ through `parseOutput`, exactly as `serve` does. Neither constructs a `Request`
 or a `Response`. Per-route `errors` status maps are ignored: HTTP status is not
 a local concern.
 
-Disclosure defaults to **full**, because callers in the same process are in the
-same trust circle.
+`createDispatcher` defaults to **public**, because it serves foreign
+transports. `createLocalClient` defaults to **full**, because it is
+module-to-module.
 
 ## Typed client returns declared output
 
@@ -149,13 +150,24 @@ Scenario: Leaving an origin set by the handler intact
   Then the error origin is "garden"
 ```
 
-## Disclosure defaults to the trust circle
+## Disclosure defaults to public on the dispatcher
 
 ```gherkin
-Scenario: Keeping the cause chain by default
+Scenario: Stripping the cause chain on a dispatcher by default
   Given a dispatcher constructed without a disclosure option
   And a handler that throws with message "inner detail"
   When dispatch is called
+  Then the error has no cause property
+  And the serialised error contains no substring "inner detail"
+```
+
+## Disclosure defaults to full on the local client
+
+```gherkin
+Scenario: Keeping the cause chain on a local client by default
+  Given a local client constructed without a disclosure option
+  And a handler that throws with message "inner detail"
+  When the local client calls that operation
   Then the error has a cause with message "inner detail"
 ```
 

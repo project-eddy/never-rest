@@ -58,6 +58,7 @@ function discloseInternal<TCode extends string>(
     message: error.message,
     ...(error.issues !== undefined && { issues: error.issues }),
     ...(error.retryable !== undefined && { retryable: error.retryable }),
+    ...(error.retryAfterMs !== undefined && { retryAfterMs: error.retryAfterMs }),
     ...(error.nextStep !== undefined && { nextStep: error.nextStep }),
     ...(error.ctx !== undefined && { ctx: error.ctx }),
   };
@@ -78,6 +79,7 @@ function disclosePublic<TCode extends string>(
     message: error.message,
     ...(error.issues !== undefined && { issues: publicIssues(error.issues) }),
     ...(error.retryable !== undefined && { retryable: error.retryable }),
+    ...(error.retryAfterMs !== undefined && { retryAfterMs: error.retryAfterMs }),
     ...(advisoryNextStep !== undefined && { nextStep: advisoryNextStep }),
   };
 }
@@ -86,8 +88,11 @@ function disclosePublic<TCode extends string>(
  * Redact a rail error for the caller's trust level.
  * full — everything, including the cause chain, ctx, and nextStep.
  * internal — code, message, issues, ctx, nextStep; cause chain dropped.
- * public — code and a safe message; nextStep kept only when advisory, not
- * diagnostic; ctx always dropped because its keys are caller-defined.
+ * public — code and message (public data), issue messages with paths stripped,
+ * retryable, retryAfterMs; nextStep kept only when a heuristic says it is
+ * advisory, not diagnostic; ctx always dropped because its keys are
+ * caller-defined. The nextStep regex is a defensive check, not redaction of
+ * `message`. Secrets belong in `cause` or `ctx`.
  */
 export function disclose<TCode extends string>(
   error: RailError<TCode>,
