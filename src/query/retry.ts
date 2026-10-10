@@ -1,12 +1,21 @@
 import type { RailError } from '../error.js';
 
+const RETRYABLE_CODES = new Set([
+  'unavailable',
+  'boundary.rate_limited',
+  'boundary.overloaded',
+]);
+
 /**
- * Retry predicate for cache layers (e.g. TanStack Query `retry`).
+ * Retry predicate for cache layers and `withRetry`.
  *
- * Retries host and transport failures (`unavailable`, `internal`). Domain errors
- * and `validation_error` are not retried — the caller should branch on `Result`
- * instead of treating them as thrown failures.
+ * Retries transport `unavailable`, boundary rate/overload errors, and any
+ * error that sets `retryable: true`. Does not retry `internal`,
+ * authentication failures, validation errors, or cancellations.
  */
 export function isRetryable(error: RailError): boolean {
-  return error.code === 'unavailable' || error.code === 'internal';
+  if (error.retryable === true) {
+    return true;
+  }
+  return RETRYABLE_CODES.has(error.code);
 }

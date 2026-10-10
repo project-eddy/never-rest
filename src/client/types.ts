@@ -8,17 +8,27 @@ import type {
   RouteDef,
 } from '../contract/types.js';
 
+export interface ClientCallOptions {
+  readonly signal?: AbortSignal;
+  readonly idempotencyKey?: string;
+}
+
 export interface ClientOptions {
   readonly baseUrl: string;
   readonly fetch?: typeof fetch;
   readonly headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
   readonly credentials?: RequestCredentials;
+  readonly timeoutMs?: number;
 }
 
 type ClientMethod<TRoute extends RouteDef> = [keyof ClientArgsOf<TRoute>] extends [never]
-  ? () => ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>>
+  ? (
+      args?: ClientArgsOf<TRoute>,
+      options?: ClientCallOptions,
+    ) => ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>>
   : (
       args: ClientArgsOf<TRoute>,
+      options?: ClientCallOptions,
     ) => ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>>;
 
 /**
