@@ -22,5 +22,11 @@ export { chain, flatten, formatChain, railError } from './error.js';
 export { parseRetryAfterMs, retryAfterHeaderSeconds } from './retry-after.js';
 export type { RespondOptions } from './respond.js';
 export { respond } from './respond.js';
+export {
+  combineAbortSignals,
+  errorForAbort,
+  isAbortError,
+  isTimeoutAbort,
+} from './signals.js';
 export type { HostStatuses, StatusMap } from './status.js';
 export { HOST_STATUSES, statusFor, toDeclaredResponse } from './status.js';
