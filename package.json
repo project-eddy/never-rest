@@ -63,6 +63,7 @@
     "openapi:lint": "spectral lint src/openapi/fixtures/fixture-openapi.json",
     "docs:dev": "pnpm --filter website dev",
     "docs:build": "pnpm --filter website build",
+    "docs:snippets": "node scripts/check-doc-snippets.mjs",
     "examples:typecheck": "pnpm -r --filter \"./examples/**\" typecheck",
     "examples:conformance": "vitest run --config examples/conformance/vitest.config.ts"
   },
@@ -113,7 +114,7 @@
   },
   "packageManager": "pnpm@10.33.3",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "typesVersions": {
     "*": {
