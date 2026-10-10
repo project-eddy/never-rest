@@ -1,4 +1,5 @@
 import http from 'node:http';
+import net from 'node:net';
 import { describe, expect, it } from 'vitest';
 
 import { toNodeHandler } from './to-node-handler.js';
@@ -84,6 +85,50 @@ describe('toNodeHandler', () => {
       expect(response.status).toBe(200);
       expect(await response.text()).toBe('pong');
     });
+  });
+
+  it('Rejecting an oversized Content-Length before invoking the fetch handler', async () => {
+    let invoked = 0;
+    const server = http.createServer(
+      toNodeHandler(async () => {
+        invoked += 1;
+        return new Response('ok');
+      }, { maxBodyBytes: 16 }),
+    );
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve());
+    });
+    const address = server.address();
+    if (address === null || typeof address === 'string') {
+      server.close();
+      throw new Error('Expected TCP address');
+    }
+    try {
+      const raw = await new Promise<string>((resolve, reject) => {
+        const socket = net.connect(address.port, '127.0.0.1', () => {
+          socket.write(
+            'POST /unknown HTTP/1.1\r\n' +
+              'Host: 127.0.0.1\r\n' +
+              'Content-Type: application/json\r\n' +
+              'Content-Length: 999999\r\n' +
+              'Connection: close\r\n' +
+              '\r\n' +
+              '{"name":"Ada"}',
+          );
+        });
+        const chunks: Buffer[] = [];
+        socket.on('data', (chunk) => chunks.push(chunk));
+        socket.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+        socket.on('error', reject);
+      });
+      expect(raw).toContain('413');
+      expect(raw).toContain('boundary.payload_too_large');
+      expect(invoked).toBe(0);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 
   it('returns 500 JSON when the fetch handler throws before headers', async () => {

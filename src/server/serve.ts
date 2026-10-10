@@ -1,8 +1,14 @@
 import { err, ok, type Result, ResultAsync } from 'neverthrow';
 
 import {
+  BOUNDARY_HTTP_STATUSES,
+  BOUNDARY_STATUS_MAP,
+  isBoundaryErrorCode,
+} from '../boundary.js';
+import {
   assertHandlersComplete,
   compileContract,
+  ContractConfigurationError,
   isContractPath,
   type CompiledContract,
 } from '../contract/compile.js';
@@ -16,19 +22,33 @@ import type {
 } from '../contract/types.js';
 import type { Disclosure } from '../disclose.js';
 import { MAX_CAUSE_DEPTH, railError, type RailError } from '../error.js';
+import {
+  acquireConcurrency,
+  admitAnonymous,
+  admitPrincipal,
+  assertAdmissionOptions,
+} from '../limits/index.js';
+import type { AdmissionOptions, ConcurrencyRelease } from '../limits/types.js';
+import { verifyHttpPrincipal } from '../policy/apply.js';
+import type { Policy } from '../policy/types.js';
 import { respond } from '../respond.js';
+import { retryAfterHeaderSeconds } from '../retry-after.js';
+import { combineAbortSignals, errorForAbort } from '../signals.js';
 import {
   HOST_STATUSES,
   type HostStatuses,
   type StatusMap,
 } from '../status.js';
+import { readBoundedJsonBody, resolveBodyLimits, type BodyLimits } from './body.js';
 import type { CompiledRoute } from './router.js';
-import type { ServeHandler, ServeOptions } from './types.js';
+import type { ServeHandler, ServeOptions, ServeTimeouts } from './types.js';
 
-export type Handler<TRoute extends RouteDef, TContext> = (
+export type Handler<TRoute extends RouteDef, TContext, TPrincipal = unknown> = (
   args: HandlerArgsOf<TRoute> & {
     request: Request;
     context: TContext;
+    principal: TPrincipal | undefined;
+    signal: AbortSignal;
   },
 ) =>
   | Result<OutputOf<TRoute>, RailError<keyof TRoute['errors'] & string>>
@@ -37,8 +57,12 @@ export type Handler<TRoute extends RouteDef, TContext> = (
       Result<OutputOf<TRoute>, RailError<keyof TRoute['errors'] & string>>
     >;
 
-export type Handlers<TContract extends ContractDef, TContext> = {
-  readonly [K in keyof TContract]: Handler<TContract[K], TContext>;
+export type Handlers<
+  TContract extends ContractDef,
+  TContext,
+  TPrincipal = unknown,
+> = {
+  readonly [K in keyof TContract]: Handler<TContract[K], TContext, TPrincipal>;
 };
 
 const FAILSAFE_INTERNAL_BODY =
@@ -78,7 +102,7 @@ function statusMapForRoute(
   route: RouteDef,
   hostStatuses: HostStatuses,
 ): StatusMap<string> {
-  return { ...route.errors, ...hostStatuses };
+  return { ...BOUNDARY_STATUS_MAP, ...route.errors, ...hostStatuses };
 }
 
 function declaredStatusesForRoute(
@@ -98,6 +122,9 @@ function declaredStatusesForRoute(
     declared.add(hostStatuses.validation_error);
   }
   declared.add(hostStatuses.internal);
+  for (const status of BOUNDARY_HTTP_STATUSES) {
+    declared.add(status);
+  }
   return [...declared];
 }
 
@@ -182,31 +209,15 @@ function searchParamsToObject(url: URL): Record<string, unknown> {
   return values;
 }
 
-async function readRequestBody(
+async function readOptionalBody(
   request: Request,
-): Promise<Result<unknown, RailError<'validation_error'>>> {
-  let text: string;
-  try {
-    text = await request.text();
-  } catch {
-    return err(
-      railError('validation_error', 'Validation failed', {
-        issues: [{ path: ['body'], message: 'Could not read request body' }],
-      }),
-    );
-  }
-  if (text.length === 0) {
+  route: RouteDef,
+  limits: BodyLimits,
+): Promise<Result<unknown, RailError<string>>> {
+  if (route.body === undefined) {
     return ok(undefined);
   }
-  try {
-    return ok(JSON.parse(text) as unknown);
-  } catch {
-    return err(
-      railError('validation_error', 'Validation failed', {
-        issues: [{ path: ['body'], message: 'Invalid JSON body' }],
-      }),
-    );
-  }
+  return readBoundedJsonBody(request, limits);
 }
 
 function internalFromThrown(thrown: unknown): RailError<'internal'> {
@@ -220,7 +231,7 @@ function normalizeHandlerError(
   error: RailError<string>,
   declaredCodes: readonly string[],
 ): RailError<string> {
-  if (declaredCodes.includes(error.code)) {
+  if (declaredCodes.includes(error.code) || isBoundaryErrorCode(error.code)) {
     return error;
   }
   return railError('internal', 'An unexpected error occurred', {
@@ -257,15 +268,24 @@ function emptyResponse(status: number): Response {
   return new Response(null, { status });
 }
 
+function jsonHeaders(error?: RailError<string>): Headers {
+  const headers = new Headers({ 'content-type': 'application/json' });
+  if (error?.retryAfterMs !== undefined) {
+    headers.set('retry-after', retryAfterHeaderSeconds(error.retryAfterMs));
+  }
+  return headers;
+}
+
 function jsonResponse(
   status: number,
   body: unknown,
   fallbackStatus: number,
+  error?: RailError<string>,
 ): Response {
   try {
     return new Response(JSON.stringify(body), {
       status,
-      headers: { 'content-type': 'application/json' },
+      headers: jsonHeaders(error),
     });
   } catch {
     return failsafeInternalResponse(fallbackStatus);
@@ -303,6 +323,7 @@ function respondWithError(
     response.status,
     response.body,
     hostStatuses.internal,
+    stamped,
   );
 }
 
@@ -325,11 +346,13 @@ function routeNotFoundResponse(
   );
 }
 
-async function invokeHandler<TContext>(
-  handler: Handler<RouteDef, TContext>,
+async function invokeHandler<TContext, TPrincipal>(
+  handler: Handler<RouteDef, TContext, TPrincipal>,
   args: HandlerArgsOf<RouteDef> & {
     request: Request;
     context: TContext;
+    principal: TPrincipal | undefined;
+    signal: AbortSignal;
   },
 ): Promise<Result<unknown, RailError<string>>> {
   try {
@@ -398,14 +421,18 @@ function scopePath(pathname: string, basePath: `/${string}` | undefined): PathSc
   return { kind: 'outside_base' };
 }
 
-interface ServeRuntime<TContext> {
+interface ServeRuntime<TContext, TPrincipal = unknown> {
   readonly compiled: CompiledContract<ContractDef>;
   readonly routes: readonly CompiledRoute[];
-  readonly handlers: Handlers<ContractDef, TContext>;
-  readonly options: ServeOptions;
+  readonly handlers: Handlers<ContractDef, TContext, TPrincipal>;
+  readonly options: ServeOptions<TPrincipal>;
   readonly hostStatuses: HostStatuses;
   readonly internalStatus: number;
   readonly basePath: `/${string}` | undefined;
+  readonly limits: BodyLimits;
+  readonly timeouts: ServeTimeouts | undefined;
+  readonly policy: Policy<ContractDef, TPrincipal> | undefined;
+  readonly admission: AdmissionOptions<TPrincipal> | undefined;
 }
 
 function invalidEncodingResponse<TContext>(
@@ -479,16 +506,6 @@ function okResponse<TContext>(
   };
 }
 
-async function readOptionalBody(
-  request: Request,
-  route: RouteDef,
-): Promise<Result<unknown, RailError<'validation_error'>>> {
-  if (route.body === undefined) {
-    return ok(undefined);
-  }
-  return readRequestBody(request);
-}
-
 function rawSourcesForMatch(
   route: RouteDef,
   match: Extract<RouteRequestMatch, { kind: 'match' }>,
@@ -506,57 +523,55 @@ function rawSourcesForMatch(
   };
 }
 
-async function invokeMatchedRoute<TContext>(
+function errorResult<TContext>(
+  error: RailError<string>,
   runtime: ServeRuntime<TContext>,
-  request: Request,
-  context: TContext,
-  url: URL,
-  match: Extract<RouteRequestMatch, { kind: 'match' }>,
+  route: RouteDef,
+  declared: readonly number[],
   disclosure: Disclosure,
+): ProcessResult {
+  return {
+    response: respondWithError(
+      error,
+      runtime.options,
+      route,
+      runtime.hostStatuses,
+      declared,
+      disclosure,
+    ),
+  };
+}
+
+function handlerDeadline(
+  timeouts: ServeTimeouts | undefined,
+  operation: string,
+): AbortSignal | undefined {
+  const timeoutMs = timeouts?.operations?.[operation] ?? timeouts?.defaultMs;
+  if (timeoutMs === undefined) {
+    return undefined;
+  }
+  return AbortSignal.timeout(timeoutMs);
+}
+
+async function finishHandler<TContext>(
+  runtime: ServeRuntime<TContext>,
+  route: RouteDef,
+  handlerResult: Result<unknown, RailError<string>>,
+  signal: AbortSignal,
+  declared: readonly number[],
+  disclosure: Disclosure,
+  successStatus: number,
 ): Promise<ProcessResult> {
-  const route = match.route;
-  const declared = declaredStatusesForRoute(route, runtime.hostStatuses);
-  const successStatus = route.success ?? 200;
-
-  const bodyResult = await readOptionalBody(request, route);
-  if (bodyResult.isErr()) {
-    return {
-      response: respondWithError(
-        bodyResult.error,
-        runtime.options,
-        route,
-        runtime.hostStatuses,
-        declared,
-        disclosure,
-      ),
-    };
+  if (signal.aborted) {
+    return handlerErrorResponse(
+      errorForAbort(signal),
+      Object.keys(route.errors),
+      runtime,
+      route,
+      declared,
+      disclosure,
+    );
   }
-
-  const sourcesResult = await parseRouteSources(
-    route,
-    rawSourcesForMatch(route, match, url, request, bodyResult.value),
-  );
-
-  if (sourcesResult.isErr()) {
-    return {
-      response: respondWithError(
-        sourcesResult.error,
-        runtime.options,
-        route,
-        runtime.hostStatuses,
-        declared,
-        disclosure,
-      ),
-    };
-  }
-
-  const handler = runtime.handlers[match.key] as Handler<RouteDef, TContext>;
-  const handlerResult = await invokeHandler(handler, {
-    ...sourcesResult.value,
-    request,
-    context,
-  });
-
   if (handlerResult.isErr()) {
     return handlerErrorResponse(
       handlerResult.error,
@@ -567,25 +582,19 @@ async function invokeMatchedRoute<TContext>(
       disclosure,
     );
   }
-
   if (successStatus === 204) {
     return okResponse(undefined, successStatus, route, runtime, declared, disclosure);
   }
-
   const outputResult = await parseOutput(route, handlerResult.value);
   if (outputResult.isErr()) {
-    return {
-      response: respondWithError(
-        stampOrigin(outputResult.error, runtime.options.origin),
-        runtime.options,
-        route,
-        runtime.hostStatuses,
-        declared,
-        disclosure,
-      ),
-    };
+    return errorResult(
+      stampOrigin(outputResult.error, runtime.options.origin),
+      runtime,
+      route,
+      declared,
+      disclosure,
+    );
   }
-
   return okResponse(
     outputResult.value,
     successStatus,
@@ -593,6 +602,105 @@ async function invokeMatchedRoute<TContext>(
     runtime,
     declared,
     disclosure,
+  );
+}
+
+async function runMatchedHandler<TContext>(
+  runtime: ServeRuntime<TContext>,
+  request: Request,
+  context: TContext,
+  match: Extract<RouteRequestMatch, { kind: 'match' }>,
+  parsed: HandlerArgsOf<RouteDef>,
+  principal: unknown,
+  declared: readonly number[],
+  disclosure: Disclosure,
+  successStatus: number,
+): Promise<ProcessResult> {
+  const route = match.route;
+  const signal = combineAbortSignals([
+    request.signal,
+    handlerDeadline(runtime.timeouts, match.key),
+  ]);
+  const slot = await acquireConcurrency(runtime.admission, signal, match.key);
+  if (slot.isErr()) {
+    return errorResult(slot.error, runtime, route, declared, disclosure);
+  }
+  const release: ConcurrencyRelease = slot.value;
+  try {
+    const handler = runtime.handlers[match.key] as Handler<RouteDef, TContext>;
+    const handlerResult = await invokeHandler(handler, {
+      ...parsed,
+      request,
+      context,
+      principal,
+      signal,
+    });
+    return finishHandler(
+      runtime,
+      route,
+      handlerResult,
+      signal,
+      declared,
+      disclosure,
+      successStatus,
+    );
+  } finally {
+    release();
+  }
+}
+
+async function invokeMatchedRoute<TContext>(
+  runtime: ServeRuntime<TContext>,
+  request: Request,
+  context: TContext,
+  url: URL,
+  match: Extract<RouteRequestMatch, { kind: 'match' }>,
+  principal: unknown,
+  disclosure: Disclosure,
+): Promise<ProcessResult> {
+  const route = match.route;
+  const declared = declaredStatusesForRoute(route, runtime.hostStatuses);
+  const successStatus = route.success ?? 200;
+
+  const bodyResult = await readOptionalBody(request, route, runtime.limits);
+  if (bodyResult.isErr()) {
+    return errorResult(bodyResult.error, runtime, route, declared, disclosure);
+  }
+
+  const sourcesResult = await parseRouteSources(
+    route,
+    rawSourcesForMatch(route, match, url, request, bodyResult.value),
+  );
+  if (sourcesResult.isErr()) {
+    return errorResult(sourcesResult.error, runtime, route, declared, disclosure);
+  }
+
+  if (runtime.policy !== undefined) {
+    const authorized = await runtime.policy.authorize(
+      match.key,
+      principal,
+      sourcesResult.value,
+    );
+    if (authorized.isErr()) {
+      return errorResult(authorized.error, runtime, route, declared, disclosure);
+    }
+  }
+
+  const admitted = await admitPrincipal(runtime.admission, principal, match.key);
+  if (admitted.isErr()) {
+    return errorResult(admitted.error, runtime, route, declared, disclosure);
+  }
+
+  return runMatchedHandler(
+    runtime,
+    request,
+    context,
+    match,
+    sourcesResult.value,
+    principal,
+    declared,
+    disclosure,
+    successStatus,
   );
 }
 
@@ -614,6 +722,95 @@ function outsideBaseResult<TContext>(
   };
 }
 
+function disclosureForCaller<TContext>(
+  runtime: ServeRuntime<TContext>,
+  request: Request,
+  principal: unknown,
+): Disclosure {
+  if (runtime.policy !== undefined) {
+    return runtime.policy.disclosureFor(principal);
+  }
+  return resolveDisclosure(runtime.options.disclosure, request);
+}
+
+function unmatchedOrInvalid<TContext>(
+  runtime: ServeRuntime<TContext>,
+  match: RouteRequestMatch,
+  disclosure: Disclosure,
+): ProcessResult | undefined {
+  if (match.kind === 'route_not_found') {
+    return {
+      response: routeNotFoundResponse(
+        runtime.options,
+        runtime.hostStatuses,
+        disclosure,
+      ),
+    };
+  }
+  if (match.kind === 'invalid_encoding') {
+    return invalidEncodingResponse(match.param, runtime, disclosure);
+  }
+  return undefined;
+}
+
+async function processMatchedRequest<TContext>(
+  runtime: ServeRuntime<TContext>,
+  request: Request,
+  context: TContext,
+  url: URL,
+  pathname: string,
+): Promise<ProcessResult> {
+  const admitted = await admitAnonymous(
+    runtime.admission,
+    { request, context },
+    '*',
+  );
+  const fallbackDisclosure = disclosureForCaller(runtime, request, undefined);
+  if (admitted.isErr()) {
+    return {
+      response: respondWithError(
+        admitted.error,
+        runtime.options,
+        HOST_ONLY_ROUTE,
+        runtime.hostStatuses,
+        BOUNDARY_HTTP_STATUSES,
+        fallbackDisclosure,
+      ),
+    };
+  }
+
+  const match = matchRequest(runtime.routes, request.method, pathname);
+  const early = unmatchedOrInvalid(runtime, match, fallbackDisclosure);
+  if (early !== undefined) {
+    return early;
+  }
+
+  const verified = await verifyHttpPrincipal(runtime.policy, request);
+  if (verified.isErr()) {
+    return {
+      response: respondWithError(
+        verified.error,
+        runtime.options,
+        match.kind === 'match' ? match.route : HOST_ONLY_ROUTE,
+        runtime.hostStatuses,
+        BOUNDARY_HTTP_STATUSES,
+        fallbackDisclosure,
+      ),
+    };
+  }
+
+  const disclosure = disclosureForCaller(runtime, request, verified.value);
+  return invokeMatchedRoute(
+    runtime,
+    request,
+    context,
+    url,
+    match as Extract<RouteRequestMatch, { kind: 'match' }>,
+    verified.value,
+    disclosure,
+  );
+}
+
 async function processRequest<TContext>(
   runtime: ServeRuntime<TContext>,
   request: Request,
@@ -632,31 +829,7 @@ async function processRequest<TContext>(
       return { kind: 'unmatched' };
     }
 
-    const match = matchRequest(runtime.routes, request.method, scoped.pathname);
-    const disclosure = resolveDisclosure(runtime.options.disclosure, request);
-
-    if (match.kind === 'route_not_found') {
-      return {
-        response: routeNotFoundResponse(
-          runtime.options,
-          runtime.hostStatuses,
-          disclosure,
-        ),
-      };
-    }
-
-    if (match.kind === 'invalid_encoding') {
-      return invalidEncodingResponse(match.param, runtime, disclosure);
-    }
-
-    return invokeMatchedRoute(
-      runtime,
-      request,
-      context,
-      url,
-      match,
-      disclosure,
-    );
+    return processMatchedRequest(runtime, request, context, url, scoped.pathname);
   } catch {
     return {
       response: failsafeInternalResponse(runtime.internalStatus),
@@ -664,27 +837,45 @@ async function processRequest<TContext>(
   }
 }
 
+function assertServeOptions(options: ServeOptions): void {
+  if (options.policy !== undefined && options.disclosure !== undefined) {
+    throw new ContractConfigurationError(
+      'ServeOptions cannot set both policy and disclosure',
+    );
+  }
+  assertAdmissionOptions(options.admission);
+}
+
 /** Web-standard fetch handler wired to a contract and handler map. */
-export function serve<TContract extends ContractDef, TContext>(
+export function serve<
+  TContract extends ContractDef,
+  TContext = undefined,
+  TPrincipal = unknown,
+>(
   contract: TContract,
-  handlers: Handlers<TContract, TContext>,
-  options: ServeOptions = {},
+  handlers: Handlers<TContract, TContext, TPrincipal>,
+  options: ServeOptions<TPrincipal, TContract> = {},
 ): ServeHandler<TContext> {
   const compiled = compileContract(contract);
   assertHandlersComplete(
     compiled as unknown as CompiledContract<never>,
     handlers,
   );
+  assertServeOptions(options as ServeOptions);
 
   const hostStatuses = mergeHostStatuses(options.hostStatuses);
   const runtime: ServeRuntime<TContext> = {
     compiled: compiled as unknown as CompiledContract<ContractDef>,
     routes: routesFromCompiled(compiled),
     handlers: handlers as Handlers<ContractDef, TContext>,
-    options,
+    options: options as ServeOptions,
     hostStatuses,
     internalStatus: hostStatuses.internal,
     basePath: options.basePath,
+    limits: resolveBodyLimits(options.limits),
+    timeouts: options.timeouts,
+    policy: options.policy as Policy<ContractDef, unknown> | undefined,
+    admission: options.admission as AdmissionOptions<unknown> | undefined,
   };
   const internalStatus = runtime.internalStatus;
 

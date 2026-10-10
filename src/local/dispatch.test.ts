@@ -147,6 +147,23 @@ describe('createLocalClient', () => {
     expect(error.cause?.code).toBe('output_validation_failed');
   });
 
+  it('Keeping the cause chain on a local client by default', async () => {
+    const client = createLocalClient(
+      contract,
+      {
+        ...handlers,
+        getClaim: () => {
+          throw new Error('inner detail');
+        },
+      },
+      { context: { agent: 'agent-9' } },
+    );
+
+    const result = await client.getClaim({ params: { zone: 'core' } });
+
+    expect(result._unsafeUnwrapErr().cause?.message).toBe('inner detail');
+  });
+
   it('converts a thrown handler into an internal rail error', async () => {
     const client = createLocalClient(
       contract,
@@ -211,7 +228,12 @@ describe('createDispatcher', () => {
   });
 
   it('stamps origin on errors it raises', async () => {
-    const result = await dispatcher.dispatch('claimZone', {
+    const local = createDispatcher(contract, handlers, {
+      context: { agent: 'agent-9' },
+      origin: 'atc',
+      disclosure: 'full',
+    });
+    const result = await local.dispatch('claimZone', {
       body: { zone: '', holder: 'a' },
     });
 
@@ -226,7 +248,7 @@ describe('createDispatcher', () => {
         getClaim: () =>
           err(railError('not_found', 'Missing', { origin: 'garden' })),
       },
-      { context: { agent: 'agent-9' }, origin: 'atc' },
+      { context: { agent: 'agent-9' }, origin: 'atc', disclosure: 'full' },
     );
 
     const result = await local.dispatch('getClaim', { params: { zone: 'x' } });
@@ -238,7 +260,7 @@ describe('createDispatcher', () => {
     const result = await dispatcher.dispatch(
       'claimZone',
       { body: { zone: 'docs', holder: 'ignored' } },
-      { agent: 'agent-override' },
+      { context: { agent: 'agent-override' } },
     );
 
     expect(result._unsafeUnwrap()).toEqual({
@@ -247,7 +269,7 @@ describe('createDispatcher', () => {
     });
   });
 
-  it('defaults to full disclosure so the cause chain survives', async () => {
+  it('Stripping the cause chain on a dispatcher by default', async () => {
     const local = createDispatcher(
       contract,
       {
@@ -261,7 +283,8 @@ describe('createDispatcher', () => {
 
     const result = await local.dispatch('getClaim', { params: { zone: 'x' } });
 
-    expect(result._unsafeUnwrapErr().cause?.message).toBe('inner detail');
+    expect(result._unsafeUnwrapErr().cause).toBeUndefined();
+    expect(JSON.stringify(result._unsafeUnwrapErr())).not.toContain('inner detail');
   });
 
   it('honours a narrower disclosure when asked', async () => {
@@ -295,7 +318,7 @@ describe('createDispatcher', () => {
             }),
           ),
       },
-      { context: { agent: 'agent-9' } },
+      { context: { agent: 'agent-9' }, disclosure: 'full' },
     );
 
     const result = await local.dispatch('getClaim', { params: { zone: 'x' } });

@@ -318,7 +318,9 @@ describe('serve', () => {
       {
         origin: 'users-api',
         disclosure: (request) =>
-          request.headers.get('x-internal') === '1' ? 'full' : 'public',
+          request.headers.get('x-verified-disclosure') === 'full'
+            ? 'full'
+            : 'public',
       },
     );
 
@@ -334,7 +336,7 @@ describe('serve', () => {
     const internalResponse = await call(
       handler,
       new Request('http://localhost/users/u1', {
-        headers: { 'x-internal': '1' },
+        headers: { 'x-verified-disclosure': 'full' },
       }),
     );
     expect(internalResponse.body.cause).toMatchObject({
@@ -935,5 +937,103 @@ describe('serve request headers', () => {
 
     expect(response.status).toBe(200);
     expect(body).toEqual({ ok: true, requestId: 'req-7' });
+  });
+});
+
+describe('serve 0.7 safety', () => {
+  it('does not raise disclosure when a caller forges x-internal', async () => {
+    const handler = createHandler(
+      {
+        getUser: () => {
+          const error = chain(
+            { code: 'not_found', message: 'Missing user' },
+            railError('internal', 'SECRET_CAUSE_DETAIL'),
+          );
+          return err(error);
+        },
+      },
+      { origin: 'users-api' },
+    );
+
+    const { body } = await call(
+      handler,
+      new Request('http://localhost/users/u1', {
+        headers: { 'x-internal': '1' },
+      }),
+    );
+
+    expect(body.cause).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('SECRET_CAUSE_DETAIL');
+  });
+
+  it('rejects an oversized JSON body with payload_too_large', async () => {
+    const handler = createHandler({}, { limits: { maxBodyBytes: 8 } });
+    const response = await handler(
+      new Request('http://localhost/users', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'LongerThanEight' }),
+      }),
+      { requestId: 'req-1' },
+    );
+    const body = (await response.json()) as { code: string };
+
+    expect(response.status).toBe(413);
+    expect(body.code).toBe('boundary.payload_too_large');
+  });
+
+  it('sends Retry-After when a boundary error carries retryAfterMs', async () => {
+    const handler = createHandler({
+      getUser: () =>
+        err(
+          railError('boundary.rate_limited', 'Too many requests', {
+            retryAfterMs: 1500,
+            retryable: true,
+          }) as never,
+        ),
+    });
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get('retry-after')).toBe('2');
+    expect(body.retryAfterMs).toBe(1500);
+  });
+
+  it('returns timeout when the operation deadline expires', async () => {
+    const handler = createHandler(
+      {
+        getUser: ({ signal }) =>
+          new Promise((resolve) => {
+            signal.addEventListener(
+              'abort',
+              () => resolve(err(railError('not_found', 'late'))),
+              { once: true },
+            );
+          }),
+      },
+      { origin: 'users-api', timeouts: { defaultMs: 5 } },
+    );
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1'),
+    );
+    expect(body.code).toBe('boundary.timeout');
+    expect(response.status).toBe(504);
+  });
+
+  it('returns cancelled when the request signal is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const handler = createHandler();
+    const { response, body } = await call(
+      handler,
+      new Request('http://localhost/users/u1', { signal: controller.signal }),
+    );
+
+    expect(body.code).toBe('boundary.cancelled');
+    expect(response.status).toBe(500);
   });
 });

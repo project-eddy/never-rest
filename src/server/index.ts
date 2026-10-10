@@ -5,7 +5,9 @@ export { serve } from './serve.js';
 export type {
   ContractDomainErrorCode,
   ServeHandler,
+  ServeLimits,
   ServeOptions,
+  ServeTimeouts,
   ServerHostErrorCode,
 } from './types.js';
 export { assertProtocolResponse } from '../railway/assert-protocol.js';
