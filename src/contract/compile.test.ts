@@ -112,6 +112,20 @@ describe('compileContract', () => {
     );
   });
 
+  it('Rejecting a domain code in the boundary namespace', () => {
+    const contract = {
+      getUser: {
+        ...baseRoute,
+        errors: { 'boundary.forbidden': 403 } as const,
+      },
+    } satisfies ContractDef;
+
+    expect(() => compileContract(contract)).toThrow(ContractConfigurationError);
+    expect(() => compileContract(contract)).toThrow(
+      'Reserved error code "boundary.forbidden" cannot be used as a domain code on operation "getUser"',
+    );
+  });
+
   it('throws ContractConfigurationError for reserved host error codes', () => {
     const contract = {
       getUser: {

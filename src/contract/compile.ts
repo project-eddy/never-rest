@@ -1,3 +1,4 @@
+import { isBoundaryPrefix } from '../boundary.js';
 import { compilePath, matchPath, normalizePath, type CompiledPath } from './path.js';
 import type { ContractDef, RouteDef } from './types.js';
 
@@ -51,7 +52,7 @@ function validateSuccessAndOutput(operation: string, route: RouteDef): void {
 
 function validateErrorMap(operation: string, errors: RouteDef['errors']): void {
   for (const [code, status] of Object.entries(errors)) {
-    if (isReservedErrorCode(code)) {
+    if (isReservedErrorCode(code) || isBoundaryPrefix(code)) {
       throw new ContractConfigurationError(
         `Reserved error code "${code}" cannot be used as a domain code on operation "${operation}"`,
       );

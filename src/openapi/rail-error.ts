@@ -25,6 +25,7 @@ export const PUBLIC_RAIL_ERROR_SCHEMA = {
       },
     },
     retryable: { type: 'boolean' },
+    retryAfterMs: { type: 'number' },
     nextStep: { type: 'string' },
   },
   required: ['code', 'message'],
