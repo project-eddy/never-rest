@@ -46,6 +46,10 @@
     "./query": {
       "types": "./dist/query/index.d.ts",
       "import": "./dist/query/index.js"
+    },
+    "./policy": {
+      "types": "./dist/policy/index.d.ts",
+      "import": "./dist/policy/index.js"
     }
   },
   "scripts": {
@@ -141,6 +145,9 @@
       ],
       "query": [
         "./dist/query/index.d.ts"
+      ],
+      "policy": [
+        "./dist/policy/index.d.ts"
       ]
     }
   }
