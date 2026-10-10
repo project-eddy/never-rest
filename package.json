@@ -54,6 +54,10 @@
     "./limits": {
       "types": "./dist/limits/index.d.ts",
       "import": "./dist/limits/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js"
     }
   },
   "scripts": {
@@ -155,6 +159,9 @@
       ],
       "limits": [
         "./dist/limits/index.d.ts"
+      ],
+      "mcp": [
+        "./dist/mcp/index.d.ts"
       ]
     }
   }
