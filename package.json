@@ -50,6 +50,10 @@
     "./policy": {
       "types": "./dist/policy/index.d.ts",
       "import": "./dist/policy/index.js"
+    },
+    "./limits": {
+      "types": "./dist/limits/index.d.ts",
+      "import": "./dist/limits/index.js"
     }
   },
   "scripts": {
@@ -148,6 +152,9 @@
       ],
       "policy": [
         "./dist/policy/index.d.ts"
+      ],
+      "limits": [
+        "./dist/limits/index.d.ts"
       ]
     }
   }
