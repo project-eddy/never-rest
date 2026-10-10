@@ -1,0 +1,18 @@
+{
+  "name": "@never-rest-examples/cancellation",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@eddy-works/never-rest": "workspace:*",
+    "neverthrow": "^8.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^5.8.3"
+  }
+}
