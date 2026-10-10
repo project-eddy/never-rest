@@ -5,6 +5,53 @@ description: Move from ts-rest, oRPC, or throwing handlers to never-rest Result 
 
 # Migrating
 
+## Upgrading from 0.6 to 0.7
+
+0.7 is a minor release with documented breaking changes. The new knowledge workspace is meant to build CLI, SDK, MCP, and private HTTP adapters on these contracts.
+
+### Breaking changes
+
+| 0.6 | 0.7 |
+| --- | --- |
+| `createDispatcher` omitted disclosure → `full` | omitted → `public` (foreign transports). `createLocalClient` still defaults to `full` |
+| Request bodies unbounded; Node bridge buffered the whole body | default `limits`: 1 MiB and 30 s; `toNodeHandler` streams and rejects oversized `Content-Length` first |
+| Domain codes could start with `boundary.` | `boundary.` is reserved; `compileContract` rejects it |
+| `ClientErrorOf` was domain + `validation_error` / `internal` / `unavailable` | also includes reserved boundary codes |
+| Non-JSON 401 / 403 / 429 became `internal` | classified by HTTP status (`boundary.unauthenticated`, …); 502 → `unavailable` |
+| `isRetryable` retried `internal` | retries only `retryable: true`, `unavailable`, `boundary.rate_limited`, and `boundary.overloaded` |
+| `dispatch(operation, args, context?)` | `dispatch(operation, args, { context, principal, signal })` |
+| Local client methods took only `args` | `(args, { signal, principal })` |
+| Client calls took only `args` | `(args, { signal, idempotencyKey })`; `ClientOptions.timeoutMs` is the default deadline |
+| Client abort → `unavailable` | client abort → `boundary.cancelled` |
+| `policy` + `disclosure` could both be set | configuration error; disclosure comes from the principal |
+| `engines.node` `>=20` | `>=22` |
+
+### Policy, limits, and cancellation
+
+Optional `policy` on `serve` / `createDispatcher` must cover every operation when present. Optional `admission` requires `onStoreFailure`. Handlers receive `signal` and `principal`. See [advanced-usage.md](./advanced-usage.md) and [security-boundaries.md](./security-boundaries.md).
+
+### Dispatcher call shape
+
+```ts
+// Before (0.6)
+await dispatcher.dispatch('getDoc', args, context);
+
+// After (0.7)
+await dispatcher.dispatch('getDoc', args, { context, principal, signal });
+```
+
+### Client retry
+
+```ts
+import { withRetry } from '@eddy-works/never-rest/client';
+
+await withRetry(() => client.getDoc({ params: { id } }), {
+  idempotent: true,
+});
+```
+
+`idempotent` is required. Writes are not replayed unless you say replay is safe.
+
 ## Upgrading from 0.4.x
 
 ### Migration table

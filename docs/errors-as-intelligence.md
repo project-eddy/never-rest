@@ -35,7 +35,7 @@ Without `origin`, multi-service failures collapse into indistinguishable message
 
 ## Retryable
 
-The client sets `retryable: true` on network-level `unavailable` errors. Handlers can set `retryable` on domain errors (rate limits, transient dependency failures). Agents and orchestrators can branch without parsing HTTP status text:
+The client sets `retryable: true` on network-level `unavailable` errors. Handlers can set `retryable` on domain errors (rate limits, transient dependency failures). `isRetryable` is true only for `retryable: true`, `unavailable`, `boundary.rate_limited`, and `boundary.overloaded` — not for `internal`, auth failures, validation errors, or cancellations. Replay HTTP calls through `withRetry({ idempotent })` so the caller states whether a replay is safe. Agents and orchestrators can branch without parsing HTTP status text:
 
 ```ts
 const result = await client.reserve({ sku, qty });

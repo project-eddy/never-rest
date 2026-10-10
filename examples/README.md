@@ -70,6 +70,8 @@ compare mounts without rewriting the route table.
 | [`gateway`](gateway) | In-process | — | Cause chains, disclosure, `ClientErrorOf` |
 | [`validators`](validators) | In-process | — | Zod / Valibot / ArkType via Standard Schema |
 | [`files-and-streams`](files-and-streams) | In-process | — | Sibling multipart + SSE; shadow `RouteDef` |
+| [`mcp-stdio`](mcp-stdio) | MCP stdio | — | `registerContract` over `createDispatcher` |
+| [`cancellation`](cancellation) | In-process | — | Abort a worker thread and release the concurrency slot |
 
 ## Run
 

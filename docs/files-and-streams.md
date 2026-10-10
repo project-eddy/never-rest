@@ -58,6 +58,10 @@ Railway until headers. After `text/event-stream` is committed, failure is transp
 
 ## Node / Express
 
-[`toNodeHandler`](./api.md#tonodehandler) buffers POST/PUT/PATCH/DELETE into a `Uint8Array` before your fetch handler runs (`toWebRequest`). Register upload routes on Express **before** that bridge if you need the live body stream. SSE and downloads can still pipe out — `writeWebResponse` uses `Readable.fromWeb`.
+[`toNodeHandler`](./api.md#tonodehandler) streams the incoming body through a counting `TransformStream`. An oversized `Content-Length` is rejected before the fetch handler runs. After the response, unread bytes are destroyed. `req` / `res` `close` events abort `Request.signal`.
 
-Fetch-native hosts (Workers, SvelteKit, Hono, Next) keep the request stream on unmatched paths. Cooperative [`handle()`](./api.md#servehandler) is the seam; a prefix heuristic is not.
+Register upload routes on Express **before** that bridge if you need the live body stream for a sibling handler. A request that reaches `serve` through `handle()` on an unmatched path still has a stream; a request that `serve` matches as JSON is read under `ServeOptions.limits` (default 1 MiB and 30 s). SSE and downloads can still pipe out — `writeWebResponse` uses `Readable.fromWeb`.
+
+The process and the proxy own limits never-rest cannot see: Node `requestTimeout`, `headersTimeout`, `maxHeaderSize`, CDN / load-balancer body caps, and any host that parses the body before `serve` runs. See [security-boundaries.md](./security-boundaries.md).
+
+Fetch-native hosts (Workers, SvelteKit, Hono, Next, Bun, Deno) keep the request stream on unmatched paths. Cooperative [`handle()`](./api.md#servehandler) is the seam; a prefix heuristic is not.

@@ -27,7 +27,7 @@ Use `createLocalClient` when TypeScript can see both sides — module talking to
 
 A [`LocalHandler`](./api.md#localhandler) is a `Handler` without `request`. Write that shape if the same function should mount under `serve` and under local dispatch. HTTP-only handlers may still read `request`.
 
-Disclosure defaults differ by transport because the trust circle differs: `serve` omitted → `public`; `./local` omitted → `full`. Narrow local disclosure when the in-process caller is not trusted.
+Disclosure defaults differ by transport because the trust circle differs: `serve` omitted → `public`; `createLocalClient` omitted → `full` (module-to-module); `createDispatcher` omitted → `public` (foreign transports). Narrow local-client disclosure when the in-process caller is not trusted. Raise HTTP disclosure from a verified principal via [`definePolicy`](./advanced-usage.md#definepolicy), never from a caller header.
 
 For an in-process client that still exercises the HTTP path in tests, use [`createTestClient`](./api.md#createtestclient) — that is not `./local`.
 
@@ -74,7 +74,7 @@ It feels like flow-based composition — steps named, ordered, and short-circuit
 
 Gates are only one slot. The full pattern catalogue — router, tee, through, recover, fan-out, accumulate, lift, terminate, bubble, disclose, retry, and a white-label tenant provisioning kitchen sink — lives in [railway-patterns.md](./railway-patterns.md), with links to neverthrow and Scott Wlaschin’s ROP.
 
-For enterprise policy that must be non-omittable — capability types, `withAuth` composers, public escape hatches, host wraps, and agents as amplifiers — see [advanced-usage.md](./advanced-usage.md).
+For enterprise policy that must be non-omittable — [`definePolicy`](./advanced-usage.md#definepolicy) coverage at construction, capability types, mid-chain composers, host wraps, and agents as amplifiers — see [advanced-usage.md](./advanced-usage.md). Admission order and deployment-owned controls: [security-boundaries.md](./security-boundaries.md).
 
 ## Errors as data
 
@@ -94,9 +94,11 @@ HTTP status is not embedded in the error object. Domain codes map to statuses vi
 | --- | --- | --- | --- |
 | `full` | Same trust circle (gateway ↔ service, internal agent, in-process caller) | Everything including `cause` chain, `ctx`, and `nextStep` | — |
 | `internal` | Staff tools, support consoles | `code`, `message`, `issues`, `ctx`, `nextStep` | `cause` chain, `origin` |
-| `public` | Internet clients, untrusted agents | Safe `code` and message; advisory `nextStep` only | `cause`, `origin`, `ctx`, diagnostic `issues` paths |
+| `public` | Internet clients, untrusted agents | `code`, `message`, issue messages, `retryable`, `retryAfterMs`; advisory `nextStep` only | `cause`, `origin`, `ctx`, diagnostic `issues` paths |
 
-`disclose(error, level)` is the mechanism, used by `respond`, `serve`, and `./local`. oRPC documents the same problem as repeated DANGER callouts about sensitive data in error payloads; never-rest encodes the policy in one function. `serve` resolves `disclosure` per incoming `Request` when a function is supplied in `ServeOptions`; when `disclosure` is omitted, `serve` defaults to `public`. `respond` and `./local` default to `full`.
+`message` and `issues[].message` are **public data**. They are kept at every disclosure level. The `nextStep` regex is a defensive heuristic, not redaction of `message`. Secrets belong in `cause` or `ctx`.
+
+`disclose(error, level)` is the mechanism, used by `respond`, `serve`, and `./local`. oRPC documents the same problem as repeated DANGER callouts about sensitive data in error payloads; never-rest encodes the policy in one function. `serve` resolves `disclosure` per incoming `Request` when a function is supplied in `ServeOptions`; when `disclosure` is omitted, `serve` defaults to `public`. `respond` defaults to `full`. `createLocalClient` defaults to `full`; `createDispatcher` defaults to `public`. When a `policy` is set, disclosure comes from the principal and `disclosure` must not also be set.
 
 ### Route matching order
 

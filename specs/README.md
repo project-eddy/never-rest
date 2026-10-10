@@ -24,6 +24,12 @@ docs markdown. Lint them with `pnpm specs:lint` (also run by the pre-commit hook
 | [railway-boundary.spec.md](./railway-boundary.spec.md) | neverthrow combinators at `serve` — gates, mapErr, tees, recover, fail-closed reserved codes |
 | [openapi-export.spec.md](./openapi-export.spec.md) | `toOpenAPI` — contract-only OpenAPI 3.1; fail loudly when a validator cannot convert |
 | [local-dispatch.spec.md](./local-dispatch.spec.md) | `createLocalClient` / `createDispatcher` — in-process validation with no `Request` / `Response`; status maps ignored |
+| [bounded-ingress.spec.md](./bounded-ingress.spec.md) | Bounded JSON body reads; Node streaming bridge; early Content-Length rejection |
+| [operation-policy.spec.md](./operation-policy.spec.md) | `definePolicy` coverage, HTTP verify, local principal, authorize after parse |
+| [boundary-errors.spec.md](./boundary-errors.spec.md) | Reserved `boundary.*` codes; status-first client mapping |
+| [admission-limits.spec.md](./admission-limits.spec.md) | Memory limiter key cap; rate-limiter-flexible adapter; concurrency abort |
+| [cancellation-retry.spec.md](./cancellation-retry.spec.md) | `withRetry` idempotent flag, jitter, abort; narrower `isRetryable` |
+| [mcp-adapter.spec.md](./mcp-adapter.spec.md) | `toMcpTools` / `registerContract` — single input source, unknown keys, principal/signal, disclosed errors |
 
 Each file follows the [utility-belt Gherkin convention](https://github.com/project-eddy/utility-belt/blob/main/mixins/gherkin/SKILL.md): YAML frontmatter, a job-story callout, overview prose, and one fenced `gherkin` block per scenario with **exactly one `When`**.
 
@@ -104,6 +110,17 @@ Suggested test file mapping:
 | `src/testing/client.test.ts` | `createTestClient` (in-process `serve` + `createClient`) |
 | `src/openapi/to-openapi.test.ts` | `openapi-export.spec.md` |
 | `src/local/dispatch.test.ts` | `local-dispatch.spec.md` |
+| `src/server/body.test.ts` | `bounded-ingress.spec.md` |
+| `src/node/to-node-handler.test.ts` | `bounded-ingress.spec.md` (Node bridge) |
+| `src/policy/define.test.ts` | `operation-policy.spec.md` |
+| `src/boundary.test.ts` | `boundary-errors.spec.md` |
+| `src/client/response.boundary.test.ts` | `boundary-errors.spec.md` |
+| `src/limits/memory.test.ts` | `admission-limits.spec.md` |
+| `src/limits/flexible.test.ts` | `admission-limits.spec.md` |
+| `src/limits/concurrency.test.ts` | `admission-limits.spec.md` |
+| `src/client/with-retry.test.ts` | `cancellation-retry.spec.md` |
+| `src/mcp/tools.test.ts` | `mcp-adapter.spec.md` (projection) |
+| `src/mcp/register.test.ts` | `mcp-adapter.spec.md` (in-memory transport) |
 
 ### Agent workflow
 

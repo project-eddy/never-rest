@@ -28,15 +28,18 @@ pnpm add @eddy-works/never-rest neverthrow
 
 | Module | Key exports |
 | --- | --- |
-| `@eddy-works/never-rest` | `RailError`, `railError`, `chain`, `flatten`, `formatChain`, `statusFor`, `toDeclaredResponse`, `HOST_STATUSES`, `disclose`, `respond` |
+| `@eddy-works/never-rest` | `RailError`, `railError`, `chain`, `flatten`, `formatChain`, `BOUNDARY_ERRORS`, `statusFor`, `toDeclaredResponse`, `HOST_STATUSES`, `disclose`, `respond` |
 | `@eddy-works/never-rest/contract` | `RouteDef`, `ContractDef`, `ClientArgsOf`, `HandlerArgsOf`, `OutputOf`, `ErrorOf`, `ClientErrorOf`, `ServerErrorOf`, `parseRouteSources`, `parseOutput`, `compileContract`, `isContractPath`, `compilePath`, `matchPath`, `normalizePath`, `assertHandlersComplete`, `ContractConfigurationError` |
 | `@eddy-works/never-rest/server` | `serve`, `Handler`, `Handlers`, `ServeHandler`, `compileRoutes`, `matchRoute`, `assertProtocolResponse` |
-| `@eddy-works/never-rest/client` | `createClient`, `Client`, `ClientOptions`, `buildRequest` |
+| `@eddy-works/never-rest/client` | `createClient`, `Client`, `ClientOptions`, `ClientCallOptions`, `buildRequest`, `withRetry` |
 | `@eddy-works/never-rest/node` | `toNodeHandler`, `FetchHandler`, `NodeHttpHandler` |
 | `@eddy-works/never-rest/local` | `createLocalClient`, `createDispatcher` |
+| `@eddy-works/never-rest/policy` | `definePolicy` |
+| `@eddy-works/never-rest/limits` | `Limiter`, `createMemoryLimiter`, `fromRateLimiterFlexible`, `createConcurrencyGate` |
 | `@eddy-works/never-rest/testing` | `createTestClient`, `assertProtocolResponse`, `checkTransportStability`, `checkContractOutputs` |
 | `@eddy-works/never-rest/openapi` | `toOpenAPI`, `OpenApiExportError` |
 | `@eddy-works/never-rest/query` | `createQueryOptions`, `createMutationOptions`, `isRetryable` |
+| `@eddy-works/never-rest/mcp` | `toMcpTools`, `registerContract` |
 
 ## The problem
 
@@ -61,6 +64,7 @@ If auth fails, the domain call never runs. Tee effects observe without inventing
 
 Handlers return a neverthrow `Result` — never throw. Compose with `map` / `andThen` on the server; the client is the same `ResultAsync` shape.
 
+<!-- check -->
 ```ts
 import { ok, err, type Result } from 'neverthrow';
 import { z } from 'zod';
@@ -121,11 +125,11 @@ const handlers: Handlers<typeof contract, undefined> = {
     }),
 };
 
-// Plumbing — mount the contract; disclosure grades what callers see.
+// Plumbing — mount the contract. Omitted disclosure is public; raise it from
+// a verified principal (see definePolicy), never from a caller header.
 export default serve(contract, handlers, {
   origin: 'users-api',
-  disclosure: (req) =>
-    req.headers.get('x-internal') === '1' ? 'full' : 'public',
+  disclosure: 'public',
 });
 
 const client = createClient(contract, { baseUrl: 'https://api.example.com' });
@@ -167,7 +171,7 @@ await createDispatcher(contract, localHandlers, { origin: 'users-api' }).dispatc
 );
 ```
 
-`createLocalClient` is one typed method per operation. `createDispatcher` is the same machinery addressed by operation name, for a socket, MCP stdio, or tool-call host that already has the string. Both validate declared input and output; neither constructs a `Request` or `Response`. Disclosure defaults to `full`. Route `errors` status maps are ignored. See [docs/api.md — local](docs/api.md#eddy-worksnever-restlocal).
+`createLocalClient` is one typed method per operation and defaults to `full` disclosure — module-to-module. `createDispatcher` is the same machinery addressed by operation name, for a socket, MCP stdio, or tool-call host that already has the string, and defaults to `public`. Both validate declared input and output; neither constructs a `Request` or `Response`. Route `errors` status maps are ignored. See [docs/api.md — local](docs/api.md#eddy-worksnever-restlocal).
 
 ## Examples
 
@@ -183,6 +187,8 @@ Mini projects share one contract and mount it on different runtimes — see [exa
 | [gateway](examples/gateway) | Cause chains + disclosure |
 | [validators](examples/validators) | Zod / Valibot / ArkType |
 | [files-and-streams](examples/files-and-streams) | Sibling multipart + SSE |
+| [cancellation](examples/cancellation) | Abort a worker and release the slot |
+| [mcp-stdio](examples/mcp-stdio) | MCP tools over `createDispatcher` |
 
 ```bash
 pnpm build
@@ -210,9 +216,10 @@ Browsable site: [project-eddy.github.io/never-rest](https://project-eddy.github.
 | --- | --- |
 | [docs/concepts.md](docs/concepts.md) | Railway at the boundary, HTTP and local transports, no middleware, errors as data, trust circles |
 | [docs/railway-patterns.md](docs/railway-patterns.md) | Full railway/neverthrow pattern catalogue + white-label tenant kitchen sink |
-| [docs/advanced-usage.md](docs/advanced-usage.md) | Policy without middleware — capabilities, composers, host wraps, agents |
+| [docs/advanced-usage.md](docs/advanced-usage.md) | `definePolicy`, mid-chain composers, host wraps |
+| [docs/security-boundaries.md](docs/security-boundaries.md) | Admission order, deployment-owned controls, what never-rest does not ship |
 | [docs/api.md](docs/api.md) | Every public export, signature, example — including [`./local`](docs/api.md#eddy-worksnever-restlocal) |
-| [docs/examples.md](docs/examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway, files-and-streams |
+| [docs/examples.md](docs/examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway, files-and-streams, cancellation |
 | [docs/files-and-streams.md](docs/files-and-streams.md) | JSON on the railway; multipart and SSE on the host |
 | [docs/errors-as-intelligence.md](docs/errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, gateway chains |
 | [docs/comparison.md](docs/comparison.md) | vs ts-rest, oRPC, tRPC, and Hono RPC |
@@ -237,6 +244,12 @@ Gherkin scenarios in `specs/` — extract with `pnpm specs:extract`. Tests map o
 | [specs/input-sources.spec.md](specs/input-sources.spec.md) | `src/contract/compile.test.ts`, `src/contract/parse.test.ts` |
 | [specs/openapi-export.spec.md](specs/openapi-export.spec.md) | `src/openapi/to-openapi.test.ts` |
 | [specs/local-dispatch.spec.md](specs/local-dispatch.spec.md) | `src/local/dispatch.test.ts` |
+| [specs/bounded-ingress.spec.md](specs/bounded-ingress.spec.md) | `src/server/body.test.ts`, `src/node/to-node-handler.test.ts` |
+| [specs/operation-policy.spec.md](specs/operation-policy.spec.md) | `src/policy/define.test.ts` |
+| [specs/boundary-errors.spec.md](specs/boundary-errors.spec.md) | `src/boundary.test.ts`, `src/client/response.boundary.test.ts`, `src/contract/compile.test.ts` |
+| [specs/admission-limits.spec.md](specs/admission-limits.spec.md) | `src/limits/memory.test.ts`, `src/limits/flexible.test.ts`, `src/limits/concurrency.test.ts` |
+| [specs/cancellation-retry.spec.md](specs/cancellation-retry.spec.md) | `src/client/with-retry.test.ts`, `src/query/options.test.ts` |
+| [specs/mcp-adapter.spec.md](specs/mcp-adapter.spec.md) | `src/mcp/tools.test.ts`, `src/mcp/register.test.ts` |
 | [specs/railway-boundary.spec.md](specs/railway-boundary.spec.md) | `src/railway/` |
 
 See [specs/README.md](specs/README.md) for extraction and layout.
