@@ -7,6 +7,36 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-11
+
+### Added
+
+- Reserved `boundary.*` error table (`BOUNDARY_ERRORS`) with HTTP statuses for unauthenticated, forbidden, request timeout, payload too large, rate limited, overloaded, and timeout, plus local `boundary.cancelled`. `compileContract` rejects domain codes in that namespace. See [docs/api.md](docs/api.md#boundary_errors).
+- `RailError.retryAfterMs` — public-safe, kept at every disclosure level, parsed from `Retry-After` (delta-seconds or HTTP-date) on the client, and sent as `Retry-After` whole seconds by `serve`.
+- `@eddy-works/never-rest/policy` — `definePolicy` requires a coverage map for every operation. HTTP `verify` reads headers only; authorize runs after parse; local adapters pass a principal. Passing both `policy` and `disclosure` is a configuration error.
+- `@eddy-works/never-rest/limits` — `Limiter`, `createMemoryLimiter` (key cap), `fromRateLimiterFlexible` (structural adapter), `createConcurrencyGate`. `admission.onStoreFailure` is required (`reject` or `{ fallback }`).
+- Handler, local, and client `signal`. `ServeOptions.timeouts` combine with `request.signal`. Client `timeoutMs`, per-call `{ signal, idempotencyKey }`, and `withRetry({ idempotent })` with full jitter.
+- `toOpenAPI(..., { boundary: { auth, limits } })` documents 408/413 on body routes and optional shared 401/403/429/503 plus `Retry-After`.
+- `docs:snippets` typechecks `<!-- check -->` TypeScript fences. Bun and Deno smoke jobs cover bounded bodies and a client round trip.
+- [docs/security-boundaries.md](docs/security-boundaries.md) — admission order, deployment-owned controls, and what never-rest does not ship.
+- `@eddy-works/never-rest/mcp` — `toMcpTools` and `registerContract` project a `ContractDef` onto MCP tools. Authorization stays on `createDispatcher` / `definePolicy`. Each operation may declare at most one input source; extra tool arguments are `validation_error`. GET routes set `readOnlyHint`. The MCP request `AbortSignal` is forwarded as `signal`. `@modelcontextprotocol/sdk` is an optional peer. See [docs/mcp.md](docs/mcp.md), [specs/mcp-adapter.spec.md](specs/mcp-adapter.spec.md), and [examples/mcp-stdio](examples/mcp-stdio).
+- [`examples/cancellation`](examples/cancellation) — CPU work in `worker_threads` is terminated on abort and the concurrency slot is released.
+
+### Changed
+
+- `createDispatcher` defaults to `public` disclosure. `createLocalClient` still defaults to `full`.
+- `serve` reads JSON bodies only after route match and principal verification, with default limits of 1 MiB and 30 s. `toNodeHandler` streams instead of buffering and rejects an oversized `Content-Length` before the fetch handler runs.
+- Client `mapResponse` classifies by HTTP status first. HTML/empty 401, 403, 408, 413, 429, 503, and 504 become boundary errors; 502 becomes `unavailable`. Envelope/status mismatches become `internal` with the remote error under `cause`.
+- `isRetryable` retries only `retryable: true`, `unavailable`, `boundary.rate_limited`, and `boundary.overloaded`.
+- `dispatch` takes `{ context, principal, signal }` as its third argument. Local client methods take `(args, { signal, principal })`.
+- Client abort is `boundary.cancelled`, not `unavailable`.
+- `message` and `issues[].message` are documented as public data. Shipped examples no longer raise disclosure from `x-internal`.
+- Node engine is `>=22`. CI tests Node 22 and 24.
+
+### Security
+
+- Forged `x-internal` cannot raise disclosure. Secrets belong in `cause` or `ctx`, not `message`.
+
 ## [0.6.0] - 2026-08-22
 
 ### Added
@@ -125,7 +155,8 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `@eddy-works/never-rest/node`: `toNodeHandler` for Node's `http` interface.
 - A published type-instantiation budget of 1,800 per route, enforced in CI with `@ark/attest`.
 
-[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/project-eddy/never-rest/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.7.0
 [0.6.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.6.0
 [0.5.0]: https://github.com/project-eddy/never-rest/releases/tag/v0.5.0
 [0.4.1]: https://github.com/project-eddy/never-rest/releases/tag/v0.4.1
