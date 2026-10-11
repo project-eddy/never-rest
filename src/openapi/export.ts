@@ -25,6 +25,10 @@ export interface OpenApiOptions {
     readonly url: string;
     readonly description?: string;
   }[];
+  readonly boundary?: {
+    readonly auth?: boolean;
+    readonly limits?: boolean;
+  };
 }
 
 const JSON_SCHEMA_DIALECT = 'https://json-schema.org/draft/2020-12/schema';
@@ -168,22 +172,69 @@ function withPathRouteNotFound(
   };
 }
 
+function retryAfterHeader(): Record<string, unknown> {
+  return {
+    'Retry-After': {
+      description: 'Seconds to wait before retrying',
+      schema: { type: 'integer', minimum: 0 },
+    },
+  };
+}
+
+function boundaryBodyResponses(route: RouteDef): Record<string, unknown> {
+  if (route.body === undefined) {
+    return {};
+  }
+  return {
+    '408': railErrorResponse('Request body timed out'),
+    '413': railErrorResponse('Request body too large'),
+  };
+}
+
+function boundaryAuthResponses(
+  enabled: boolean | undefined,
+): Record<string, unknown> {
+  if (enabled !== true) {
+    return {};
+  }
+  return {
+    '401': { $ref: '#/components/responses/Unauthenticated' },
+    '403': { $ref: '#/components/responses/Forbidden' },
+  };
+}
+
+function boundaryLimitResponses(
+  enabled: boolean | undefined,
+): Record<string, unknown> {
+  if (enabled !== true) {
+    return {};
+  }
+  return {
+    '429': { $ref: '#/components/responses/RateLimited' },
+    '503': { $ref: '#/components/responses/Overloaded' },
+  };
+}
+
+function operationParameters(
+  operation: string,
+  route: RouteDef,
+): Record<string, unknown>[] {
+  return [
+    ...(route.params !== undefined ? pathParameters(operation, route.params) : []),
+    ...(route.query !== undefined ? queryParameters(operation, route.query) : []),
+    ...(route.headers !== undefined
+      ? headerParameters(operation, route.headers)
+      : []),
+  ];
+}
+
 function buildOperation(
   operation: string,
   route: RouteDef,
   includeRouteNotFound: boolean,
+  boundary: OpenApiOptions['boundary'],
 ): Record<string, unknown> {
-  const parameters: Record<string, unknown>[] = [];
-
-  if (route.params !== undefined) {
-    parameters.push(...pathParameters(operation, route.params));
-  }
-  if (route.query !== undefined) {
-    parameters.push(...queryParameters(operation, route.query));
-  }
-  if (route.headers !== undefined) {
-    parameters.push(...headerParameters(operation, route.headers));
-  }
+  const parameters = operationParameters(operation, route);
 
   const operationObject: Record<string, unknown> = {
     operationId: operation,
@@ -191,6 +242,9 @@ function buildOperation(
       {
         ...successResponse(operation, route),
         ...domainErrorResponses(route),
+        ...boundaryBodyResponses(route),
+        ...boundaryAuthResponses(boundary?.auth),
+        ...boundaryLimitResponses(boundary?.limits),
       },
       includeRouteNotFound,
     ),
@@ -227,7 +281,12 @@ export function toOpenAPI<TContract extends ContractDef>(
     const includeRouteNotFound = !pathRouteNotFoundAdded.has(openApiPath);
 
     const pathItem: PathItem = { ...(paths[openApiPath] ?? {}) };
-    pathItem[method] = buildOperation(operation, route, includeRouteNotFound);
+    pathItem[method] = buildOperation(
+      operation,
+      route,
+      includeRouteNotFound,
+      options.boundary,
+    );
     paths[openApiPath] = pathItem;
 
     if (includeRouteNotFound) {
@@ -245,6 +304,16 @@ export function toOpenAPI<TContract extends ContractDef>(
       },
       responses: {
         RouteNotFound: railErrorResponse('Route not found'),
+        Unauthenticated: railErrorResponse('Authentication required'),
+        Forbidden: railErrorResponse('Forbidden'),
+        RateLimited: {
+          ...railErrorResponse('Too many requests'),
+          headers: retryAfterHeader(),
+        },
+        Overloaded: {
+          ...railErrorResponse('Service overloaded'),
+          headers: retryAfterHeader(),
+        },
       },
     },
     paths,

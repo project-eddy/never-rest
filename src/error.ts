@@ -15,6 +15,7 @@ export interface RailError<TCode extends string = string> {
   readonly cause?: RailError;
   readonly origin?: string;
   readonly retryable?: boolean;
+  readonly retryAfterMs?: number;
   readonly nextStep?: string;
   /**
    * Structured context for whoever reads the error — most often an agent

@@ -22,4 +22,8 @@ We aim to acknowledge reports within 5 business days and to keep you updated unt
 ## Scope notes
 
 - Handler disclosure (`full` / `internal` / `public`) is caller-configured. Misconfiguration that leaks internal detail is an application concern, not a library CVE, unless the library itself fails to apply the requested level.
+- `message` and `issues[].message` are public data and are always disclosed. The `nextStep` regex is a defensive heuristic, not redaction. Secrets belong in `cause` or `ctx`.
+- Do not raise disclosure from a caller-supplied header. Use a verified principal (`definePolicy`) or a trusted host wrapper.
 - Do not report issues that require a compromised npm publish credential or GitHub admin access as product vulnerabilities; those are infrastructure incidents.
+
+See [docs/security-boundaries.md](docs/security-boundaries.md) for admission order and the controls the deployment owns.

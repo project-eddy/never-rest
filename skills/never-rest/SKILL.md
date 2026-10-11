@@ -1,6 +1,6 @@
 ---
 name: never-rest
-description: Lookup index for @eddy-works/never-rest — HTTP contracts with Result handlers, RailError chains, graded disclosure, and in-process dispatch. Use when implementing or debugging never-rest servers, clients, local/in-process boundaries, error mapping, disclosure, or migration from ts-rest/oRPC.
+description: Lookup index for @eddy-works/never-rest — HTTP contracts with Result handlers, RailError chains, graded disclosure, operation policy, bounded ingress, and in-process dispatch. Use when implementing or debugging never-rest servers, clients, local/in-process boundaries, error mapping, disclosure, policy, limits, cancellation, or migration from ts-rest/oRPC.
 ---
 
 # never-rest
@@ -16,9 +16,11 @@ Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`
 | Why Result at the boundary instead of throws? | [concepts.md — Railway at the boundary](docs/concepts.md#railway-at-the-boundary) |
 | How do I use a contract without HTTP? | [concepts.md — One contract, more than HTTP](docs/concepts.md#one-contract-more-than-http) · [api.md — local](docs/api.md#eddy-worksnever-restlocal) |
 | Where did middleware go — how do I do auth / permissions? | [concepts.md — No middleware](docs/concepts.md#no-middleware--the-chain-is-the-middleware) · [migrating.md — Middleware](docs/migrating.md#middleware) |
-| How do I make auth / tenancy non-omittable without middleware? | [advanced-usage.md](docs/advanced-usage.md) |
+| How do I make auth / tenancy non-omittable without middleware? | [advanced-usage.md — definePolicy](docs/advanced-usage.md#definepolicy) |
+| What is the HTTP admission order? | [security-boundaries.md](docs/security-boundaries.md) |
+| Are error messages public? | [concepts.md — Trust circles](docs/concepts.md#trust-circles-and-graded-disclosure) · [SECURITY.md](SECURITY.md) |
 | Capability types / `Session` required by domain? | [advanced-usage.md — Capability types](docs/advanced-usage.md#capability-types) |
-| `withAuth` / `withRole` / `publicHandler` composers? | [advanced-usage.md — Composer wrappers](docs/advanced-usage.md#composer-wrappers) |
+| Mid-chain composers after policy? | [advanced-usage.md — Composer wrappers](docs/advanced-usage.md#composer-wrappers) |
 | Host wrap vs gateway vs handler railway? | [advanced-usage.md — What stays outside the railway](docs/advanced-usage.md#what-stays-outside-the-railway) |
 | Gates, side effects, after-effects, provisioning chains? | [railway-patterns.md](docs/railway-patterns.md) |
 | Router, recover, fan-out, lift, terminate, ROP links? | [railway-patterns.md](docs/railway-patterns.md) · [neverthrow](https://www.npmjs.com/package/neverthrow) · [Wlaschin ROP](https://fsharpforfunandprofit.com/rop/) |
@@ -48,6 +50,7 @@ Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`
 | How does validation work? | [api.md — parseRouteSources](docs/api.md#parseroutesources) · [concepts.md — Errors as data](docs/concepts.md#errors-as-data) |
 | How do I compile or match route paths? | [api.md — compileContract](docs/api.md#compilecontract) · [isContractPath](docs/api.md#iscontractpath) · [compilePath](docs/api.md#compilepath) · [matchPath](docs/api.md#matchpath) · [normalizePath](docs/api.md#normalizepath) · [compileRoutes](docs/api.md#compileroutes) · [matchRoute](docs/api.md#matchroute) |
 | What path patterns are supported? | [api.md — compilePath](docs/api.md#compilepath) (exact segments, single `:param`; static before dynamic) |
+| Migrate from 0.6 to 0.7? | [migrating.md — Upgrading from 0.6 to 0.7](docs/migrating.md#upgrading-from-06-to-07) |
 | Migrate from 0.4.x? | [migrating.md — Upgrading from 0.4.x](docs/migrating.md#upgrading-from-04x) |
 | Migrate from 0.4.0? | [migrating.md — Upgrading from 0.4.0](docs/migrating.md#upgrading-from-040) |
 | Migrate from 0.3.0? | [migrating.md — Upgrading from 0.3.0](docs/migrating.md#upgrading-from-030) |
@@ -59,7 +62,7 @@ Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`
 | Where are runnable framework examples? | [examples/README.md](examples/README.md) · [docs/examples.md](docs/examples.md) |
 | How do I call a contract in-process, with no HTTP? | [api.md — local](docs/api.md#eddy-worksnever-restlocal) · [specs/local-dispatch.spec.md](specs/local-dispatch.spec.md) |
 | `createLocalClient` or `createTestClient`? | `createLocalClient` is a production transport that skips HTTP entirely; `createTestClient` exercises the real `serve` path in tests. [api.md — createLocalClient](docs/api.md#createlocalclient) · [createTestClient](docs/api.md#createtestclient) |
-| How do I put a contract behind a socket, MCP stdio, or a tool call? | [api.md — createDispatcher](docs/api.md#createdispatcher) |
+| How do I put a contract behind a socket, MCP stdio, or a tool call? | [api.md — createDispatcher](docs/api.md#createdispatcher) · [mcp.md](docs/mcp.md) |
 | How do I create a typed client? | [api.md — createClient](docs/api.md#createclient) |
 | How do I use the client with TanStack Query? | [api.md — query](docs/api.md#eddy-worksnever-restquery) · [railway-patterns.md — Terminate](docs/railway-patterns.md#terminate--dead-end) |
 | How do I chain client calls with neverthrow? | [api.md — Client](docs/api.md#client) · [specs/client-results.spec.md](specs/client-results.spec.md) → `src/client/create.test.ts` |
@@ -143,6 +146,12 @@ Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`
 | `createQueryOptions` | `./query` | [api.md#createqueryoptions](docs/api.md#createqueryoptions) |
 | `createMutationOptions` | `./query` | [api.md#createmutationoptions](docs/api.md#createmutationoptions) |
 | `isRetryable` | `./query` | [api.md#isretryable](docs/api.md#isretryable) |
+| `BOUNDARY_ERRORS` | `.` | [api.md#boundary_errors](docs/api.md#boundary_errors) |
+| `definePolicy` | `./policy` | [api.md#definepolicy](docs/api.md#definepolicy) |
+| `createMemoryLimiter` | `./limits` | [api.md#creatememorylimiter](docs/api.md#creatememorylimiter) |
+| `fromRateLimiterFlexible` | `./limits` | [api.md#fromratelimiterflexible](docs/api.md#fromratelimiterflexible) |
+| `createConcurrencyGate` | `./limits` | [api.md#createconcurrencygate](docs/api.md#createconcurrencygate) |
+| `withRetry` | `./client` | [api.md#withretry](docs/api.md#withretry) |
 | `toNodeHandler` | `./node` | [api.md#tonodehandler](docs/api.md#tonodehandler) |
 | `FetchHandler` | `./node` | [api.md#fetchhandler](docs/api.md#fetchhandler) |
 | `NodeHttpHandler` | `./node` | [api.md#nodehttphandler](docs/api.md#nodehttphandler) |
@@ -161,4 +170,9 @@ Keep each `ContractDef` in its own module (or shared package). Handlers, `serve`
 | [specs/wire-serialization.spec.md](specs/wire-serialization.spec.md) | Client path/query wire encoding | `src/client/create.test.ts` |
 | [specs/openapi-export.spec.md](specs/openapi-export.spec.md) | OpenAPI 3.1 from the contract | `src/openapi/to-openapi.test.ts` |
 | [specs/local-dispatch.spec.md](specs/local-dispatch.spec.md) | In-process client and operation dispatch, no `Request` / `Response` | `src/local/dispatch.test.ts` |
+| [specs/bounded-ingress.spec.md](specs/bounded-ingress.spec.md) | Bounded body reads and Node streaming | `src/server/body.test.ts`, `src/node/to-node-handler.test.ts` |
+| [specs/operation-policy.spec.md](specs/operation-policy.spec.md) | `definePolicy` coverage and principals | `src/policy/define.test.ts` |
+| [specs/boundary-errors.spec.md](specs/boundary-errors.spec.md) | Reserved `boundary.*` and status-first client | `src/boundary.test.ts`, `src/client/response.boundary.test.ts` |
+| [specs/admission-limits.spec.md](specs/admission-limits.spec.md) | Limiters and concurrency | `src/limits/*.test.ts` |
+| [specs/cancellation-retry.spec.md](specs/cancellation-retry.spec.md) | `withRetry` and `isRetryable` | `src/client/with-retry.test.ts`, `src/query/options.test.ts` |
 | [specs/README.md](specs/README.md) | `pnpm specs:extract` | — |

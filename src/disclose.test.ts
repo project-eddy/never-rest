@@ -95,6 +95,11 @@ describe('disclose', () => {
       expect(JSON.stringify(disclosed)).not.toContain('shard-7');
     });
 
+    it('keeps retryAfterMs on public disclosure', () => {
+      const error = railError('conflict', 'busy', { retryAfterMs: 2500 });
+      expect(disclose(error, 'public').retryAfterMs).toBe(2500);
+    });
+
     it('omits the ctx key entirely when absent', () => {
       const plain = railError('not_found', 'Missing');
 

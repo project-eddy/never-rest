@@ -93,6 +93,6 @@ type _ClientArgsAcceptsInferInput = Expect<
     : false
 >;
 
-type _ListTakesNoArgs = Expect<
-  Parameters<typeof client.listUsers>['length'] extends 0 ? true : false
+type _ListTakesNoRequiredArgs = Expect<
+  undefined extends Parameters<typeof client.listUsers>[0] ? true : false
 >;

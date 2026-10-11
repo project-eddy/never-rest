@@ -1,12 +1,20 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { errAsync, okAsync, ResultAsync } from 'neverthrow';
 
+import {
+  BOUNDARY_STATUS_MAP,
+  boundaryCodeForStatus,
+  boundaryError,
+  isBoundaryHttpErrorCode,
+} from '../boundary.js';
 import type { ClientErrorOf, OutputOf, RouteDef } from '../contract/types.js';
 import {
   railError,
   type RailError,
   type RailIssue,
 } from '../error.js';
+import { parseRetryAfterMs } from '../retry-after.js';
+import { HOST_STATUSES } from '../status.js';
 
 export const MAX_CAUSE_DEPTH = 16;
 
@@ -47,6 +55,16 @@ function optionalBoolean(value: unknown): boolean | undefined | 'invalid' {
   return typeof value === 'boolean' ? value : 'invalid';
 }
 
+function optionalRetryAfterMs(value: unknown): number | undefined | 'invalid' {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return 'invalid';
+  }
+  return value;
+}
+
 function parseIssues(value: unknown): readonly RailIssue[] | 'invalid' {
   if (value === undefined) {
     return [];
@@ -76,18 +94,21 @@ function parseOptionalFields(candidate: Record<string, unknown>):
       readonly origin: string | undefined;
       readonly nextStep: string | undefined;
       readonly retryable: boolean | undefined;
+      readonly retryAfterMs: number | undefined;
       readonly ctx: Readonly<Record<string, unknown>> | undefined;
     } {
   const issues = parseIssues(candidate.issues);
   const origin = optionalString(candidate.origin);
   const nextStep = optionalString(candidate.nextStep);
   const retryable = optionalBoolean(candidate.retryable);
+  const retryAfterMs = optionalRetryAfterMs(candidate.retryAfterMs);
   const ctx = parseCtx(candidate.ctx);
   if (
     issues === 'invalid' ||
     origin === 'invalid' ||
     nextStep === 'invalid' ||
     retryable === 'invalid' ||
+    retryAfterMs === 'invalid' ||
     ctx === 'invalid'
   ) {
     return 'invalid';
@@ -97,22 +118,33 @@ function parseOptionalFields(candidate: Record<string, unknown>):
     origin,
     nextStep,
     retryable,
+    retryAfterMs,
     ctx,
   };
+}
+
+function assignDefined<T extends object>(
+  target: T,
+  key: keyof T,
+  value: T[keyof T] | undefined,
+): void {
+  if (value !== undefined) {
+    target[key] = value;
+  }
 }
 
 function envelopeExtra(
   fields: Exclude<ReturnType<typeof parseOptionalFields>, 'invalid'>,
   cause: RailError<string> | undefined,
 ): Omit<RailError<string>, 'code' | 'message'> | undefined {
-  const extra = {
-    ...(fields.issues !== undefined ? { issues: fields.issues } : {}),
-    ...(fields.origin !== undefined ? { origin: fields.origin } : {}),
-    ...(fields.nextStep !== undefined ? { nextStep: fields.nextStep } : {}),
-    ...(fields.retryable !== undefined ? { retryable: fields.retryable } : {}),
-    ...(fields.ctx !== undefined ? { ctx: fields.ctx } : {}),
-    ...(cause !== undefined ? { cause } : {}),
-  };
+  const extra: Omit<RailError<string>, 'code' | 'message'> = {};
+  assignDefined(extra, 'issues', fields.issues);
+  assignDefined(extra, 'origin', fields.origin);
+  assignDefined(extra, 'nextStep', fields.nextStep);
+  assignDefined(extra, 'retryable', fields.retryable);
+  assignDefined(extra, 'retryAfterMs', fields.retryAfterMs);
+  assignDefined(extra, 'ctx', fields.ctx);
+  assignDefined(extra, 'cause', cause);
   return Object.keys(extra).length > 0 ? extra : undefined;
 }
 
@@ -240,21 +272,95 @@ function mapValidationResult<Output>(
   return errAsync(internalError('Response validation failed'));
 }
 
+const HOST_CODE_STATUSES: { readonly [code: string]: number } = {
+  validation_error: HOST_STATUSES.validation_error,
+  internal: HOST_STATUSES.internal,
+};
+
+function expectedStatusForCode(route: RouteDef, code: string): number | undefined {
+  if (code in route.errors) {
+    return route.errors[code];
+  }
+  if (isBoundaryHttpErrorCode(code)) {
+    return BOUNDARY_STATUS_MAP[code];
+  }
+  return HOST_CODE_STATUSES[code];
+}
+
+function envelopeAgrees(
+  route: RouteDef,
+  error: RailError<string>,
+  status: number,
+): boolean {
+  const expected = expectedStatusForCode(route, error.code);
+  return expected === status;
+}
+
+function withRetryAfter<TCode extends string>(
+  error: RailError<TCode>,
+  retryAfterMs: number | undefined,
+): RailError<TCode> {
+  if (retryAfterMs === undefined || error.retryAfterMs !== undefined) {
+    return error;
+  }
+  return { ...error, retryAfterMs };
+}
+
 function mapProtocolError<TRoute extends RouteDef>(
   route: TRoute,
   error: RailError<string>,
+  status: number,
 ): ClientErrorOf<TRoute> {
-  if (error.code in route.errors) {
-    return error as ClientErrorOf<TRoute>;
-  }
-
-  if (error.code === 'validation_error' || error.code === 'internal') {
+  if (envelopeAgrees(route, error, status)) {
     return error as ClientErrorOf<TRoute>;
   }
 
   return railError('internal', 'Unexpected error response', {
     cause: error,
   }) as ClientErrorOf<TRoute>;
+}
+
+function mapStatusWithoutEnvelope<TRoute extends RouteDef>(
+  status: number,
+  retryAfterMs: number | undefined,
+): ClientErrorOf<TRoute> {
+  const boundaryCode = boundaryCodeForStatus(status);
+  if (boundaryCode !== undefined) {
+    return boundaryError(boundaryCode, {
+      retryAfterMs,
+      ctx: { httpStatus: status },
+    }) as ClientErrorOf<TRoute>;
+  }
+  if (status === 502) {
+    return unavailableError() as ClientErrorOf<TRoute>;
+  }
+  return railError('internal', 'Unexpected error response', {
+    ctx: { httpStatus: status },
+  }) as ClientErrorOf<TRoute>;
+}
+
+function mapErrorBody<TRoute extends RouteDef>(
+  route: TRoute,
+  response: Response,
+  text: string,
+): ClientErrorOf<TRoute> {
+  const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
+  let parsed: unknown;
+  try {
+    parsed = text.length > 0 ? JSON.parse(text) : undefined;
+  } catch {
+    return mapStatusWithoutEnvelope(response.status, retryAfterMs);
+  }
+
+  const envelope = parseRailErrorEnvelope(parsed);
+  if (envelope === undefined) {
+    return mapStatusWithoutEnvelope(response.status, retryAfterMs);
+  }
+
+  return withRetryAfter(
+    mapProtocolError(route, envelope, response.status),
+    retryAfterMs,
+  );
 }
 
 function validationError(message: string): RailError<'validation_error'> {
@@ -310,20 +416,6 @@ export function mapResponse<TRoute extends RouteDef>(
   }
 
   return ResultAsync.fromPromise(response.text(), () => unavailableError()).andThen(
-    (text) => {
-      let parsed: unknown;
-      try {
-        parsed = text.length > 0 ? JSON.parse(text) : undefined;
-      } catch {
-        return errAsync(internalError('Response body is not valid JSON'));
-      }
-
-      const envelope = parseRailErrorEnvelope(parsed);
-      if (envelope !== undefined) {
-        return errAsync(mapProtocolError(route, envelope));
-      }
-
-      return errAsync(internalError('Unexpected error response'));
-    },
+    (text) => errAsync(mapErrorBody(route, response, text)),
   );
 }

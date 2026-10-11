@@ -1,6 +1,6 @@
 {
   "name": "@eddy-works/never-rest",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Result-based contracts for HTTP and in-process dispatch — handlers return Result instead of throwing",
   "type": "module",
   "sideEffects": false,
@@ -46,6 +46,18 @@
     "./query": {
       "types": "./dist/query/index.d.ts",
       "import": "./dist/query/index.js"
+    },
+    "./policy": {
+      "types": "./dist/policy/index.d.ts",
+      "import": "./dist/policy/index.js"
+    },
+    "./limits": {
+      "types": "./dist/limits/index.d.ts",
+      "import": "./dist/limits/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js"
     }
   },
   "scripts": {
@@ -63,6 +75,7 @@
     "openapi:lint": "spectral lint src/openapi/fixtures/fixture-openapi.json",
     "docs:dev": "pnpm --filter website dev",
     "docs:build": "pnpm --filter website build",
+    "docs:snippets": "node scripts/check-doc-snippets.mjs",
     "examples:typecheck": "pnpm -r --filter \"./examples/**\" typecheck",
     "examples:conformance": "vitest run --config examples/conformance/vitest.config.ts"
   },
@@ -75,9 +88,13 @@
     "access": "public"
   },
   "peerDependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
     "neverthrow": "^8.0.0"
   },
   "peerDependenciesMeta": {
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    },
     "@types/node": {
       "optional": true
     }
@@ -86,6 +103,7 @@
     "@standard-schema/spec": "^1.0.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "@arethetypeswrong/cli": "^0.18.1",
     "@ark/attest": "^0.56.3",
     "@eslint/js": "^9.28.0",
@@ -99,6 +117,7 @@
     "husky": "^9.1.7",
     "neverthrow": "^8.2.0",
     "publint": "^0.3.12",
+    "rate-limiter-flexible": "^7.1.1",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.33.1",
     "valibot": "^1.4.2",
@@ -107,7 +126,7 @@
   },
   "packageManager": "pnpm@10.33.3",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "typesVersions": {
     "*": {
@@ -134,6 +153,15 @@
       ],
       "query": [
         "./dist/query/index.d.ts"
+      ],
+      "policy": [
+        "./dist/policy/index.d.ts"
+      ],
+      "limits": [
+        "./dist/limits/index.d.ts"
+      ],
+      "mcp": [
+        "./dist/mcp/index.d.ts"
       ]
     }
   }

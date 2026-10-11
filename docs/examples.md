@@ -1,6 +1,6 @@
 ---
 title: Examples
-description: Mini projects — shared contract across Express, Next, SvelteKit, Hono, Workers, plus validators and files-and-streams.
+description: Mini projects — shared contract across Express, Next, SvelteKit, Hono, Workers, plus validators, files-and-streams, cancellation, and MCP stdio.
 ---
 
 # Examples
@@ -39,6 +39,8 @@ Read them as five lessons:
 | [Gateway](../examples/gateway) | `chain`, disclosure, `ClientErrorOf` |
 | [Validators](../examples/validators) | Zod / Valibot / ArkType (Standard Schema) |
 | [Files and streams](../examples/files-and-streams) | Sibling multipart + SSE; shadow `RouteDef` |
+| [Cancellation](../examples/cancellation) | Worker abort releases the concurrency slot |
+| [MCP stdio](../examples/mcp-stdio) | `registerContract` over `createDispatcher` |
 
 Yup is not supported: never-rest requires [Standard Schema](https://standardschema.dev/), which Yup does not implement.
 

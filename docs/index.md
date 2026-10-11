@@ -13,13 +13,15 @@ A `ContractDef` where handlers return `Result` instead of throwing. `serve` proj
 | --- | --- |
 | [Concepts](./concepts.md) | Railway at the boundary, HTTP and local transports, no middleware, errors as data, trust circles |
 | [Railway patterns](./railway-patterns.md) | Full railway/neverthrow pattern catalogue + white-label tenant kitchen sink |
-| [Advanced usage](./advanced-usage.md) | Policy without middleware — capabilities, composers, host wraps, agents |
+| [Advanced usage](./advanced-usage.md) | `definePolicy`, mid-chain composers, host wraps |
+| [Security boundaries](./security-boundaries.md) | Admission order, deployment-owned controls, what never-rest does not ship |
 | [API reference](./api.md) | Every public export, signature, example — including [`./local`](./api.md#eddy-worksnever-restlocal) |
-| [Examples](./examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway, files-and-streams |
+| [Examples](./examples.md) | Express, Next, SvelteKit, Hono, Workers, gateway, files-and-streams, cancellation, MCP stdio |
 | [Files and streams](./files-and-streams.md) | JSON on the railway; multipart and SSE on the host |
 | [Errors as intelligence](./errors-as-intelligence.md) | `nextStep`, `origin`, `retryable`, `ctx`, gateway chains |
 | [Comparison](./comparison.md) | vs ts-rest, oRPC, tRPC, and Hono RPC |
-| [Migrating](./migrating.md) | From ts-rest, oRPC, throwing handlers |
+| [Migrating](./migrating.md) | 0.6 → 0.7, then ts-rest, oRPC, throwing handlers |
+| [MCP adapter](./mcp.md) | Contract → MCP tools; policy stays on `createDispatcher` |
 | [Type performance](./performance.md) | Instantiation budget and CI gate |
 
 Package: [`@eddy-works/never-rest`](https://www.npmjs.com/package/@eddy-works/never-rest) · Source: [project-eddy/never-rest](https://github.com/project-eddy/never-rest)

@@ -5,7 +5,7 @@ description: Public exports for never-rest — errors, contract, HTTP serve, HTT
 
 # API reference
 
-Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `./client`, `./node`, `./local`, `./testing`, `./openapi`, `./query`.
+Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `./client`, `./node`, `./local`, `./policy`, `./limits`, `./testing`, `./openapi`, `./query`, `./mcp`.
 
 | Module | Status |
 | --- | --- |
@@ -15,9 +15,12 @@ Subpath exports: `@eddy-works/never-rest` (errors), `./contract`, `./server`, `.
 | `./client` | **Shipped** |
 | `./node` | **Shipped** |
 | `./local` | **Shipped** (in-process dispatch; no `Request` / `Response`) |
+| `./policy` | **Shipped** (construction-time operation coverage) |
+| `./limits` | **Shipped** (no runtime dependencies; no `node:*`) |
 | `./testing` | **Shipped** (test-time helpers; not for production handlers) |
 | `./openapi` | **Shipped** |
 | `./query` | **Shipped** (cache-layer adapters; no React/TanStack dependency) |
+| `./mcp` | **Shipped** (`@modelcontextprotocol/sdk` optional peer) |
 
 Types import `Result` / `ResultAsync` from `neverthrow`.
 
@@ -50,6 +53,7 @@ interface RailError<TCode extends string = string> {
   readonly cause?: RailError;
   readonly origin?: string;
   readonly retryable?: boolean;
+  readonly retryAfterMs?: number;
   readonly nextStep?: string;
   readonly ctx?: Readonly<Record<string, unknown>>;
 }
@@ -144,6 +148,23 @@ const HOST_STATUSES: HostStatuses = {
 
 Host codes stay off `RouteDef.errors`. Override defaults with `serve(..., { hostStatuses })`.
 
+### `BOUNDARY_ERRORS`
+
+Reserved `boundary.*` codes. Domain codes must not use this prefix — `compileContract` rejects them. Existing domain codes such as `unauthorized` keep working.
+
+| Code | HTTP | Retryable |
+| --- | --- | --- |
+| `boundary.unauthenticated` | 401 | no |
+| `boundary.forbidden` | 403 | no |
+| `boundary.request_timeout` | 408 | no |
+| `boundary.payload_too_large` | 413 | no |
+| `boundary.rate_limited` | 429 | yes |
+| `boundary.overloaded` | 503 | yes |
+| `boundary.timeout` | 504 | no |
+| `boundary.cancelled` | none (local / client abort) | no |
+
+`boundaryError(code)` builds the public message. HTTP statuses are owned by `serve` and cannot be overridden.
+
 ### `StatusMap`
 
 ```ts
@@ -210,11 +231,13 @@ function disclose<TCode extends string>(
 disclose(chain(outer, cause), 'public'); // no cause, no internal issue paths
 ```
 
+`message` and `issues[].message` are public data and are always disclosed. The `nextStep` regex is a defensive heuristic, not redaction. Secrets belong in `cause` or `ctx`. `retryAfterMs` is public-safe and is kept at every level.
+
 | Field | `full` | `internal` | `public` |
 | --- | --- | --- | --- |
 | `code`, `message` | kept | kept | kept |
-| `issues` | kept | kept | paths emptied |
-| `retryable` | kept | kept | kept |
+| `issues` | kept | kept | paths emptied; messages kept |
+| `retryable`, `retryAfterMs` | kept | kept | kept |
 | `nextStep` | kept | kept | kept only when advisory |
 | `ctx` | kept | kept | dropped |
 | `cause`, `origin` | kept | dropped | dropped |
@@ -307,7 +330,7 @@ function compileContract<TContract extends ContractDef>(
 ): CompiledContract<TContract>;
 ```
 
-Validates the contract once at `serve` / `createClient` / `toOpenAPI` construction. Rejects duplicate literal paths, trailing-slash aliases, duplicate compiled matchers (for example `/users/:id` and `/users/:userId`), duplicate path parameter names within a route, a path with `:param` segments without a `params` schema, `params` on a static path, `body` on GET or DELETE, reserved domain error codes, host codes on `route.errors`, error statuses outside 400–599, success codes other than 200/201/202/204, `output` on 204 routes, missing `output` on other success codes, and duplicate error codes within a route. Throws `ContractConfigurationError` naming the conflicting operations.
+Validates the contract once at `serve` / `createClient` / `toOpenAPI` construction. Rejects duplicate literal paths, trailing-slash aliases, duplicate compiled matchers (for example `/users/:id` and `/users/:userId`), duplicate path parameter names within a route, a path with `:param` segments without a `params` schema, `params` on a static path, `body` on GET or DELETE, reserved domain error codes (including any code starting with `boundary.`), host codes on `route.errors`, error statuses outside 400–599, success codes other than 200/201/202/204, `output` on 204 routes, missing `output` on other success codes, and duplicate error codes within a route. Throws `ContractConfigurationError` naming the conflicting operations.
 
 ### `isContractPath`
 
@@ -407,10 +430,11 @@ Handler and server domain surface — declared route error-code keys only.
 ```ts
 type ClientErrorOf<TRoute extends RouteDef> =
   | ErrorOf<TRoute>
-  | RailError<'validation_error' | 'internal' | 'unavailable'>;
+  | RailError<'validation_error' | 'internal' | 'unavailable'>
+  | RailError<BoundaryErrorCode>;
 ```
 
-Client operation error union — domain codes plus built-in wire and transport failures.
+Client operation error union — domain codes, host codes, transport `unavailable`, and reserved boundary codes.
 
 ### `ServerErrorOf`
 
@@ -566,38 +590,44 @@ First match by method and pathname in declaration order, or `undefined`.
 ### `Handler`
 
 ```ts
-type Handler<TRoute extends RouteDef, TContext> = (
+type Handler<TRoute extends RouteDef, TContext, TPrincipal = unknown> = (
   args: HandlerArgsOf<TRoute> & {
     request: Request;
     context: TContext;
+    principal: TPrincipal | undefined;
+    signal: AbortSignal;
   },
 ) => Result<OutputOf<TRoute>, ErrorOf<TRoute>>
   | ResultAsync<OutputOf<TRoute>, ErrorOf<TRoute>>
   | Promise<Result<OutputOf<TRoute>, ErrorOf<TRoute>>>;
 ```
 
-Sync `ok` / `err`, `ResultAsync`, or `Promise<Result>` are all accepted. For `success: 204`, `OutputOf` is `void` — return `ok(undefined)` (or `ok()`). HTTP handlers receive `request`. For the same function on [`./local`](#eddy-worksnever-restlocal), write a [`LocalHandler`](#localhandler) (no `request`) — it is assignable to `Handler`.
+Sync `ok` / `err`, `ResultAsync`, or `Promise<Result>` are all accepted. For `success: 204`, `OutputOf` is `void` — return `ok(undefined)` (or `ok()`). HTTP handlers receive `request`, the verified `principal` (when a policy is set), and a `signal` that combines `request.signal` with optional `timeouts`. For the same function on [`./local`](#eddy-worksnever-restlocal), write a [`LocalHandler`](#localhandler) (no `request`) — it is assignable to `Handler`.
 
 ### `Handlers`
 
 ```ts
-type Handlers<TContract extends ContractDef, TContext> = {
-  readonly [K in keyof TContract]: Handler<TContract[K], TContext>;
+type Handlers<TContract extends ContractDef, TContext, TPrincipal = unknown> = {
+  readonly [K in keyof TContract]: Handler<TContract[K], TContext, TPrincipal>;
 };
 ```
 
 ### `ServeOptions`
 
 ```ts
-interface ServeOptions {
+interface ServeOptions<TPrincipal = unknown> {
   readonly disclosure?: Disclosure | ((request: Request) => Disclosure);
   readonly origin?: string;
   readonly basePath?: `/${string}`;
   readonly hostStatuses?: Partial<HostStatuses>;
+  readonly limits?: { readonly maxBodyBytes?: number; readonly bodyTimeoutMs?: number };
+  readonly timeouts?: { readonly defaultMs?: number; readonly operations?: { readonly [name: string]: number } };
+  readonly policy?: Policy<ContractDef, TPrincipal>;
+  readonly admission?: AdmissionOptions<TPrincipal>;
 }
 ```
 
-Omitted `disclosure` defaults to `public`. `respond` still defaults to `full`. `basePath` is stripped before matching (no trailing slash). Domain statuses come from each route's `errors` map; host codes use `HOST_STATUSES` merged with `hostStatuses`.
+Omitted `disclosure` defaults to `public`. `respond` still defaults to `full`. Passing both `policy` and `disclosure` throws. `basePath` is stripped before matching (no trailing slash). Domain statuses come from each route's `errors` map; host codes use `HOST_STATUSES` merged with `hostStatuses`. Boundary HTTP statuses are always declared and cannot be overridden. `limits` default to 1 MiB and 30 s. When `retryAfterMs` is set, `serve` sends `Retry-After` in whole seconds, rounded up.
 
 ### `ServeHandler`
 
@@ -632,8 +662,7 @@ const handlers: Handlers<typeof contract, { requestId: string }> = {
 const handler = serve(contract, handlers, {
   origin: 'users-api',
   basePath: '/api',
-  disclosure: (req) =>
-    req.headers.get('x-internal') === '1' ? 'full' : 'public',
+  disclosure: 'public',
 });
 
 await handler(new Request('http://localhost/api/users/u1'), { requestId: 'r1' });
@@ -643,13 +672,13 @@ await handler(new Request('http://localhost/api/users/u1'), { requestId: 'r1' })
 
 **Routing:** exact paths and single `:param` segments, declaration order (static before dynamic when both match). Unmatched requests → `route_not_found` at `HOST_STATUSES.route_not_found` (or `hostStatuses.route_not_found`). Path captures are percent-decoded; `invalid_encoding` → `validation_error`. `basePath` is stripped before matching.
 
-**Input:** each declared source is read from the wire independently. Path `:param` values populate `params` before `parseRouteSources`. GET and DELETE read query into `query` (arrays as `key[]=`, unrepresentable shapes → `validation_error` before handler). POST, PUT, and PATCH read JSON body into `body` when declared (invalid JSON → `validation_error`); POST may also read `query`. Declared `headers` are read from `request.headers`. Empty or missing path params → `validation_error`. Sources never merge — `params.id` and `body.id` stay distinct.
+**Input:** route match and principal verification run before any body read. Each declared source is then read from the wire independently. Path `:param` values populate `params` before `parseRouteSources`. GET and DELETE read query into `query` (arrays as `key[]=`, unrepresentable shapes → `validation_error` before handler). POST, PUT, and PATCH read a bounded JSON body into `body` when declared (`content-length` over the limit → 413 with no bytes read; streamed overflow → 413; time limit → 408; fatal decode → `validation_error`); POST may also read `query`. Declared `headers` are read from `request.headers`. Empty or missing path params → `validation_error`. Sources never merge — `params.id` and `body.id` stay distinct.
 
-**Declared statuses** per route: `route.success ?? 200`, each value in `route.errors`, `validation_error` when the route declares any input source (`params`, `query`, `body`, or `headers`), and `internal`. Undeclared mapped statuses degrade to `500`. Handler error codes not declared on the route — including forged `internal` — are normalised to wire `internal` with the original error under `cause`; `public` disclosure shows a constant top-level message. `success: 204` returns an empty body with no `Content-Type`.
+**Declared statuses** per route: `route.success ?? 200`, each value in `route.errors`, every boundary HTTP status, `validation_error` when the route declares any input source (`params`, `query`, `body`, or `headers`), and `internal`. Undeclared mapped statuses degrade to `500`. Handler error codes not declared on the route — including forged `internal` — are normalised to wire `internal` with the original error under `cause`; reserved `boundary.*` codes pass through. `public` disclosure shows a constant top-level message for host `internal`. `success: 204` returns an empty body with no `Content-Type`. `boundary.cancelled` has no HTTP status and degrades to 500.
 
 **Origin:** `options.origin` stamps errors when absent (recursive on `cause`). Existing `origin` on an error is preserved.
 
-**Disclosure:** omitted `disclosure` defaults to `public`. Per-request functions are supported; a throwing callback falls back to `public`.
+**Disclosure:** omitted `disclosure` defaults to `public`. Per-request functions are supported; a throwing callback falls back to `public`. Prefer principal-derived disclosure from [`definePolicy`](#definepolicy). Do not raise disclosure from a caller header.
 
 **Throws:** handler exceptions and library escape paths become `internal` with diagnostics under `cause` — never an unhandled rejection. Ultimate fail-safe returns a constant JSON body.
 
@@ -669,10 +698,16 @@ interface ClientOptions {
   readonly fetch?: typeof fetch;
   readonly headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
   readonly credentials?: RequestCredentials;
+  readonly timeoutMs?: number;
+}
+
+interface ClientCallOptions {
+  readonly signal?: AbortSignal;
+  readonly idempotencyKey?: string;
 }
 ```
 
-When `credentials` is omitted, the underlying `fetch` implementation's default applies (typically `same-origin` in browsers).
+When `credentials` is omitted, the underlying `fetch` implementation's default applies (typically `same-origin` in browsers). `timeoutMs` sets a default deadline combined with per-call `signal`. `idempotencyKey` is sent as `Idempotency-Key`.
 
 ### `Client`
 
@@ -681,11 +716,11 @@ type Client<TContract extends ContractDef> = {
   readonly [K in keyof TContract]: ClientMethod<TContract[K]>;
 };
 
-// Routes with input sources: (args: ClientArgsOf<Route>) => ResultAsync<…>
-// Routes without: () => ResultAsync<…>
+// Routes with input sources: (args, options?) => ResultAsync<…>
+// Routes without: (args?, options?) => ResultAsync<…>
 ```
 
-One mapped type over the contract, one level deep — no recursion. Error type is `ClientErrorOf` (domain codes plus `validation_error`, `internal`, and `unavailable`).
+One mapped type over the contract, one level deep — no recursion. Error type is `ClientErrorOf` (domain codes plus `validation_error`, `internal`, `unavailable`, and `boundary.*`).
 
 ### `createClient`
 
@@ -708,7 +743,24 @@ await client
   .map((orders) => orders.orders.length);
 ```
 
-**Behaviour:** `compileContract` runs at construction. Validates client args per source via `parseRouteSources` (`ClientArgsOf`); path params must be non-empty; query arrays use `key[]=`. Per-call `args.headers` merge over `ClientOptions.headers` (per-call wins). Only `route.success ?? 200` is treated as `Ok`; any other 2xx is `validation_error` before the body is trusted. `success: 204` resolves `Ok(undefined)` without reading a body. JSON `RailError` with a declared domain code (`error.code in route.errors`), `validation_error`, or `internal` → `Err`; undeclared or reserved remote codes → `Err(internal)` with constant message and remote error under `cause`; non-JSON body → `Err(internal)`; network failure → `Err(unavailable, { retryable: true })`. Header/body serialization failures → `Err(internal)`. Never throws.
+**Behaviour:** `compileContract` runs at construction. Validates client args per source via `parseRouteSources` (`ClientArgsOf`); path params must be non-empty; query arrays use `key[]=`. Per-call `args.headers` merge over `ClientOptions.headers` (per-call wins). Only `route.success ?? 200` is treated as `Ok`; any other 2xx is `validation_error` before the body is trusted. `success: 204` resolves `Ok(undefined)` without reading a body. A valid envelope must agree with the HTTP status: a domain code matches `route.errors[code]`, a boundary code matches its table status; mismatch → `internal` with the remote error under `cause`. No valid envelope (empty, HTML, foreign JSON) and status 401 / 403 / 408 / 413 / 429 / 503 / 504 → the matching boundary error; 502 → `unavailable`; any other status → `internal`. The raw body is never copied into `message`; `ctx.httpStatus` records the status. `Retry-After` is parsed as delta-seconds or HTTP-date and clamped. Abort → `boundary.cancelled` (no longer `unavailable`). Network failure → `Err(unavailable, { retryable: true })`. Header/body serialization failures → `Err(internal)`. Never throws.
+
+### `withRetry`
+
+```ts
+function withRetry<T, E extends RailError>(
+  call: () => ResultAsync<T, E>,
+  options: {
+    readonly idempotent: boolean;
+    readonly attempts?: number;
+    readonly baseMs?: number;
+    readonly capMs?: number;
+    readonly signal?: AbortSignal;
+  },
+): ResultAsync<T, E>;
+```
+
+`idempotent` is required. Attempts default to 3 (max 10). Backoff is exponential with full jitter and honours `retryAfterMs` up to `capMs`. Retrying stops on abort.
 
 ### `buildRequest`
 
@@ -749,17 +801,25 @@ This is a production transport. For an in-process client that exercises the real
 HTTP path in tests, use [`createTestClient`](#createtestclient) instead.
 
 Per-route `errors` status maps are ignored here — HTTP status is not a local
-concern. Disclosure defaults to `full`, because callers in the same process are
-in the same trust circle. Narrow it with `disclosure: 'public'` when the in-process
-caller is not trusted.
+concern. `createLocalClient` defaults to `full` because it is module-to-module.
+`createDispatcher` defaults to `public` because it serves foreign transports.
+Passing both `policy` and `disclosure` throws.
 
 ### `LocalOptions`
 
 ```ts
-interface LocalOptions<TContext> {
+interface LocalOptions<TContext, TPrincipal = unknown> {
   readonly context?: TContext;
   readonly origin?: string;
   readonly disclosure?: Disclosure;
+  readonly policy?: Policy<ContractDef, TPrincipal>;
+  readonly admission?: AdmissionOptions<TPrincipal>;
+}
+
+interface LocalCallOptions<TContext, TPrincipal = unknown> {
+  readonly context?: TContext;
+  readonly principal?: TPrincipal;
+  readonly signal?: AbortSignal;
 }
 ```
 
@@ -768,15 +828,19 @@ interface LocalOptions<TContext> {
 ### `LocalHandler`
 
 ```ts
-type LocalHandler<TRoute extends RouteDef, TContext> = (
-  args: HandlerArgsOf<TRoute> & { readonly context: TContext },
+type LocalHandler<TRoute extends RouteDef, TContext, TPrincipal = unknown> = (
+  args: HandlerArgsOf<TRoute> & {
+    readonly context: TContext;
+    readonly principal: TPrincipal | undefined;
+    readonly signal: AbortSignal;
+  },
 ) =>
   | Result<OutputOf<TRoute>, ErrorOf<TRoute>>
   | ResultAsync<OutputOf<TRoute>, ErrorOf<TRoute>>
   | Promise<Result<OutputOf<TRoute>, ErrorOf<TRoute>>>;
 
-type LocalHandlers<TContract extends ContractDef, TContext> = {
-  readonly [K in keyof TContract]: LocalHandler<TContract[K], TContext>;
+type LocalHandlers<TContract extends ContractDef, TContext, TPrincipal = unknown> = {
+  readonly [K in keyof TContract]: LocalHandler<TContract[K], TContext, TPrincipal>;
 };
 ```
 
@@ -794,10 +858,11 @@ function createLocalClient<TContract extends ContractDef, TContext = undefined>(
 ): LocalClient<TContract>;
 ```
 
-One typed method per operation. Each call returns
-`ResultAsync<OutputOf<Route>, LocalErrorOf<Route>>` — declared domain codes plus
-the host codes local dispatch can raise (`validation_error`, `internal`). There
-is no `unavailable`.
+One typed method per operation: `(args, { signal, principal }?)`. Each call
+returns `ResultAsync<OutputOf<Route>, LocalErrorOf<Route>>` — declared domain
+codes plus the host codes local dispatch can raise (`validation_error`,
+`internal`, `route_not_found`, and `boundary.*`). There is no `unavailable`.
+An abort returns `boundary.cancelled`.
 
 ```ts
 import { createLocalClient } from '@eddy-works/never-rest/local';
@@ -813,12 +878,12 @@ const result = await claims.getClaim({ params: { zone: 'core' } });
 ### `createDispatcher`
 
 ```ts
-interface LocalDispatcher<TContract extends ContractDef, TContext> {
+interface LocalDispatcher<TContract extends ContractDef, TContext, TPrincipal = unknown> {
   readonly operations: readonly (keyof TContract & string)[];
   dispatch(
     operation: string,
     args: unknown,
-    context?: TContext,
+    options?: LocalCallOptions<TContext, TPrincipal>,
   ): ResultAsync<unknown, RailError<string>>;
 }
 
@@ -842,7 +907,11 @@ const dispatcher = createDispatcher(claimContract, claimHandlers, {
 });
 
 // Inside an existing NDJSON socket loop:
-const result = await dispatcher.dispatch(frame.method, frame.params, context);
+const result = await dispatcher.dispatch(frame.method, frame.params, {
+  context,
+  principal,
+  signal,
+});
 ```
 
 Both constructors throw `ContractConfigurationError` when an operation has no
@@ -852,7 +921,11 @@ message as its cause, so nothing escapes the railway.
 ### `LocalErrorOf` / `LocalHostErrorCode`
 
 ```ts
-type LocalHostErrorCode = 'validation_error' | 'internal' | 'route_not_found';
+type LocalHostErrorCode =
+  | 'validation_error'
+  | 'internal'
+  | 'route_not_found'
+  | BoundaryErrorCode;
 
 type LocalErrorOf<TRoute extends RouteDef> =
   | ErrorOf<TRoute>
@@ -875,12 +948,16 @@ Test-time helpers — not for production request paths.
 ### `createTestClient`
 
 ```ts
-interface CreateTestClientOptions<TContext> {
+interface CreateTestClientOptions<TContext, TPrincipal = unknown> {
   readonly context?: TContext;
   readonly baseUrl?: string;
   readonly basePath?: `/${string}`;
   readonly headers?: HeadersInit;
   readonly disclosure?: Disclosure;
+  readonly policy?: Policy<ContractDef, TPrincipal>;
+  readonly admission?: AdmissionOptions<TPrincipal>;
+  readonly limits?: ServeLimits;
+  readonly timeouts?: ServeTimeouts;
 }
 
 function createTestClient<TContract extends ContractDef, TContext>(
@@ -967,7 +1044,10 @@ type NodeHttpHandler = (
 ### `toNodeHandler`
 
 ```ts
-function toNodeHandler(handler: FetchHandler): NodeHttpHandler;
+function toNodeHandler(
+  handler: FetchHandler,
+  options?: { readonly maxBodyBytes?: number; readonly bodyTimeoutMs?: number },
+): NodeHttpHandler;
 ```
 
 ```ts
@@ -984,7 +1064,7 @@ app.use(toNodeHandler((request) => handler(request, undefined)));
 
 Close over `serve` context when needed: `toNodeHandler((req) => handler(req, ctx))`.
 
-Incoming POST/PUT/PATCH/DELETE bodies are fully buffered in `toWebRequest` before the fetch handler runs. Register Express upload routes *before* this bridge if you need the live stream. Outgoing SSE/downloads can still pipe via `writeWebResponse`. See [files and streams](./files-and-streams.md).
+Incoming bodies are streamed through a counting transform. Oversized `Content-Length` is rejected before the fetch handler runs. Close events abort `Request.signal`. Unread bodies are destroyed after the response. Register Express upload routes *before* this bridge if a sibling handler needs the live stream. Outgoing SSE/downloads can still pipe via `writeWebResponse`. See [files and streams](./files-and-streams.md).
 
 **Tests:** `src/node/to-node-handler.test.ts`.
 
@@ -1002,11 +1082,12 @@ function toOpenAPI<TContract extends ContractDef>(
   options: {
     readonly info: { readonly title: string; readonly version: string; readonly description?: string };
     readonly servers?: readonly { readonly url: string; readonly description?: string }[];
+    readonly boundary?: { readonly auth?: boolean; readonly limits?: boolean };
   },
 ): Record<string, unknown>;
 ```
 
-Compiles the contract, converts Standard Schema via `~standard.jsonSchema` (draft 2020-12), maps `:param` paths to `{param}`, and emits a public `RailError` component plus `RouteNotFound` once per path. Validators that cannot convert to JSON Schema (for example Valibot) throw `OpenApiExportError` — the exporter never invents `{}`.
+Compiles the contract, converts Standard Schema via `~standard.jsonSchema` (draft 2020-12), maps `:param` paths to `{param}`, and emits a public `RailError` component plus `RouteNotFound` once per path. Routes with a body gain 408 and 413 responses. `boundary.auth` adds shared 401 / 403; `boundary.limits` adds 429 / 503 and documents `Retry-After`. Validators that cannot convert to JSON Schema (for example Valibot) throw `OpenApiExportError` — the exporter never invents `{}`.
 
 ```ts
 import { toOpenAPI } from '@eddy-works/never-rest/openapi';
@@ -1063,6 +1144,109 @@ function createMutationOptions<TContract extends ContractDef>(
 function isRetryable(error: RailError): boolean;
 ```
 
-`true` only for `unavailable` and `internal`.
+`true` only for `retryable: true`, `unavailable`, `boundary.rate_limited`, and `boundary.overloaded`. Never retries `internal`, authentication failures, validation errors, or cancellations.
 
 **Tests:** `src/query/options.test.ts`.
+
+---
+
+## `@eddy-works/never-rest/policy`
+
+Construction-time operation policy. No `node:*` imports. Optional on `serve` and `createDispatcher`; when present it must cover every operation.
+
+### `definePolicy`
+
+```ts
+function definePolicy<TContract extends ContractDef, TPrincipal = unknown>(
+  contract: TContract,
+  options: {
+    readonly verify?: (request: Request) => Result<TPrincipal | undefined, RailError<string>> | ResultAsync<TPrincipal | undefined, RailError<string>>;
+    readonly operations: {
+      readonly [K in keyof TContract]:
+        | 'public'
+        | ((input: { principal: TPrincipal | undefined; args: HandlerArgsOf<TContract[K]> }) => PolicyDecision);
+    };
+    readonly disclosure?: (principal: TPrincipal | undefined) => Disclosure;
+  },
+): Policy<TContract, TPrincipal>;
+```
+
+Throws `ContractConfigurationError` for a missing operation, an unknown key, or an entry that is neither a function nor `'public'`. HTTP `verify` reads headers only. Authorization runs after parse. A verifier that throws returns `boundary.unauthenticated`; an authorizer that throws returns `boundary.forbidden`. See [advanced-usage.md](./advanced-usage.md).
+
+**Tests:** `src/policy/define.test.ts`.
+
+---
+
+## `@eddy-works/never-rest/limits`
+
+Limiter and concurrency interfaces. No runtime dependencies and no `node:*`, so the subpath runs on Workers, Bun, and Deno. `./client` never imports this module.
+
+### `Limiter`
+
+```ts
+interface Limiter {
+  consume(
+    key: string,
+    cost: number,
+  ): ResultAsync<
+    { kind: 'allowed' } | { kind: 'limited'; retryAfterMs: number },
+    RailError<'limiter_unavailable'>
+  >;
+}
+```
+
+### `createMemoryLimiter`
+
+```ts
+function createMemoryLimiter(options: {
+  readonly points: number;
+  readonly durationMs: number;
+  readonly maxKeys: number;
+}): Limiter;
+```
+
+Single-process. Keys expire after `durationMs`. At `maxKeys`, new keys are limited. State resets on restart and is not shared between replicas.
+
+### `fromRateLimiterFlexible`
+
+```ts
+function fromRateLimiterFlexible(limiter: {
+  consume(key: string, points?: number): Promise<unknown>;
+}): Limiter;
+```
+
+Structural adapter — the package does not import `rate-limiter-flexible`. A rejection with `msBeforeNext` means limited; an `Error` rejection means the store failed.
+
+### `createConcurrencyGate`
+
+```ts
+function createConcurrencyGate(options: {
+  readonly maxInFlight: number;
+  readonly maxQueue: number;
+  readonly queueTimeoutMs: number;
+}): {
+  acquire(
+    signal: AbortSignal,
+    cost?: number,
+  ): ResultAsync<() => void, RailError<string>>;
+};
+```
+
+Calling `release` more than once is safe. Aborting removes a waiter from the queue.
+
+### Admission on `serve` / `createDispatcher`
+
+```ts
+admission: {
+  anonymous?: { limiter: Limiter; key: string | ((source) => string) };
+  principal?: { limiter: Limiter; key: (principal) => string };
+  cost?: (operation: string) => number;
+  concurrency?: ConcurrencyGate;
+  onStoreFailure: 'reject' | { fallback: Limiter };
+}
+```
+
+`onStoreFailure` is required. A store failure never silently allows unlimited work. never-rest does not parse `X-Forwarded-For`. See [security-boundaries.md](./security-boundaries.md).
+
+**Tests:** `src/limits/memory.test.ts`, `src/limits/flexible.test.ts`, `src/limits/concurrency.test.ts`.
+

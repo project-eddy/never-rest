@@ -11,9 +11,10 @@ import type {
   RouteDef,
 } from '../contract/types.js';
 import { railError } from '../error.js';
+import { combineAbortSignals, errorForAbort, isAbortError } from '../signals.js';
 import { buildRequest } from './request.js';
 import { mapResponse } from './response.js';
-import type { Client, ClientOptions } from './types.js';
+import type { Client, ClientCallOptions, ClientOptions } from './types.js';
 
 function unavailableError() {
   return railError('unavailable', 'Network request failed', { retryable: true });
@@ -60,6 +61,39 @@ function invokeFetch(
       reject(error);
     }
   });
+}
+
+function fetchFailure(
+  error: unknown,
+  signal: AbortSignal,
+): ClientErrorOf<RouteDef> {
+  if (signal.aborted || isAbortError(error)) {
+    return errorForAbort(signal) as ClientErrorOf<RouteDef>;
+  }
+  return unavailableError();
+}
+
+function clientSignal(
+  options: ClientOptions,
+  callOptions: ClientCallOptions | undefined,
+): AbortSignal {
+  const timeout =
+    options.timeoutMs !== undefined
+      ? AbortSignal.timeout(options.timeoutMs)
+      : undefined;
+  return combineAbortSignals([callOptions?.signal, timeout]);
+}
+
+function withCallHeaders(
+  headers: HeadersInit,
+  callOptions: ClientCallOptions | undefined,
+): HeadersInit {
+  if (callOptions?.idempotencyKey === undefined) {
+    return headers;
+  }
+  const merged = new Headers(headers);
+  merged.set('Idempotency-Key', callOptions.idempotencyKey);
+  return merged;
 }
 
 function headersInitToRecord(headers: HeadersInit): Record<string, string> {
@@ -131,7 +165,12 @@ function callRoute<TRoute extends RouteDef>(
   options: ClientOptions,
   fetchFn: typeof fetch,
   args: ClientArgsOf<TRoute>,
+  callOptions?: ClientCallOptions,
 ): ResultAsync<OutputOf<TRoute>, ClientErrorOf<TRoute>> {
+  const signal = clientSignal(options, callOptions);
+  if (signal.aborted) {
+    return errAsync(errorForAbort(signal) as ClientErrorOf<TRoute>);
+  }
   return resolveHeaders(options.headers).andThen((globalHeaders) =>
     mergeHeadersInit(
       globalHeaders,
@@ -146,7 +185,7 @@ function callRoute<TRoute extends RouteDef>(
                 compiledPath,
                 options.baseUrl,
                 args,
-                wireHeaders,
+                withCallHeaders(wireHeaders, callOptions),
                 options.credentials,
               );
               if (built.isErr()) {
@@ -154,8 +193,8 @@ function callRoute<TRoute extends RouteDef>(
               }
               const { url, init } = built.value;
               return ResultAsync.fromPromise(
-                invokeFetch(fetchFn, url, init),
-                () => unavailableError(),
+                invokeFetch(fetchFn, url, { ...init, signal }),
+                (error) => fetchFailure(error, signal),
               ).andThen((response) => mapResponse(route, response));
             },
           ),
@@ -176,13 +215,17 @@ export function createClient<TContract extends ContractDef>(
   for (const key of Object.keys(contract) as (keyof TContract & string)[]) {
     const route = contract[key];
     const compiledPath = compiled.routes[key].compiledPath;
-    client[key] = (args?: ClientArgsOf<typeof route>) =>
+    client[key] = (
+      args?: ClientArgsOf<typeof route>,
+      callOptions?: ClientCallOptions,
+    ) =>
       callRoute(
         route,
         compiledPath,
         options,
         fetchFn,
         (args ?? {}) as ClientArgsOf<typeof route>,
+        callOptions,
       );
   }
 

@@ -1,4 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { BoundaryErrorCode } from '../boundary.js';
 import type { RailError } from '../error.js';
 
 export interface RouteDef {
@@ -88,4 +89,5 @@ export type ServerErrorOf<TRoute extends RouteDef> =
 
 export type ClientErrorOf<TRoute extends RouteDef> =
   | ServerErrorOf<TRoute>
-  | RailError<'unavailable'>;
+  | RailError<'unavailable'>
+  | RailError<BoundaryErrorCode>;

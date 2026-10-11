@@ -34,13 +34,9 @@ type _LocalHandlerMountsUnderServe = Expect<
     : false
 >;
 
-/** Guards the deliberate duplication of the host code union. */
-type _HostCodesMatchServer = Expect<
-  LocalHostErrorCode extends ServerHostErrorCode
-    ? ServerHostErrorCode extends LocalHostErrorCode
-      ? true
-      : false
-    : false
+/** Local host codes include the server host codes plus boundary codes. */
+type _HostCodesIncludeServer = Expect<
+  ServerHostErrorCode extends LocalHostErrorCode ? true : false
 >;
 
 type _OptionsCarryTrustCircleControls = Expect<

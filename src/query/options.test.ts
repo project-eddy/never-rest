@@ -145,9 +145,19 @@ describe('createMutationOptions', () => {
 });
 
 describe('isRetryable', () => {
-  it('retries unavailable and internal errors', () => {
+  it('retries unavailable and explicit retryable errors', () => {
     expect(isRetryable({ code: 'unavailable', message: 'down' })).toBe(true);
-    expect(isRetryable({ code: 'internal', message: 'oops' })).toBe(true);
+    expect(isRetryable({ code: 'boundary.rate_limited', message: 'slow down' })).toBe(
+      true,
+    );
+    expect(isRetryable({ code: 'internal', message: 'oops', retryable: true })).toBe(
+      true,
+    );
+    expect(isRetryable({ code: 'internal', message: 'oops' })).toBe(false);
+  });
+
+  it('Leaving internal errors non-retryable', () => {
+    expect(isRetryable({ code: 'internal', message: 'oops' })).toBe(false);
   });
 
   it('does not retry domain or validation errors', () => {
